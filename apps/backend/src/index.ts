@@ -1,7 +1,9 @@
 import express from 'express';
 import cors from 'cors';
+import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env';
 import { db } from './config/db';
+import { swaggerSpec } from './config/swagger';
 import router from './routes';
 import { errorHandler } from './middleware/errorHandler';
 
@@ -14,6 +16,15 @@ app.use(cors({
 }));
 
 app.use(express.json());
+
+// API docs — available at /docs
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customSiteTitle: 'SIS API Docs',
+  swaggerOptions: {
+    persistAuthorization: true,   // keeps JWT token across page reloads
+    defaultModelsExpandDepth: -1, // hide the schemas section by default
+  },
+}));
 
 app.use('/api', router);
 
@@ -30,6 +41,7 @@ async function start() {
 
   app.listen(env.port, () => {
     console.log(`[server] Running on http://localhost:${env.port} (${env.nodeEnv})`);
+    console.log(`[docs]   http://localhost:${env.port}/docs`);
   });
 }
 
