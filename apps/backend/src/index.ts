@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import morgan from 'morgan';
 import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env';
 import { db } from './config/db';
@@ -18,6 +19,8 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
+
+app.use(morgan(':method :url :status :res[content-length] bytes — :response-time ms'));
 
 app.use(express.json());
 
