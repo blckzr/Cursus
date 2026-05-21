@@ -1,6 +1,13 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth';
 import { login, me } from '../modules/auth/auth.controller';
+import usersRouter from '../modules/users/users.routes';
+import programsRouter from '../modules/programs/programs.routes';
+import coursesRouter from '../modules/courses/courses.routes';
+import termsRouter from '../modules/terms/terms.routes';
+import sectionsRouter from '../modules/sections/sections.routes';
+import enrollmentsRouter from '../modules/enrollments/enrollments.routes';
+import gradebookRouter from '../modules/gradebook/gradebook.routes';
 
 const router = Router();
 
@@ -85,5 +92,13 @@ router.post('/auth/login', login);
  *               $ref: '#/components/schemas/ErrorResponse'
  */
 router.get('/auth/me', authenticate, me);
+
+router.use('/users', usersRouter);
+router.use('/programs', programsRouter);
+router.use('/courses', coursesRouter);
+router.use('/terms', termsRouter);
+router.use('/sections', sectionsRouter);
+router.use('/enrollments', enrollmentsRouter);
+router.use('/', gradebookRouter);
 
 export default router;

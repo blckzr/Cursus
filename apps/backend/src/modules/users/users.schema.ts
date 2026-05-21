@@ -1,0 +1,14 @@
+import { z } from 'zod';
+
+export const createUserSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8, 'Password must be at least 8 characters'),
+  fullName: z.string().min(1),
+  role: z.enum(['admin', 'faculty', 'student']),
+});
+
+export const updateUserSchema = z.object({
+  fullName: z.string().min(1).optional(),
+  isActive: z.boolean().optional(),
+  password: z.string().min(8).optional(),
+});
