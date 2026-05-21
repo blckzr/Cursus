@@ -69,11 +69,18 @@ CREATE TABLE sections (
 
 -- ============ ENROLLMENT ============
 CREATE TABLE enrollments (
-    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    student_id  UUID NOT NULL REFERENCES users(id),
-    section_id  UUID NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
-    status      enroll_status NOT NULL DEFAULT 'enrolled',
-    enrolled_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    id             UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id     UUID          NOT NULL REFERENCES users(id),
+    section_id     UUID          NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+    status         enroll_status NOT NULL DEFAULT 'enrolled',
+    enrolled_at    TIMESTAMPTZ   NOT NULL DEFAULT now(),
+
+    -- Final grade (populated by faculty at term end; NULL = not yet finalized)
+    numeric_grade  NUMERIC(5,2)  CHECK (numeric_grade >= 0 AND numeric_grade <= 100),
+    letter_grade   TEXT,
+    finalized_at   TIMESTAMPTZ,
+    finalized_by   UUID          REFERENCES users(id),
+
     UNIQUE (student_id, section_id)
 );
 
