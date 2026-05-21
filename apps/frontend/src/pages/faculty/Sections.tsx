@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
+import { Calendar, ArrowRight } from 'lucide-react';
 import { getSections } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
@@ -25,11 +26,12 @@ export default function FacultySections() {
                   <h3 className="font-semibold text-stone-800 mt-0.5">{s.course_title}</h3>
                   <p className="text-stone-500 text-sm mt-1">{s.term_name}</p>
                 </div>
-                <span className="text-stone-300 group-hover:text-olive-400 transition-colors text-xl">→</span>
+                <ArrowRight size={18} className="text-stone-300 group-hover:text-olive-400 transition-colors mt-0.5" />
               </div>
               {s.day_of_week && (
-                <p className="text-xs text-stone-400 mt-3 flex items-center gap-1">
-                  📅 {s.day_of_week} {s.start_time}–{s.end_time} {s.room && `· ${s.room}`}
+                <p className="text-xs text-stone-400 mt-3 flex items-center gap-1.5">
+                  <Calendar size={12} />
+                  {s.day_of_week} {s.start_time}–{s.end_time} {s.room && `· ${s.room}`}
                 </p>
               )}
               <p className="text-xs text-stone-400 mt-1">Capacity: {s.capacity}</p>

@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2 } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppLayout from './layouts/AppLayout';
 import Login from './pages/Login';
@@ -26,16 +27,16 @@ const qc = new QueryClient({
 });
 
 const adminNav = [
-  { label: 'Users',       to: '/admin/users',       icon: '👤' },
-  { label: 'Programs',    to: '/admin/programs',    icon: '🎓' },
-  { label: 'Courses',     to: '/admin/courses',     icon: '📚' },
-  { label: 'Terms',       to: '/admin/terms',       icon: '📅' },
-  { label: 'Sections',    to: '/admin/sections',    icon: '🏫' },
-  { label: 'Enrollments', to: '/admin/enrollments', icon: '📝' },
+  { label: 'Users',       to: '/admin/users',       icon: UsersIcon     },
+  { label: 'Programs',    to: '/admin/programs',    icon: GraduationCap },
+  { label: 'Courses',     to: '/admin/courses',     icon: BookOpen      },
+  { label: 'Terms',       to: '/admin/terms',       icon: Calendar      },
+  { label: 'Sections',    to: '/admin/sections',    icon: School        },
+  { label: 'Enrollments', to: '/admin/enrollments', icon: ClipboardList },
 ];
 
-const facultyNav = [{ label: 'My Sections', to: '/faculty', icon: '🏫' }];
-const studentNav = [{ label: 'My Grades',   to: '/student', icon: '📊' }];
+const facultyNav = [{ label: 'My Sections', to: '/faculty', icon: LayoutGrid }];
+const studentNav = [{ label: 'My Grades',   to: '/student', icon: BarChart2  }];
 
 function Guard({ role }: { role: 'admin' | 'faculty' | 'student' }) {
   const { user } = useAuth();
