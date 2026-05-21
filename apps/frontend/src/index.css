@@ -1,0 +1,37 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-beige-200 text-stone-800 font-sans;
+  }
+  h1 { @apply text-2xl font-semibold text-stone-800; }
+  h2 { @apply text-xl font-semibold text-stone-800; }
+  h3 { @apply text-lg font-medium text-stone-700; }
+}
+
+@layer components {
+  .btn-primary   { @apply bg-olive-400 hover:bg-olive-500 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm; }
+  .btn-secondary { @apply bg-khaki-200 hover:bg-khaki-300 text-stone-700 font-medium px-4 py-2 rounded-lg transition-colors text-sm; }
+  .btn-danger    { @apply bg-red-500 hover:bg-red-600 text-white font-medium px-4 py-2 rounded-lg transition-colors text-sm; }
+  .btn-ghost     { @apply hover:bg-beige-300 text-stone-600 font-medium px-4 py-2 rounded-lg transition-colors text-sm; }
+
+  .input {
+    @apply w-full border border-khaki-200 rounded-lg px-3 py-2 text-sm bg-white
+           focus:outline-none focus:ring-2 focus:ring-olive-300 focus:border-transparent
+           placeholder:text-stone-400;
+  }
+  .label { @apply block text-sm font-medium text-stone-600 mb-1; }
+  .card  { @apply bg-white rounded-xl shadow-sm border border-khaki-100 p-6; }
+
+  .table-th { @apply px-4 py-3 text-left text-xs font-semibold text-stone-500 uppercase tracking-wider bg-beige-100; }
+  .table-td { @apply px-4 py-3 text-sm text-stone-700 border-t border-beige-200; }
+
+  .badge-admin   { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-olive-100 text-olive-600; }
+  .badge-faculty { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-khaki-100 text-khaki-500; }
+  .badge-student { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-beige-300 text-stone-600; }
+  .badge-enrolled  { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700; }
+  .badge-dropped   { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-600; }
+  .badge-completed { @apply inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-olive-100 text-olive-600; }
+}

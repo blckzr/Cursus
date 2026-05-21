@@ -160,7 +160,7 @@ FOR EACH ROW EXECUTE FUNCTION check_category_weights();
 INSERT INTO users (email, password_hash, full_name, role)
 VALUES (
     'admin@sis.local',
-    '$2a$12$LQv3c1yqBWVHxkd0LHAkCOYz6TtxMQJqhN8/LewdBdkGLQyj4EQKC',
+    '$2a$12$a54Ntg6pq4X3A.HFvs7h9OGXFUyzFI9ZtkbeydkFBlKgDAT3TPOSq',
     'System Administrator',
     'admin'
 );

@@ -9,8 +9,12 @@ import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
+const allowedOrigins = env.nodeEnv === 'development'
+  ? /^http:\/\/localhost:\d+$/   // allow any localhost port in dev
+  : env.clientOrigin;
+
 app.use(cors({
-  origin: env.clientOrigin,
+  origin: allowedOrigins,
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));
