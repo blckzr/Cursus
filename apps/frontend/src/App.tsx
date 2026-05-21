@@ -13,7 +13,17 @@ import FacultySections from './pages/faculty/Sections';
 import Gradebook from './pages/faculty/Gradebook';
 import StudentGrades from './pages/student/Grades';
 
-const qc = new QueryClient({ defaultOptions: { queries: { retry: 1, staleTime: 30_000 } } });
+const qc = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 1,
+      staleTime: 5 * 60 * 1000,      // data stays fresh for 5 minutes — no refetch during this window
+      gcTime: 10 * 60 * 1000,         // keep unused data in memory for 10 minutes
+      refetchOnWindowFocus: false,    // don't refetch when switching browser tabs
+      refetchOnReconnect: false,      // don't refetch on network reconnect
+    },
+  },
+});
 
 const adminNav = [
   { label: 'Users',       to: '/admin/users',       icon: '👤' },
