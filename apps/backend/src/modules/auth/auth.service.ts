@@ -6,28 +6,26 @@ import { JwtPayload, UserRole } from '../../middleware/auth';
 
 interface UserRow {
   id: string;
+  user_code: string;
   email: string;
   password_hash: string;
   full_name: string;
   role: UserRole;
+  branch: string;
   is_active: boolean;
 }
 
 export async function loginUser(email: string, password: string) {
   const { rows } = await db.query<UserRow>(
-    'SELECT id, email, password_hash, full_name, role, is_active FROM users WHERE email = $1',
+    'SELECT id, user_code, email, password_hash, full_name, role, branch, is_active FROM users WHERE email = $1',
     [email],
   );
 
   const user = rows[0];
-  if (!user || !user.is_active) {
-    throw new Error('Invalid credentials');
-  }
+  if (!user || !user.is_active) throw new Error('Invalid credentials');
 
   const valid = await bcrypt.compare(password, user.password_hash);
-  if (!valid) {
-    throw new Error('Invalid credentials');
-  }
+  if (!valid) throw new Error('Invalid credentials');
 
   const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
   const token = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn } as jwt.SignOptions);
@@ -35,10 +33,12 @@ export async function loginUser(email: string, password: string) {
   return {
     token,
     user: {
-      id: user.id,
-      email: user.email,
+      id:       user.id,
+      userCode: user.user_code,
+      email:    user.email,
       fullName: user.full_name,
-      role: user.role,
+      role:     user.role,
+      branch:   user.branch,
     },
   };
 }

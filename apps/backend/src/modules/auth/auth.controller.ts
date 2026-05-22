@@ -20,7 +20,7 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 export async function me(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { rows } = await db.query(
-      'SELECT id, email, full_name, role FROM users WHERE id = $1',
+      'SELECT id, user_code, email, full_name, role, branch FROM users WHERE id = $1',
       [req.user!.sub],
     );
     if (!rows[0]) {
@@ -28,7 +28,7 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
       return;
     }
     const u = rows[0];
-    res.json({ id: u.id, email: u.email, fullName: u.full_name, role: u.role });
+    res.json({ id: u.id, userCode: u.user_code, email: u.email, fullName: u.full_name, role: u.role, branch: u.branch });
   } catch (err) {
     next(err);
   }
