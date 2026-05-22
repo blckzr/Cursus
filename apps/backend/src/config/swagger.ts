@@ -72,6 +72,7 @@ const options: swaggerJsdoc.Options = {
       { name: 'Terms',       description: 'Academic terms / semesters' },
       { name: 'Sections',    description: 'Course sections (offerings)' },
       { name: 'Enrollments', description: 'Student enrollment in sections' },
+      { name: 'Blocks',      description: 'Year/program cohort blocks and promotion' },
       { name: 'Gradebook',   description: 'Categories, assessments, scores, and final grades' },
     ],
   },

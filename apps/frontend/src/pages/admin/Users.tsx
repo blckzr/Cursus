@@ -70,6 +70,7 @@ export default function Users() {
               <th className="table-th">Email</th>
               <th className="table-th">Branch</th>
               <th className="table-th">Program</th>
+              <th className="table-th">Block</th>
               <th className="table-th">Role</th>
               <th className="table-th">Status</th>
               <th className="table-th">Actions</th>
@@ -88,6 +89,11 @@ export default function Users() {
                   <td className="table-td">
                     {u.program_code
                       ? <span className="font-mono text-xs bg-beige-200 text-olive-600 px-2 py-1 rounded font-semibold">{u.program_code}</span>
+                      : <span className="text-stone-300">—</span>}
+                  </td>
+                  <td className="table-td">
+                    {u.block_label
+                      ? <span className="font-mono text-xs text-stone-600">{u.block_label}</span>
                       : <span className="text-stone-300">—</span>}
                   </td>
                   <td className="table-td">{roleBadge(u.role)}</td>

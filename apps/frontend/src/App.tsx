@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2 } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AppLayout from './layouts/AppLayout';
 import Login from './pages/Login';
@@ -9,6 +9,7 @@ import Programs from './pages/admin/Programs';
 import Courses from './pages/admin/Courses';
 import Terms from './pages/admin/Terms';
 import Sections from './pages/admin/Sections';
+import Blocks from './pages/admin/Blocks';
 import Enrollments from './pages/admin/Enrollments';
 import FacultySections from './pages/faculty/Sections';
 import Gradebook from './pages/faculty/Gradebook';
@@ -29,6 +30,7 @@ const qc = new QueryClient({
 const adminNav = [
   { label: 'Users',       to: '/admin/users',       icon: UsersIcon     },
   { label: 'Programs',    to: '/admin/programs',    icon: GraduationCap },
+  { label: 'Blocks',      to: '/admin/blocks',      icon: Boxes         },
   { label: 'Courses',     to: '/admin/courses',     icon: BookOpen      },
   { label: 'Terms',       to: '/admin/terms',       icon: Calendar      },
   { label: 'Sections',    to: '/admin/sections',    icon: School        },
@@ -65,6 +67,7 @@ export default function App() {
               <Route index element={<Navigate to="users" replace />} />
               <Route path="users"       element={<Users />} />
               <Route path="programs"    element={<Programs />} />
+              <Route path="blocks"      element={<Blocks />} />
               <Route path="courses"     element={<Courses />} />
               <Route path="terms"       element={<Terms />} />
               <Route path="sections"    element={<Sections />} />

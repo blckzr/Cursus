@@ -1,0 +1,140 @@
+import { db } from '../../config/db';
+
+/** Every block with its program info and live student count. */
+export async function listBlocks() {
+  const { rows } = await db.query(`
+    SELECT bs.id, bs.program_id, bs.year_level, bs.block_number, bs.capacity,
+           p.code AS program_code, p.name AS program_name,
+           COUNT(u.id)::int AS student_count
+    FROM block_sections bs
+    JOIN programs p ON p.id = bs.program_id
+    LEFT JOIN users u ON u.block_section_id = bs.id AND u.role = 'student'
+    GROUP BY bs.id, p.code, p.name
+    ORDER BY p.code, bs.year_level, bs.block_number
+  `);
+  return rows;
+}
+
+/** Create any blocks the program's config requires but that don't exist yet. */
+export async function syncBlocksForProgram(programId: string) {
+  await db.query(
+    `INSERT INTO block_sections (program_id, year_level, block_number, capacity)
+     SELECT p.id, y.year_level, b.block_number, p.block_capacity
+     FROM programs p
+     CROSS JOIN generate_series(1, p.year_levels)     AS y(year_level)
+     CROSS JOIN generate_series(1, p.blocks_per_year) AS b(block_number)
+     WHERE p.id = $1
+     ON CONFLICT (program_id, year_level, block_number) DO NOTHING`,
+    [programId],
+  );
+}
+
+/** A random block in (program, yearLevel) that still has free capacity, or null. */
+export async function pickRandomBlock(programId: string, yearLevel: number): Promise<string | null> {
+  const { rows } = await db.query(
+    `SELECT bs.id
+     FROM block_sections bs
+     LEFT JOIN users u ON u.block_section_id = bs.id AND u.role = 'student'
+     WHERE bs.program_id = $1 AND bs.year_level = $2
+     GROUP BY bs.id, bs.capacity
+     HAVING COUNT(u.id) < bs.capacity
+     ORDER BY random()
+     LIMIT 1`,
+    [programId, yearLevel],
+  );
+  return rows[0]?.id ?? null;
+}
+
+/**
+ * Promote every active student in (program, yearLevel) to the next year level
+ * and randomly redistribute them across that next year's blocks.
+ */
+export async function promoteYear(programId: string, yearLevel: number, adminId: string) {
+  const nextYear = yearLevel + 1;
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const prog = await client.query('SELECT code, year_levels FROM programs WHERE id = $1', [programId]);
+    if (!prog.rows[0]) throw Object.assign(new Error('Program not found'), { status: 404 });
+    if (nextYear > prog.rows[0].year_levels) {
+      throw Object.assign(
+        new Error(`Year ${yearLevel} is the final year of ${prog.rows[0].code} — students here graduate rather than promote.`),
+        { status: 409 },
+      );
+    }
+
+    const studs = await client.query(
+      `SELECT id FROM users
+       WHERE program_id = $1 AND year_level = $2 AND role = 'student' AND is_active = true`,
+      [programId, yearLevel],
+    );
+    const studentIds: string[] = studs.rows.map(r => r.id);
+
+    if (studentIds.length === 0) {
+      await client.query('COMMIT');
+      return { promoted: 0, nextYear };
+    }
+
+    const blks = await client.query(
+      `SELECT id, capacity FROM block_sections
+       WHERE program_id = $1 AND year_level = $2 ORDER BY block_number`,
+      [programId, nextYear],
+    );
+    if (blks.rows.length === 0) {
+      throw Object.assign(new Error(`No blocks exist for year ${nextYear}.`), { status: 409 });
+    }
+
+    const blockIds: string[] = blks.rows.map(b => b.id);
+    const caps: Record<string, number> = {};
+    blks.rows.forEach(b => { caps[b.id] = b.capacity; });
+    const totalCap = blks.rows.reduce((s, b) => s + b.capacity, 0);
+    if (studentIds.length > totalCap) {
+      throw Object.assign(
+        new Error(`Year ${nextYear} capacity (${totalCap}) cannot hold the ${studentIds.length} students being promoted.`),
+        { status: 409 },
+      );
+    }
+
+    // Fisher–Yates shuffle so block placement is random
+    for (let k = studentIds.length - 1; k > 0; k--) {
+      const j = Math.floor(Math.random() * (k + 1));
+      [studentIds[k], studentIds[j]] = [studentIds[j], studentIds[k]];
+    }
+
+    // Round-robin assignment across blocks, skipping any that hit capacity
+    const counts: Record<string, number> = {};
+    blockIds.forEach(id => { counts[id] = 0; });
+    let bi = 0;
+    for (const sid of studentIds) {
+      let guard = 0;
+      while (counts[blockIds[bi]] >= caps[blockIds[bi]]) {
+        bi = (bi + 1) % blockIds.length;
+        if (++guard > blockIds.length) {
+          throw Object.assign(new Error('Unable to place all students into blocks.'), { status: 409 });
+        }
+      }
+      const target = blockIds[bi];
+      counts[target]++;
+      bi = (bi + 1) % blockIds.length;
+      await client.query(
+        'UPDATE users SET year_level = $1, block_section_id = $2 WHERE id = $3',
+        [nextYear, target, sid],
+      );
+    }
+
+    await client.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_value)
+       VALUES ($1, 'PROMOTE_YEAR', 'block_sections', $2, $3)`,
+      [adminId, programId, JSON.stringify({ fromYear: yearLevel, toYear: nextYear, promoted: studentIds.length })],
+    );
+
+    await client.query('COMMIT');
+    return { promoted: studentIds.length, nextYear };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
