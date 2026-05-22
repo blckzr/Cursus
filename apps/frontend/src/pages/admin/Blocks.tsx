@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBlocks, promoteYear } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
+import { useToast } from '../../components/Toast';
 
 interface Block {
   id: string;
@@ -17,9 +18,8 @@ interface Block {
 
 export default function Blocks() {
   const qc = useQueryClient();
+  const toast = useToast();
   const { data: blocks = [], isLoading } = useQuery<Block[]>({ queryKey: ['blocks'], queryFn: getBlocks });
-  const [msg, setMsg] = useState('');
-  const [isError, setIsError] = useState(false);
 
   const promoteMut = useMutation({
     mutationFn: ({ programId, yearLevel }: { programId: string; yearLevel: number }) =>
@@ -27,15 +27,19 @@ export default function Blocks() {
     onSuccess: (res: { promoted: number; nextYear: number }) => {
       qc.invalidateQueries({ queryKey: ['blocks'] });
       qc.invalidateQueries({ queryKey: ['users'] });
-      setIsError(false);
-      setMsg(res.promoted === 0
-        ? 'No active students to promote for that year.'
-        : `Promoted ${res.promoted} student(s) to Year ${res.nextYear} and reshuffled their blocks.`);
+      toast.push({
+        tone: res.promoted === 0 ? 'info' : 'success',
+        title: res.promoted === 0 ? 'Nothing to promote' : `Promoted ${res.promoted} student(s)`,
+        message: res.promoted === 0
+          ? 'No active students for that year.'
+          : `Moved to Year ${res.nextYear} and reshuffled their blocks.`,
+      });
     },
-    onError: (e: unknown) => {
-      setIsError(true);
-      setMsg((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Promotion failed');
-    },
+    onError: (e: unknown) => toast.push({
+      tone: 'error',
+      title: 'Promotion failed',
+      message: (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '',
+    }),
   });
 
   // Group flat block list into program → year level → blocks[]
@@ -54,24 +58,15 @@ export default function Blocks() {
   return (
     <div>
       <PageHeader
+        eyebrow="Cohorts"
         title="Blocks"
-        subtitle="Year & program cohort sections — students are auto-assigned on creation"
+        subtitle="Year & program cohort sections — students are auto-assigned on creation."
       />
-
-      {msg && (
-        <p className={`mb-4 text-sm rounded-lg px-3 py-2 border ${
-          isError
-            ? 'bg-red-50 border-red-200 text-red-600'
-            : 'bg-olive-50 border-olive-200 text-olive-600'
-        }`}>
-          {msg}
-        </p>
-      )}
 
       {isLoading ? (
         <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
       ) : blocks.length === 0 ? (
-        <EmptyState message="No blocks yet. Create a program to generate its blocks." />
+        <div className="card p-0"><EmptyState icon="boxes" title="No blocks yet" message="Create a program to generate its blocks." /></div>
       ) : (
         <div className="space-y-6">
           {[...grouped.entries()].map(([programId, prog]) => {

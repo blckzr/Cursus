@@ -1,9 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
 import Login from './pages/Login';
+import AdminDashboard from './pages/admin/Dashboard';
 import Users from './pages/admin/Users';
 import Programs from './pages/admin/Programs';
 import Courses from './pages/admin/Courses';
@@ -28,6 +30,7 @@ const qc = new QueryClient({
 });
 
 const adminNav = [
+  { label: 'Overview',    to: '/admin',             icon: Home          },
   { label: 'Users',       to: '/admin/users',       icon: UsersIcon     },
   { label: 'Programs',    to: '/admin/programs',    icon: GraduationCap },
   { label: 'Blocks',      to: '/admin/blocks',      icon: Boxes         },
@@ -57,14 +60,15 @@ export default function App() {
   return (
     <QueryClientProvider client={qc}>
       <AuthProvider>
-        <BrowserRouter>
+        <ToastProvider>
+          <BrowserRouter>
           <Routes>
             <Route path="/login" element={<Login />} />
             <Route path="/" element={<RootRedirect />} />
 
             {/* Admin */}
             <Route path="/admin" element={<><Guard role="admin" /><AppLayout navItems={adminNav} roleLabel="Administrator" /></>}>
-              <Route index element={<Navigate to="users" replace />} />
+              <Route index element={<AdminDashboard />} />
               <Route path="users"       element={<Users />} />
               <Route path="programs"    element={<Programs />} />
               <Route path="blocks"      element={<Blocks />} />
@@ -85,7 +89,8 @@ export default function App() {
               <Route index element={<StudentGrades />} />
             </Route>
           </Routes>
-        </BrowserRouter>
+          </BrowserRouter>
+        </ToastProvider>
       </AuthProvider>
     </QueryClientProvider>
   );

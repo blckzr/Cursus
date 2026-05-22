@@ -4,7 +4,9 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Poppins', 'sans-serif'],
+        sans: ['Poppins', 'system-ui', 'sans-serif'],
+        mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+        display: ['Fraunces', 'Poppins', 'serif'],
       },
       colors: {
         beige: {
@@ -33,6 +35,11 @@ export default {
           500: '#8C7A4D',
           DEFAULT: '#C9B587',
         },
+      },
+      boxShadow: {
+        card: '0 1px 2px rgba(58, 69, 26, 0.04), 0 1px 3px rgba(58, 69, 26, 0.06)',
+        pop: '0 6px 24px -8px rgba(58, 69, 26, 0.18), 0 2px 6px rgba(58, 69, 26, 0.08)',
+        'inset-tl': 'inset 1px 1px 0 rgba(255,255,255,0.5)',
       },
     },
   },
