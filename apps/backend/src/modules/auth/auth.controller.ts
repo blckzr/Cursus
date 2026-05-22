@@ -5,12 +5,12 @@ import { db } from '../../config/db';
 
 export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { email, password } = loginSchema.parse(req.body);
-    const result = await loginUser(email, password);
+    const { userCode, password } = loginSchema.parse(req.body);
+    const result = await loginUser(userCode, password);
     res.json(result);
   } catch (err) {
     if (err instanceof Error && err.message === 'Invalid credentials') {
-      res.status(401).json({ error: 'Invalid email or password' });
+      res.status(401).json({ error: 'Invalid user code or password' });
       return;
     }
     next(err);

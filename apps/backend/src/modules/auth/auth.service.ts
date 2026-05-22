@@ -15,10 +15,10 @@ interface UserRow {
   is_active: boolean;
 }
 
-export async function loginUser(email: string, password: string) {
+export async function loginUser(userCode: string, password: string) {
   const { rows } = await db.query<UserRow>(
-    'SELECT id, user_code, email, password_hash, full_name, role, branch, is_active FROM users WHERE email = $1',
-    [email],
+    'SELECT id, user_code, email, password_hash, full_name, role, branch, is_active FROM users WHERE user_code = $1',
+    [userCode],
   );
 
   const user = rows[0];

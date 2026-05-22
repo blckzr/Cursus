@@ -32,9 +32,9 @@ const options: swaggerJsdoc.Options = {
       schemas: {
         LoginRequest: {
           type: 'object',
-          required: ['email', 'password'],
+          required: ['userCode', 'password'],
           properties: {
-            email: { type: 'string', format: 'email', example: 'admin@sis.local' },
+            userCode: { type: 'string', example: '2026-00001-MN-2', description: 'User code in the format YYYY-NNNNN-BRANCH-ROLE' },
             password: { type: 'string', example: 'Admin@1234' },
           },
         },

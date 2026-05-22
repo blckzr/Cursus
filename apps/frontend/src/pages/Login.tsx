@@ -6,8 +6,8 @@ import { login } from '../api';
 export default function Login() {
   const { setAuth } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail]       = useState('admin@sis.local');
-  const [password, setPassword] = useState('Admin@1234');
+  const [userCode, setUserCode] = useState('');
+  const [password, setPassword] = useState('');
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
 
@@ -15,14 +15,14 @@ export default function Login() {
     e.preventDefault();
     setError(''); setLoading(true);
     try {
-      const data = await login(email, password);
+      const data = await login(userCode, password);
       setAuth(data.user, data.token);
       const role: string = data.user.role;
       if (role === 'admin')   navigate('/admin');
       else if (role === 'faculty') navigate('/faculty');
       else navigate('/student');
     } catch {
-      setError('Invalid email or password.');
+      setError('Invalid user code or password.');
     } finally {
       setLoading(false);
     }
@@ -43,11 +43,12 @@ export default function Login() {
         <div className="card">
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
-              <label className="label">Email address</label>
+              <label className="label">User code</label>
               <input
-                type="email" className="input"
-                value={email} onChange={e => setEmail(e.target.value)}
-                placeholder="you@sis.local" required
+                type="text" className="input font-mono tracking-wide"
+                value={userCode}
+                onChange={e => setUserCode(e.target.value.toUpperCase())}
+                placeholder="2026-00001-MN-2" required autoFocus
               />
             </div>
             <div>

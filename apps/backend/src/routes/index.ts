@@ -60,7 +60,7 @@ router.get('/health', (_req, res) => {
  *             schema:
  *               $ref: '#/components/schemas/LoginResponse'
  *       401:
- *         description: Invalid email or password
+ *         description: Invalid user code or password
  *         content:
  *           application/json:
  *             schema:

@@ -1,8 +1,8 @@
 import { api } from './client';
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
-export const login = (email: string, password: string) =>
-  api.post('/auth/login', { email, password }).then(r => r.data);
+export const login = (userCode: string, password: string) =>
+  api.post('/auth/login', { userCode, password }).then(r => r.data);
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 export const getUsers     = (role?: string) => api.get('/users', { params: { role } }).then(r => r.data);
