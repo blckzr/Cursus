@@ -11,7 +11,7 @@ export async function getGradebook(sectionId: string) {
        FROM sections s
        JOIN courses c ON c.id = s.course_id
        JOIN terms   t ON t.id = s.term_id
-       JOIN users   u ON u.id = s.faculty_id
+       LEFT JOIN users u ON u.id = s.faculty_id
        WHERE s.id = $1`,
       [sectionId],
     ),
@@ -244,7 +244,7 @@ export async function getStudentGrades(studentId: string) {
      JOIN sections s ON s.id = e.section_id
      JOIN courses  c ON c.id = s.course_id
      JOIN terms    t ON t.id = s.term_id
-     JOIN users    u ON u.id = s.faculty_id
+     LEFT JOIN users u ON u.id = s.faculty_id
      WHERE e.student_id = $1
      ORDER BY t.start_date DESC, c.code`,
     [studentId],

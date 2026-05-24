@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getSections, createSection, getCourses, getTerms, getUsers, getEnrollments } from '../../api';
+import { getSections, updateSection, getTerms, getUsers, getEnrollments } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
@@ -13,100 +13,129 @@ import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
 
-const EMPTY = { courseId: '', termId: '', facultyId: '', sectionCode: '', dayOfWeek: '', startTime: '', endTime: '', room: '', capacity: '' };
-
 const HEADERS: DataTableHeader[] = [
-  { label: 'Section' }, { label: 'Course' }, { label: 'Term' }, { label: 'Faculty' },
+  { label: 'Block' }, { label: 'Course' }, { label: 'Term' }, { label: 'Faculty' },
   { label: 'Schedule' }, { label: 'Room' }, { label: 'Enrolled', align: 'center' },
+  { label: '', align: 'right' },
 ];
 
 export default function Sections() {
   const qc = useQueryClient();
   const toast = useToast();
   const { data: sections = [], isLoading } = useQuery({ queryKey: ['sections'], queryFn: () => getSections() });
-  const { data: courses = [] }     = useQuery({ queryKey: ['courses'],     queryFn: () => getCourses() });
-  const { data: terms = [] }       = useQuery({ queryKey: ['terms'],       queryFn: getTerms });
+  const { data: terms = [] }       = useQuery({ queryKey: ['terms'],       queryFn: () => getTerms() });
   const { data: faculty = [] }     = useQuery({ queryKey: ['users', 'faculty'], queryFn: () => getUsers('faculty') });
   const { data: enrollments = [] } = useQuery({ queryKey: ['enrollments'], queryFn: () => getEnrollments() });
 
-  const [showCreate, setShowCreate] = useState(false);
-  const [form, setForm] = useState(EMPTY);
+  const [editing, setEditing] = useState<any | null>(null);
+  const [editForm, setEditForm] = useState({ facultyId: '', dayOfWeek: '', startTime: '', endTime: '', room: '' });
   const [err, setErr] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const resetErr = () => { setErr(''); setFieldErrors({}); };
-  const [query, setQuery] = useState('');
-  const [termFilter, setTermFilter] = useState('all');
 
-  const createMut = useMutation({
-    mutationFn: () => createSection({ ...form, capacity: Number(form.capacity) }),
+  const [query, setQuery] = useState('');
+  const [termFilter, setTermFilter] = useState<string>('active');
+  const [tbaOnly, setTbaOnly] = useState(false);
+
+  const updateMut = useMutation({
+    mutationFn: () => updateSection(editing.id, {
+      facultyId: editForm.facultyId || null,
+      dayOfWeek: editForm.dayOfWeek || null,
+      startTime: editForm.startTime || null,
+      endTime:   editForm.endTime   || null,
+      room:      editForm.room      || null,
+    }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sections'] });
-      setShowCreate(false); setForm(EMPTY); resetErr();
-      toast.push({ tone: 'success', title: 'Section created' });
+      setEditing(null); resetErr();
+      toast.push({ tone: 'success', title: 'Section updated' });
     },
-    onError: (e: unknown) => { const p = parseApiError(e, 'Failed to create section'); setErr(p.message); setFieldErrors(p.fields); },
+    onError: (e: unknown) => { const p = parseApiError(e, 'Failed to update section'); setErr(p.message); setFieldErrors(p.fields); },
   });
 
+  const activeTerm = terms.find((t: any) => t.is_active === true || t.is_active === 'true');
   const enrolledFor = (sectionId: string) =>
     enrollments.filter((e: any) => e.section_id === sectionId && e.status === 'enrolled').length;
 
   const filtered = useMemo(() => sections.filter((s: any) => {
-    if (termFilter !== 'all' && s.term_name !== termFilter) return false;
+    if (termFilter === 'active') {
+      if (s.term_name !== activeTerm?.name) return false;
+    } else if (termFilter !== 'all') {
+      if (s.term_name !== termFilter) return false;
+    }
+    if (tbaOnly && s.faculty_id) return false;
     if (query) {
       const q = query.toLowerCase();
-      if (!`${s.section_code} ${s.course_code} ${s.course_title}`.toLowerCase().includes(q)) return false;
+      if (!`${s.section_code} ${s.course_code} ${s.course_title} ${s.block_label || ''}`.toLowerCase().includes(q)) return false;
     }
     return true;
-  }), [sections, termFilter, query]);
+  }), [sections, termFilter, query, tbaOnly, activeTerm]);
+
+  const tbaCount = sections.filter((s: any) => !s.faculty_id).length;
 
   return (
     <div>
       <PageHeader
         eyebrow="Scheduling"
         title="Sections"
-        subtitle="Class sections — schedule, room, and assigned faculty."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New section</button>}
+        subtitle="Auto-generated by 'Open term' from each block's curriculum. Use this page to assign faculty + schedule + room to TBA sections."
       />
 
+      <div className="bg-beige-100 border border-khaki-200 rounded-lg px-3 py-2 mb-4 text-xs text-stone-600 flex items-start gap-2">
+        <Icon name="info" size={14} className="mt-0.5 text-stone-400 flex-shrink-0" />
+        <span>Sections are created automatically when an admin opens a term. To add new sections, go to <strong>Terms</strong> and click "Open term" on the active term.</span>
+      </div>
+
       <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <SearchInput value={query} onChange={setQuery} placeholder="Search section or course…" className="w-72" />
+        <SearchInput value={query} onChange={setQuery} placeholder="Search section, block, or course…" className="w-80" />
         <div className="flex items-center gap-1.5 flex-wrap">
+          <Chip active={termFilter === 'active'} onClick={() => setTermFilter('active')}>This term</Chip>
           <Chip active={termFilter === 'all'} onClick={() => setTermFilter('all')}>All terms</Chip>
-          {terms.map((t: any) => (
+          {terms.filter((t: any) => t.name !== activeTerm?.name).map((t: any) => (
             <Chip key={t.id} active={termFilter === t.name} onClick={() => setTermFilter(t.name)}>{t.name}</Chip>
           ))}
         </div>
+        <Chip active={tbaOnly} onClick={() => setTbaOnly(v => !v)}>
+          <Icon name="alert-triangle" size={10} className="text-amber-500" /> TBA only ({tbaCount})
+        </Chip>
         <span className="text-xs text-stone-400 ml-auto tabular">{filtered.length} sections</span>
       </div>
 
       {isLoading ? (
         <TableSkeleton headers={HEADERS} rows={6} />
       ) : filtered.length === 0 ? (
-        <div className="card p-0"><EmptyState icon="school" title="No sections match" message="Try a different filter or add a section." /></div>
+        <div className="card p-0"><EmptyState icon="school" title="No sections" message="Open a term from the Terms page to generate sections from the curriculum." /></div>
       ) : (
         <DataTable headers={HEADERS}>
           {filtered.map((s: any) => {
             const enrolled = enrolledFor(s.id);
-            const fillPct = s.capacity ? (enrolled / s.capacity) * 100 : 0;
+            const fillPct  = s.capacity ? (enrolled / s.capacity) * 100 : 0;
+            const tba = !s.faculty_id;
             return (
               <tr key={s.id} className="hover:bg-beige-50 transition-colors">
-                <td className="table-td font-mono text-olive-500 font-semibold text-xs">{s.section_code}</td>
+                <td className="table-td">
+                  <span className="font-mono text-xs font-semibold text-olive-600 bg-beige-100 px-2 py-0.5 rounded">{s.block_label}</span>
+                </td>
                 <td className="table-td">
                   <span className="font-mono text-xs text-stone-500 font-semibold">{s.course_code}</span>
                   <span className="ml-2">{s.course_title}</span>
                 </td>
                 <td className="table-td text-stone-500 text-xs">{s.term_name}</td>
-                <td className="table-td text-stone-500 text-xs">{s.faculty_name}</td>
+                <td className="table-td text-xs">
+                  {s.faculty_name
+                    ? <span className="text-stone-700">{s.faculty_name}</span>
+                    : <span className="badge badge-amber"><Icon name="alert-triangle" size={10} /> TBA</span>}
+                </td>
                 <td className="table-td text-xs">
                   {s.day_of_week
-                    ? <><span className="font-mono">{s.day_of_week}</span> {s.start_time}–{s.end_time}</>
+                    ? <><span className="font-mono">{s.day_of_week}</span> {s.start_time?.slice(0, 5)}–{s.end_time?.slice(0, 5)}</>
                     : <span className="text-stone-300">—</span>}
                 </td>
-                <td className="table-td text-stone-500 text-xs">{s.room ?? '—'}</td>
+                <td className="table-td text-stone-500 text-xs">{s.room ?? <span className="text-stone-300">—</span>}</td>
                 <td className="table-td">
                   <div className="flex items-center gap-2 justify-center">
                     <span className="tabular text-xs font-semibold text-stone-700 w-12 text-right">{enrolled}/{s.capacity}</span>
-                    <div className="w-20 h-1.5 bg-beige-200 rounded-full overflow-hidden">
+                    <div className="w-16 h-1.5 bg-beige-200 rounded-full overflow-hidden">
                       <div
                         className={`h-full rounded-full ${fillPct >= 90 ? 'bg-red-400' : fillPct >= 70 ? 'bg-khaki-400' : 'bg-olive-300'}`}
                         style={{ width: `${Math.min(100, fillPct)}%` }}
@@ -114,42 +143,56 @@ export default function Sections() {
                     </div>
                   </div>
                 </td>
+                <td className="table-td text-right">
+                  <button className={`btn-icon ml-auto ${tba ? 'text-amber-600' : ''}`}
+                    title={tba ? 'Assign faculty + schedule' : 'Edit'}
+                    onClick={() => {
+                      setEditing(s);
+                      setEditForm({
+                        facultyId: s.faculty_id ?? '',
+                        dayOfWeek: s.day_of_week ?? '',
+                        startTime: (s.start_time ?? '').slice(0, 5),
+                        endTime:   (s.end_time   ?? '').slice(0, 5),
+                        room:      s.room ?? '',
+                      });
+                      resetErr();
+                    }}>
+                    <Icon name="pencil" size={13} />
+                  </button>
+                </td>
               </tr>
             );
           })}
         </DataTable>
       )}
 
-      {showCreate && (
-        <Modal title="New section" onClose={() => { setShowCreate(false); resetErr(); }}>
+      {editing && (
+        <Modal title={editing.block_label + ' · ' + editing.course_code}
+          subtitle={editing.course_title}
+          onClose={() => { setEditing(null); resetErr(); }} size="lg">
           <div className="space-y-3">
-            <SelectField label="Course" value={form.courseId} onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))} error={fieldErrors.courseId}>
-              <option value="">Select course</option>
-              {courses.map((c: any) => <option key={c.id} value={c.id}>{c.code} — {c.title}</option>)}
+            <SelectField label="Faculty" value={editForm.facultyId}
+              onChange={e => setEditForm(f => ({ ...f, facultyId: e.target.value }))} error={fieldErrors.facultyId}>
+              <option value="">— TBA —</option>
+              {faculty.map((f: any) => <option key={f.id} value={f.id}>{f.full_name}</option>)}
             </SelectField>
             <div className="grid grid-cols-2 gap-3">
-              <SelectField label="Term" value={form.termId} onChange={e => setForm(f => ({ ...f, termId: e.target.value }))} error={fieldErrors.termId}>
-                <option value="">Select term</option>
-                {terms.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </SelectField>
-              <SelectField label="Faculty" value={form.facultyId} onChange={e => setForm(f => ({ ...f, facultyId: e.target.value }))} error={fieldErrors.facultyId}>
-                <option value="">Select faculty</option>
-                {faculty.map((f: any) => <option key={f.id} value={f.id}>{f.full_name}</option>)}
-              </SelectField>
+              <InputField label="Day(s)" value={editForm.dayOfWeek}
+                onChange={e => setEditForm(f => ({ ...f, dayOfWeek: e.target.value }))}
+                placeholder="MWF, TTh, …" error={fieldErrors.dayOfWeek} />
+              <InputField label="Room" value={editForm.room}
+                onChange={e => setEditForm(f => ({ ...f, room: e.target.value }))}
+                placeholder="Room 201" error={fieldErrors.room} />
+              <InputField label="Start time" type="time" value={editForm.startTime}
+                onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))} error={fieldErrors.startTime} />
+              <InputField label="End time" type="time" value={editForm.endTime}
+                onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))} error={fieldErrors.endTime} />
             </div>
-            <InputField label="Section code" value={form.sectionCode} onChange={e => setForm(f => ({ ...f, sectionCode: e.target.value }))} placeholder="CS101-A" error={fieldErrors.sectionCode} />
-            <div className="grid grid-cols-2 gap-3">
-              <InputField label="Day of week" value={form.dayOfWeek} onChange={e => setForm(f => ({ ...f, dayOfWeek: e.target.value }))} placeholder="MWF" error={fieldErrors.dayOfWeek} />
-              <InputField label="Room" value={form.room} onChange={e => setForm(f => ({ ...f, room: e.target.value }))} placeholder="Room 201" error={fieldErrors.room} />
-              <InputField label="Start time" type="time" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} error={fieldErrors.startTime} />
-              <InputField label="End time" type="time" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} error={fieldErrors.endTime} />
-            </div>
-            <InputField label="Capacity" type="number" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} placeholder="40" error={fieldErrors.capacity} />
             {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
-              <button className="btn-ghost" onClick={() => { setShowCreate(false); resetErr(); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => { resetErr(); createMut.mutate(); }} disabled={createMut.isPending}>
-                {createMut.isPending ? 'Creating…' : 'Create section'}
+              <button className="btn-ghost" onClick={() => { setEditing(null); resetErr(); }}>Cancel</button>
+              <button className="btn-primary" onClick={() => { resetErr(); updateMut.mutate(); }} disabled={updateMut.isPending}>
+                {updateMut.isPending ? 'Saving…' : 'Save changes'}
               </button>
             </div>
           </div>

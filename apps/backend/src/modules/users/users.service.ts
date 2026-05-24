@@ -3,20 +3,20 @@ import { db } from '../../config/db';
 import { pickRandomBlock } from '../blocks/blocks.service';
 
 const SAFE_COLS =
-  'id, user_code, email, full_name, role, branch, program_id, year_level, block_section_id, is_active, created_at';
+  'id, user_code, email, full_name, role, branch, program_id, year_level, block_id, is_active, created_at';
 
 // List/detail query — includes program code/name and the block label via joins
 const LIST_QUERY = `
   SELECT u.id, u.user_code, u.email, u.full_name, u.role, u.branch,
-         u.program_id, u.year_level, u.block_section_id, u.is_active, u.created_at,
+         u.program_id, u.year_level, u.block_id, u.is_active, u.created_at,
          p.code AS program_code, p.name AS program_name,
-         bs.block_number,
-         CASE WHEN bs.id IS NOT NULL
-              THEN p.code || ' ' || bs.year_level || '-' || bs.block_number
+         b.block_number,
+         CASE WHEN b.id IS NOT NULL
+              THEN p.code || ' ' || b.year_level || '-' || b.block_number
          END AS block_label
   FROM users u
-  LEFT JOIN programs p        ON p.id = u.program_id
-  LEFT JOIN block_sections bs ON bs.id = u.block_section_id
+  LEFT JOIN programs p ON p.id = u.program_id
+  LEFT JOIN blocks   b ON b.id = u.block_id
 `;
 
 const roleToNum = (role: string) =>
@@ -71,7 +71,7 @@ export async function createUser(data: {
   }
 
   const { rows } = await db.query(
-    `INSERT INTO users (email, password_hash, full_name, role, branch, user_code, program_id, year_level, block_section_id)
+    `INSERT INTO users (email, password_hash, full_name, role, branch, user_code, program_id, year_level, block_id)
      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
      RETURNING ${SAFE_COLS}`,
     [data.email, hash, data.fullName, data.role, branch, userCode,
@@ -112,7 +112,7 @@ export async function updateUser(id: string, data: {
         );
       }
       sets.push(`year_level = $${i++}`);       vals.push(yl);
-      sets.push(`block_section_id = $${i++}`); vals.push(blockId);
+      sets.push(`block_id = $${i++}`); vals.push(blockId);
     }
   }
 

@@ -39,8 +39,8 @@ INSERT INTO programs (code, name, total_units, year_levels, blocks_per_year, blo
     ('BSBIO', 'Bachelor of Science in Biology',                160, 4, 3, 50);
 
 
--- ─── Block sections (auto-generated) ────────────────────────
-INSERT INTO block_sections (program_id, year_level, block_number, capacity)
+-- ─── Blocks (auto-generated) ────────────────────────────────
+INSERT INTO blocks (program_id, year_level, block_number, capacity)
 SELECT p.id, y.year_level, b.block_number, p.block_capacity
 FROM programs p
 CROSS JOIN generate_series(1, p.year_levels)     AS y(year_level)

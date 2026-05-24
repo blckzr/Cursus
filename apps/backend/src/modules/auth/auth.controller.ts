@@ -23,12 +23,12 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
       `SELECT u.id, u.user_code, u.email, u.full_name, u.role, u.branch,
               u.program_id, u.year_level,
               p.code AS program_code, p.name AS program_name,
-              CASE WHEN bs.id IS NOT NULL
-                   THEN p.code || ' ' || bs.year_level || '-' || bs.block_number
+              CASE WHEN b.id IS NOT NULL
+                   THEN p.code || ' ' || b.year_level || '-' || b.block_number
               END AS block_label
        FROM users u
        LEFT JOIN programs p        ON p.id  = u.program_id
-       LEFT JOIN block_sections bs ON bs.id = u.block_section_id
+       LEFT JOIN blocks b          ON b.id  = u.block_id
        WHERE u.id = $1`,
       [req.user!.sub],
     );

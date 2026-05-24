@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { createTermSchema, updateTermSchema } from './terms.schema';
+import { createTermSchema, updateTermSchema, openTermSchema } from './terms.schema';
 import * as svc from './terms.service';
 
 export async function listTerms(_req: Request, res: Response, next: NextFunction) {
@@ -25,5 +25,13 @@ export async function updateTerm(req: Request, res: Response, next: NextFunction
     const t = await svc.updateTerm(req.params.id, updateTermSchema.parse(req.body));
     if (!t) { res.status(404).json({ error: 'Term not found' }); return; }
     res.json(t);
+  } catch (e) { next(e); }
+}
+
+export async function openTerm(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = openTermSchema.parse(req.body);
+    const result = await svc.openTerm(req.params.id, data, req.user!.sub);
+    res.json(result);
   } catch (e) { next(e); }
 }

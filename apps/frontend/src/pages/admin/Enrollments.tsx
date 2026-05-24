@@ -89,8 +89,8 @@ export default function Enrollments() {
       <PageHeader
         eyebrow="Records"
         title="Enrollments"
-        subtitle="Student section enrollments across all terms."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> Enroll student</button>}
+        subtitle="Regular enrollments are auto-created by 'Open term'. Use the action below to enroll irregular students (those without a permanent block) in specific sections."
+        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> Enroll irregular student</button>}
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">

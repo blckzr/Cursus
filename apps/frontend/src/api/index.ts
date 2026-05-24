@@ -31,6 +31,7 @@ export const removeCurriculumEntry = (programId: string, entryId: string) =>
 export const getTerms   = ()                        => api.get('/terms').then(r => r.data);
 export const createTerm = (data: object)            => api.post('/terms', data).then(r => r.data);
 export const updateTerm = (id: string, data: object) => api.patch(`/terms/${id}`, data).then(r => r.data);
+export const openTerm   = (id: string, data: object) => api.post(`/terms/${id}/open`, data).then(r => r.data);
 
 // ── Sections ──────────────────────────────────────────────────────────────────
 export const getSections   = (params?: object)         => api.get('/sections', { params }).then(r => r.data);

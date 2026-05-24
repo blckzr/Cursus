@@ -96,4 +96,49 @@ router.post('/', authenticate, authorize('admin'), ctrl.createTerm);
 router.get('/:id', authenticate, ctrl.getTerm);
 router.patch('/:id', authenticate, authorize('admin'), ctrl.updateTerm);
 
+/**
+ * @openapi
+ * /terms/{id}/open:
+ *   post:
+ *     tags: [Terms]
+ *     summary: Bulk-create sections + enrollments from each program's curriculum (admin)
+ *     description: |
+ *       For every program × year level in scope, materialises the curriculum
+ *       slot matching this term's semester:
+ *         • creates one section per (block, course, term) — TBA faculty/schedule
+ *         • auto-enrolls every active student in the block into each section
+ *       Idempotent — re-running skips anything already in place.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               programIds:
+ *                 type: array
+ *                 description: Subset of programs to open (omit for all programs)
+ *                 items:
+ *                   type: string
+ *                   format: uuid
+ *     responses:
+ *       200:
+ *         description: Result summary
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 sectionsCreated:    { type: integer }
+ *                 sectionsSkipped:    { type: integer }
+ *                 enrollmentsCreated: { type: integer }
+ */
+router.post('/:id/open', authenticate, authorize('admin'), ctrl.openTerm);
+
 export default router;
