@@ -19,6 +19,14 @@ export const getCourses   = (programId?: string) => api.get('/courses', { params
 export const createCourse = (data: object)       => api.post('/courses', data).then(r => r.data);
 export const updateCourse = (id: string, data: object) => api.patch(`/courses/${id}`, data).then(r => r.data);
 
+// ── Curriculum (per-program course placement) ─────────────────────────────────
+export const getCurriculum         = (programId: string) =>
+  api.get(`/programs/${programId}/curriculum`).then(r => r.data);
+export const addCurriculumEntry    = (programId: string, data: object) =>
+  api.post(`/programs/${programId}/curriculum`, data).then(r => r.data);
+export const removeCurriculumEntry = (programId: string, entryId: string) =>
+  api.delete(`/programs/${programId}/curriculum/${entryId}`);
+
 // ── Terms ─────────────────────────────────────────────────────────────────────
 export const getTerms   = ()                        => api.get('/terms').then(r => r.data);
 export const createTerm = (data: object)            => api.post('/terms', data).then(r => r.data);

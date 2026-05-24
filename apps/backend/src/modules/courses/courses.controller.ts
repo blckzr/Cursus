@@ -3,7 +3,10 @@ import { createCourseSchema, updateCourseSchema } from './courses.schema';
 import * as svc from './courses.service';
 
 export async function listCourses(req: Request, res: Response, next: NextFunction) {
-  try { res.json(await svc.listCourses(req.query.programId as string | undefined)); } catch (e) { next(e); }
+  try {
+    const programId = req.query.programId as string | undefined;
+    res.json(await svc.listCourses({ programId }));
+  } catch (e) { next(e); }
 }
 
 export async function getCourse(req: Request, res: Response, next: NextFunction) {

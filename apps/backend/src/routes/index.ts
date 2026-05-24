@@ -8,6 +8,7 @@ import termsRouter from '../modules/terms/terms.routes';
 import sectionsRouter from '../modules/sections/sections.routes';
 import enrollmentsRouter from '../modules/enrollments/enrollments.routes';
 import blocksRouter from '../modules/blocks/blocks.routes';
+import curriculumRouter from '../modules/curriculum/curriculum.routes';
 import gradebookRouter from '../modules/gradebook/gradebook.routes';
 
 const router = Router();
@@ -101,6 +102,7 @@ router.use('/terms', termsRouter);
 router.use('/sections', sectionsRouter);
 router.use('/enrollments', enrollmentsRouter);
 router.use('/blocks', blocksRouter);
+router.use('/', curriculumRouter);
 router.use('/', gradebookRouter);
 
 export default router;

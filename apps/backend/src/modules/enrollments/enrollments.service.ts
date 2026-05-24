@@ -26,7 +26,7 @@ export async function listEnrollments(filter: { sectionId?: string; studentId?: 
 }
 
 export async function createEnrollment(data: { studentId: string; sectionId: string }) {
-  // Check capacity
+  // Capacity check
   const { rows: cap } = await db.query(
     `SELECT s.capacity,
        (SELECT COUNT(*) FROM enrollments WHERE section_id = s.id AND status = 'enrolled') AS enrolled
@@ -36,6 +36,33 @@ export async function createEnrollment(data: { studentId: string; sectionId: str
   if (!cap[0]) throw Object.assign(new Error('Section not found'), { status: 404 });
   if (parseInt(cap[0].enrolled) >= parseInt(cap[0].capacity)) {
     throw Object.assign(new Error('Section is at full capacity'), { status: 409 });
+  }
+
+  // Prerequisite check — every prereq for this section's course must have a
+  // 'completed' enrollment for this student.
+  const { rows: missing } = await db.query(
+    `WITH section_course AS (
+       SELECT s.course_id FROM sections s WHERE s.id = $1
+     ),
+     completed AS (
+       SELECT DISTINCT sec.course_id
+       FROM enrollments e
+       JOIN sections sec ON sec.id = e.section_id
+       WHERE e.student_id = $2 AND e.status = 'completed'
+     )
+     SELECT pre.code
+     FROM course_prerequisites cp
+     JOIN section_course sc ON sc.course_id = cp.course_id
+     JOIN courses pre       ON pre.id = cp.prerequisite_id
+     WHERE cp.prerequisite_id NOT IN (SELECT course_id FROM completed)`,
+    [data.sectionId, data.studentId],
+  );
+  if (missing.length > 0) {
+    const list = missing.map((m: { code: string }) => m.code).join(', ');
+    throw Object.assign(
+      new Error(`Missing completed prerequisite(s): ${list}`),
+      { status: 409 },
+    );
   }
 
   const { rows } = await db.query(

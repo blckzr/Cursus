@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
@@ -9,6 +9,7 @@ import AdminDashboard from './pages/admin/Dashboard';
 import Users from './pages/admin/Users';
 import Programs from './pages/admin/Programs';
 import Courses from './pages/admin/Courses';
+import Curriculum from './pages/admin/Curriculum';
 import Terms from './pages/admin/Terms';
 import Sections from './pages/admin/Sections';
 import Blocks from './pages/admin/Blocks';
@@ -38,6 +39,7 @@ const adminNav = [
   { label: 'Programs',    to: '/admin/programs',    icon: GraduationCap },
   { label: 'Blocks',      to: '/admin/blocks',      icon: Boxes         },
   { label: 'Courses',     to: '/admin/courses',     icon: BookOpen      },
+  { label: 'Curriculum',  to: '/admin/curriculum',  icon: ListTree      },
   { label: 'Terms',       to: '/admin/terms',       icon: Calendar      },
   { label: 'Sections',    to: '/admin/sections',    icon: School        },
   { label: 'Enrollments', to: '/admin/enrollments', icon: ClipboardList },
@@ -83,6 +85,7 @@ export default function App() {
               <Route path="programs"    element={<Programs />} />
               <Route path="blocks"      element={<Blocks />} />
               <Route path="courses"     element={<Courses />} />
+              <Route path="curriculum"  element={<Curriculum />} />
               <Route path="terms"       element={<Terms />} />
               <Route path="sections"    element={<Sections />} />
               <Route path="enrollments" element={<Enrollments />} />
