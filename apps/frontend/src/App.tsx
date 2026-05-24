@@ -13,9 +13,12 @@ import Terms from './pages/admin/Terms';
 import Sections from './pages/admin/Sections';
 import Blocks from './pages/admin/Blocks';
 import Enrollments from './pages/admin/Enrollments';
+import FacultyDashboard from './pages/faculty/Dashboard';
 import FacultySections from './pages/faculty/Sections';
 import Gradebook from './pages/faculty/Gradebook';
+import StudentDashboard from './pages/student/Dashboard';
 import StudentGrades from './pages/student/Grades';
+import StudentSchedule from './pages/student/Schedule';
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -40,8 +43,15 @@ const adminNav = [
   { label: 'Enrollments', to: '/admin/enrollments', icon: ClipboardList },
 ];
 
-const facultyNav = [{ label: 'My Sections', to: '/faculty', icon: LayoutGrid }];
-const studentNav = [{ label: 'My Grades',   to: '/student', icon: BarChart2  }];
+const facultyNav = [
+  { label: 'Overview',    to: '/faculty',          icon: Home       },
+  { label: 'My Sections', to: '/faculty/sections', icon: LayoutGrid },
+];
+const studentNav = [
+  { label: 'Overview',  to: '/student',          icon: Home      },
+  { label: 'My grades', to: '/student/grades',   icon: BarChart2 },
+  { label: 'Schedule',  to: '/student/schedule', icon: Calendar  },
+];
 
 function Guard({ role }: { role: 'admin' | 'faculty' | 'student' }) {
   const { user } = useAuth();
@@ -80,13 +90,16 @@ export default function App() {
 
             {/* Faculty */}
             <Route path="/faculty" element={<><Guard role="faculty" /><AppLayout navItems={facultyNav} roleLabel="Faculty" /></>}>
-              <Route index element={<FacultySections />} />
+              <Route index element={<FacultyDashboard />} />
+              <Route path="sections" element={<FacultySections />} />
               <Route path="sections/:id" element={<Gradebook />} />
             </Route>
 
             {/* Student */}
             <Route path="/student" element={<><Guard role="student" /><AppLayout navItems={studentNav} roleLabel="Student" /></>}>
-              <Route index element={<StudentGrades />} />
+              <Route index element={<StudentDashboard />} />
+              <Route path="grades"   element={<StudentGrades />} />
+              <Route path="schedule" element={<StudentSchedule />} />
             </Route>
           </Routes>
           </BrowserRouter>

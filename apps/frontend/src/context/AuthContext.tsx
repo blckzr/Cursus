@@ -1,6 +1,18 @@
 import { createContext, useContext, useState, ReactNode } from 'react';
 
-interface User { id: string; email: string; fullName: string; role: 'admin' | 'faculty' | 'student'; }
+interface User {
+  id: string;
+  email: string;
+  fullName: string;
+  role: 'admin' | 'faculty' | 'student';
+  userCode?: string;
+  branch?: string;
+  programId?: string | null;
+  programCode?: string | null;
+  programName?: string | null;
+  yearLevel?: number | null;
+  blockLabel?: string | null;
+}
 
 interface AuthCtx {
   user: User | null;

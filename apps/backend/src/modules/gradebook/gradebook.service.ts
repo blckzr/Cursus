@@ -234,12 +234,17 @@ export async function finalizeGrades(
 export async function getStudentGrades(studentId: string) {
   const { rows } = await db.query(
     `SELECT e.id, e.status, e.numeric_grade, e.letter_grade, e.finalized_at, e.enrolled_at,
-            s.section_code, c.code AS course_code, c.title AS course_title, c.units,
-            t.name AS term_name, t.start_date, t.end_date
+            s.id           AS section_id, s.section_code,
+            s.day_of_week, s.start_time, s.end_time, s.room,
+            c.code         AS course_code, c.title AS course_title, c.units,
+            t.id           AS term_id, t.name AS term_name,
+            t.start_date, t.end_date, t.is_active AS term_is_active,
+            u.full_name    AS faculty_name
      FROM enrollments e
      JOIN sections s ON s.id = e.section_id
      JOIN courses  c ON c.id = s.course_id
      JOIN terms    t ON t.id = s.term_id
+     JOIN users    u ON u.id = s.faculty_id
      WHERE e.student_id = $1
      ORDER BY t.start_date DESC, c.code`,
     [studentId],

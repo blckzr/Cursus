@@ -20,7 +20,16 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 export async function me(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { rows } = await db.query(
-      'SELECT id, user_code, email, full_name, role, branch FROM users WHERE id = $1',
+      `SELECT u.id, u.user_code, u.email, u.full_name, u.role, u.branch,
+              u.program_id, u.year_level,
+              p.code AS program_code, p.name AS program_name,
+              CASE WHEN bs.id IS NOT NULL
+                   THEN p.code || ' ' || bs.year_level || '-' || bs.block_number
+              END AS block_label
+       FROM users u
+       LEFT JOIN programs p        ON p.id  = u.program_id
+       LEFT JOIN block_sections bs ON bs.id = u.block_section_id
+       WHERE u.id = $1`,
       [req.user!.sub],
     );
     if (!rows[0]) {
@@ -28,7 +37,19 @@ export async function me(req: Request, res: Response, next: NextFunction): Promi
       return;
     }
     const u = rows[0];
-    res.json({ id: u.id, userCode: u.user_code, email: u.email, fullName: u.full_name, role: u.role, branch: u.branch });
+    res.json({
+      id:          u.id,
+      userCode:    u.user_code,
+      email:       u.email,
+      fullName:    u.full_name,
+      role:        u.role,
+      branch:      u.branch,
+      programId:   u.program_id,
+      programCode: u.program_code,
+      programName: u.program_name,
+      yearLevel:   u.year_level,
+      blockLabel:  u.block_label,
+    });
   } catch (err) {
     next(err);
   }

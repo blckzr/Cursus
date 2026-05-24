@@ -1,42 +1,50 @@
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router-dom';
-import { Calendar, ArrowRight } from 'lucide-react';
-import { getSections } from '../../api';
+import { getSections, getTerms } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
+import Chip from '../../components/Chip';
+import FacultySectionCard from './SectionCard';
+
+const isActive = (v: unknown) => v === true || v === 'true';
 
 export default function FacultySections() {
   const { data: sections = [], isLoading } = useQuery({ queryKey: ['sections'], queryFn: () => getSections() });
+  const { data: terms = [] } = useQuery({ queryKey: ['terms'], queryFn: () => getTerms() });
+
+  const [termFilter, setTermFilter] = useState('active');
+
+  const activeTerm = terms.find((t: any) => isActive(t.is_active));
+
+  const filtered: any[] = useMemo(() => {
+    if (termFilter === 'all') return sections;
+    if (termFilter === 'active') return sections.filter((s: any) => s.term_name === activeTerm?.name);
+    return sections.filter((s: any) => s.term_name === termFilter);
+  }, [sections, termFilter, activeTerm]);
 
   return (
     <div>
-      <PageHeader title="My Sections" subtitle="Your assigned course sections this term" />
+      <PageHeader
+        eyebrow="Teaching load"
+        title="My sections"
+        subtitle="Every section assigned to you. Click any card to open its gradebook."
+      />
+
+      <div className="flex items-center gap-2 mb-5 flex-wrap">
+        <Chip active={termFilter === 'active'} onClick={() => setTermFilter('active')}>This term</Chip>
+        <Chip active={termFilter === 'all'} onClick={() => setTermFilter('all')}>All</Chip>
+        {terms.filter((t: any) => !isActive(t.is_active)).map((t: any) => (
+          <Chip key={t.id} active={termFilter === t.name} onClick={() => setTermFilter(t.name)}>{t.name}</Chip>
+        ))}
+      </div>
+
       {isLoading ? (
-        <div className="text-center text-stone-400 text-sm py-12">Loading…</div>
-      ) : sections.length === 0 ? (
-        <EmptyState message="No sections assigned to you yet." />
+        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+      ) : filtered.length === 0 ? (
+        <div className="card p-0"><EmptyState icon="school" title="No sections" message="Nothing assigned for this filter." /></div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {sections.map((s: Record<string, string>) => (
-            <Link key={s.id} to={`/faculty/sections/${s.id}`}
-              className="card hover:shadow-md hover:border-khaki-300 transition-all group cursor-pointer">
-              <div className="flex items-start justify-between">
-                <div>
-                  <span className="font-mono text-olive-500 font-semibold text-sm">{s.section_code}</span>
-                  <h3 className="font-semibold text-stone-800 mt-0.5">{s.course_title}</h3>
-                  <p className="text-stone-500 text-sm mt-1">{s.term_name}</p>
-                </div>
-                <ArrowRight size={18} className="text-stone-300 group-hover:text-olive-400 transition-colors mt-0.5" />
-              </div>
-              {s.day_of_week && (
-                <p className="text-xs text-stone-400 mt-3 flex items-center gap-1.5">
-                  <Calendar size={12} />
-                  {s.day_of_week} {s.start_time}–{s.end_time} {s.room && `· ${s.room}`}
-                </p>
-              )}
-              <p className="text-xs text-stone-400 mt-1">Capacity: {s.capacity}</p>
-            </Link>
-          ))}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+          {filtered.map(s => <FacultySectionCard key={s.id} section={s} />)}
         </div>
       )}
     </div>
