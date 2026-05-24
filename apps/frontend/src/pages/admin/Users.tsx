@@ -4,17 +4,23 @@ import { getUsers, createUser, updateUser, getPrograms } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
-import DataTable from '../../components/DataTable';
+import DataTable, { type DataTableHeader } from '../../components/DataTable';
+import TableSkeleton from '../../components/TableSkeleton';
 import SearchInput from '../../components/SearchInput';
 import Chip from '../../components/Chip';
 import Avatar from '../../components/Avatar';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
+import { parseApiError } from '../../lib/apiError';
 
 const isActiveVal = (v: unknown) => v === true || v === 'true';
-const errOf = (e: unknown, fallback: string) =>
-  (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? fallback;
+
+const HEADERS: DataTableHeader[] = [
+  { label: 'User code' }, { label: 'Name' }, { label: 'Email' },
+  { label: 'Role' }, { label: 'Program' }, { label: 'Block' },
+  { label: 'Status' }, { label: '', align: 'right' },
+];
 
 export default function Users() {
   const qc = useQueryClient();
@@ -27,10 +33,13 @@ export default function Users() {
   const [form, setForm]     = useState({ email: '', password: '', fullName: '', role: 'student', branch: '', programId: '' });
   const [editForm, setEditForm] = useState({ fullName: '', isActive: 'true', branch: '', programId: '' });
   const [err, setErr] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const [query, setQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+
+  const resetErr = () => { setErr(''); setFieldErrors({}); };
 
   const createMut = useMutation({
     mutationFn: () => createUser({
@@ -42,10 +51,13 @@ export default function Users() {
       qc.invalidateQueries({ queryKey: ['users'] });
       setShowCreate(false);
       setForm({ email: '', password: '', fullName: '', role: 'student', branch: '', programId: '' });
-      setErr('');
+      resetErr();
       toast.push({ tone: 'success', title: 'User created', message: u?.user_code });
     },
-    onError: (e: unknown) => setErr(errOf(e, 'Failed to create user')),
+    onError: (e: unknown) => {
+      const parsed = parseApiError(e, 'Failed to create user');
+      setErr(parsed.message); setFieldErrors(parsed.fields);
+    },
   });
 
   const updateMut = useMutation({
@@ -57,10 +69,13 @@ export default function Users() {
     }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
-      setEditUser(null); setErr('');
+      setEditUser(null); resetErr();
       toast.push({ tone: 'success', title: 'Changes saved' });
     },
-    onError: (e: unknown) => setErr(errOf(e, 'Failed to update user')),
+    onError: (e: unknown) => {
+      const parsed = parseApiError(e, 'Failed to update user');
+      setErr(parsed.message); setFieldErrors(parsed.fields);
+    },
   });
 
   const counts = useMemo(() => ({
@@ -92,7 +107,7 @@ export default function Users() {
         eyebrow="People"
         title="Users"
         subtitle="Manage admin, faculty, and student accounts."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); setErr(''); }}><Icon name="plus" size={14} /> New user</button>}
+        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New user</button>}
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -112,15 +127,11 @@ export default function Users() {
       </div>
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <TableSkeleton headers={HEADERS} rows={6} />
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="users" title="No users match" message="Try a different filter or clear the search." /></div>
       ) : (
-        <DataTable headers={[
-          { label: 'User code' }, { label: 'Name' }, { label: 'Email' },
-          { label: 'Role' }, { label: 'Program' }, { label: 'Block' },
-          { label: 'Status' }, { label: '', align: 'right' },
-        ]}>
+        <DataTable headers={HEADERS}>
           {filtered.map((u: any) => (
             <tr key={u.id} className="hover:bg-beige-50 transition-colors">
               <td className="table-td">
@@ -153,7 +164,7 @@ export default function Users() {
                 <button className="btn-icon ml-auto" title="Edit" onClick={() => {
                   setEditUser(u);
                   setEditForm({ fullName: u.full_name, isActive: String(u.is_active), branch: u.branch ?? 'MN', programId: u.program_id ?? '' });
-                  setErr('');
+                  resetErr();
                 }}><Icon name="pencil" size={13} /></button>
               </td>
             </tr>
@@ -163,23 +174,27 @@ export default function Users() {
 
       {/* Create modal */}
       {showCreate && (
-        <Modal title="New user" subtitle="A user code is generated from year, branch, and role." onClose={() => { setShowCreate(false); setErr(''); }}>
+        <Modal title="New user" subtitle="A user code is generated from year, branch, and role." onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">
-            <InputField label="Full name" value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))} placeholder="Juan Miguel dela Cruz" autoFocus />
-            <InputField label="Email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))} placeholder="juan@sis.local" />
-            <InputField label="Password" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 8 characters" />
+            <InputField label="Full name" value={form.fullName} onChange={e => setForm(f => ({ ...f, fullName: e.target.value }))}
+              placeholder="Juan Miguel dela Cruz" error={fieldErrors.fullName} autoFocus />
+            <InputField label="Email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="juan@sis.local" error={fieldErrors.email} />
+            <InputField label="Password" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
+              placeholder="Min 8 characters" error={fieldErrors.password} />
             <div className="grid grid-cols-2 gap-3">
-              <SelectField label="Role" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
+              <SelectField label="Role" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} error={fieldErrors.role}>
                 <option value="student">Student</option>
                 <option value="faculty">Faculty</option>
                 <option value="admin">Administrator</option>
               </SelectField>
               <InputField label="Branch code" value={form.branch}
                 onChange={e => setForm(f => ({ ...f, branch: e.target.value.toUpperCase() }))}
-                placeholder="MN (default)" maxLength={10} />
+                placeholder="MN (default)" maxLength={10} error={fieldErrors.branch} />
             </div>
             {form.role === 'student' && (
-              <SelectField label="Program" value={form.programId} onChange={e => setForm(f => ({ ...f, programId: e.target.value }))}>
+              <SelectField label="Program" value={form.programId} onChange={e => setForm(f => ({ ...f, programId: e.target.value }))}
+                error={fieldErrors.programId}>
                 <option value="">— Select a program —</option>
                 {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
               </SelectField>
@@ -188,10 +203,10 @@ export default function Users() {
               <Icon name="info" size={12} className="mt-0.5 text-stone-400 flex-shrink-0" />
               <span>User code preview: <span className="font-mono text-olive-600 font-semibold">{new Date().getFullYear()}-NNNNN-{form.branch || 'MN'}-{form.role === 'student' ? '0' : form.role === 'faculty' ? '1' : '2'}</span></span>
             </div>
-            {err && <p className="text-red-600 text-sm">{err}</p>}
+            {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
-              <button className="btn-ghost" onClick={() => { setShowCreate(false); setErr(''); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => createMut.mutate()}
+              <button className="btn-ghost" onClick={() => { setShowCreate(false); resetErr(); }}>Cancel</button>
+              <button className="btn-primary" onClick={() => { resetErr(); createMut.mutate(); }}
                 disabled={createMut.isPending || (form.role === 'student' && !form.programId)}>
                 {createMut.isPending ? 'Creating…' : 'Create user'}
               </button>
@@ -202,28 +217,31 @@ export default function Users() {
 
       {/* Edit modal */}
       {editUser && (
-        <Modal title={`Edit — ${editUser.user_code ?? editUser.full_name}`} onClose={() => { setEditUser(null); setErr(''); }}>
+        <Modal title={`Edit — ${editUser.user_code ?? editUser.full_name}`} onClose={() => { setEditUser(null); resetErr(); }}>
           <div className="space-y-4">
-            <InputField label="Full name" value={editForm.fullName} onChange={e => setEditForm(f => ({ ...f, fullName: e.target.value }))} />
+            <InputField label="Full name" value={editForm.fullName} onChange={e => setEditForm(f => ({ ...f, fullName: e.target.value }))}
+              error={fieldErrors.fullName} />
             <div className="grid grid-cols-2 gap-3">
               <SelectField label="Status" value={editForm.isActive} onChange={e => setEditForm(f => ({ ...f, isActive: e.target.value }))}>
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
               </SelectField>
               <InputField label="Branch code" value={editForm.branch}
-                onChange={e => setEditForm(f => ({ ...f, branch: e.target.value.toUpperCase() }))} maxLength={10} />
+                onChange={e => setEditForm(f => ({ ...f, branch: e.target.value.toUpperCase() }))}
+                maxLength={10} error={fieldErrors.branch} />
             </div>
             {editUser.role === 'student' && (
-              <SelectField label="Program" value={editForm.programId} onChange={e => setEditForm(f => ({ ...f, programId: e.target.value }))}>
+              <SelectField label="Program" value={editForm.programId} onChange={e => setEditForm(f => ({ ...f, programId: e.target.value }))}
+                error={fieldErrors.programId}>
                 <option value="">— Select a program —</option>
                 {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
               </SelectField>
             )}
             <p className="text-xs text-stone-400">Branch change only affects future display, not the existing user code.</p>
-            {err && <p className="text-red-600 text-sm">{err}</p>}
+            {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
-              <button className="btn-ghost" onClick={() => { setEditUser(null); setErr(''); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => updateMut.mutate()} disabled={updateMut.isPending}>
+              <button className="btn-ghost" onClick={() => { setEditUser(null); resetErr(); }}>Cancel</button>
+              <button className="btn-primary" onClick={() => { resetErr(); updateMut.mutate(); }} disabled={updateMut.isPending}>
                 {updateMut.isPending ? 'Saving…' : 'Save changes'}
               </button>
             </div>

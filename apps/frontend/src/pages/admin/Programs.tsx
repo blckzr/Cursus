@@ -4,9 +4,11 @@ import { getPrograms, createProgram } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
+import CardGridSkeleton from '../../components/CardGridSkeleton';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField } from '../../components/FormField';
+import { parseApiError } from '../../lib/apiError';
 
 const EMPTY = { code: '', name: '', totalUnits: '', yearLevels: '4', blocksPerYear: '3', blockCapacity: '50' };
 
@@ -17,6 +19,8 @@ export default function Programs() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [err, setErr] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const resetErr = () => { setErr(''); setFieldErrors({}); };
 
   const createMut = useMutation({
     mutationFn: () => createProgram({
@@ -30,10 +34,10 @@ export default function Programs() {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['programs'] });
       qc.invalidateQueries({ queryKey: ['blocks'] });
-      setShowCreate(false); setForm(EMPTY); setErr('');
+      setShowCreate(false); setForm(EMPTY); resetErr();
       toast.push({ tone: 'success', title: 'Program added' });
     },
-    onError: (e: unknown) => setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error'),
+    onError: (e: unknown) => { const p = parseApiError(e, 'Failed to create program'); setErr(p.message); setFieldErrors(p.fields); },
   });
 
   return (
@@ -42,11 +46,11 @@ export default function Programs() {
         eyebrow="Catalog"
         title="Programs"
         subtitle="Degree programs offered by the university."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); setErr(''); }}><Icon name="plus" size={14} /> New program</button>}
+        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New program</button>}
       />
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <CardGridSkeleton count={6} cols={3} />
       ) : programs.length === 0 ? (
         <div className="card p-0"><EmptyState icon="graduation-cap" title="No programs yet" message="Create the first degree program." /></div>
       ) : (
@@ -61,18 +65,9 @@ export default function Programs() {
                 <Icon name="graduation-cap" size={18} className="text-khaki-300" />
               </div>
               <div className="mt-4 pt-3 border-t border-beige-200 grid grid-cols-3 gap-2 text-center">
-                <div>
-                  <div className="text-base font-semibold tabular">{p.total_units}</div>
-                  <div className="text-[10px] text-stone-400 uppercase tracking-wider">Units</div>
-                </div>
-                <div>
-                  <div className="text-base font-semibold tabular">{p.year_levels}</div>
-                  <div className="text-[10px] text-stone-400 uppercase tracking-wider">Years</div>
-                </div>
-                <div>
-                  <div className="text-base font-semibold tabular">{Number(p.year_levels) * Number(p.blocks_per_year)}</div>
-                  <div className="text-[10px] text-stone-400 uppercase tracking-wider">Blocks</div>
-                </div>
+                <div><div className="text-base font-semibold tabular">{p.total_units}</div><div className="text-[10px] text-stone-400 uppercase tracking-wider">Units</div></div>
+                <div><div className="text-base font-semibold tabular">{p.year_levels}</div><div className="text-[10px] text-stone-400 uppercase tracking-wider">Years</div></div>
+                <div><div className="text-base font-semibold tabular">{Number(p.year_levels) * Number(p.blocks_per_year)}</div><div className="text-[10px] text-stone-400 uppercase tracking-wider">Blocks</div></div>
               </div>
             </div>
           ))}
@@ -80,22 +75,22 @@ export default function Programs() {
       )}
 
       {showCreate && (
-        <Modal title="New program" subtitle="Block sections are generated automatically from the configuration." onClose={() => { setShowCreate(false); setErr(''); }}>
+        <Modal title="New program" subtitle="Block sections are generated automatically from the configuration." onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
-              <InputField label="Code" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="BSCS" />
+              <InputField label="Code" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="BSCS" error={fieldErrors.code} />
               <div className="col-span-2">
-                <InputField label="Program name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Bachelor of Science in Computer Science" />
+                <InputField label="Program name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Bachelor of Science in Computer Science" error={fieldErrors.name} />
               </div>
             </div>
-            <InputField label="Total units" type="number" value={form.totalUnits} onChange={e => setForm(f => ({ ...f, totalUnits: e.target.value }))} placeholder="150" />
+            <InputField label="Total units" type="number" value={form.totalUnits} onChange={e => setForm(f => ({ ...f, totalUnits: e.target.value }))} placeholder="150" error={fieldErrors.totalUnits} />
 
             <div className="border-t border-beige-200 pt-3">
               <p className="text-xs font-semibold text-stone-500 mb-2 uppercase tracking-wider">Block configuration</p>
               <div className="grid grid-cols-3 gap-3">
-                <InputField label="Year levels" type="number" value={form.yearLevels} onChange={e => setForm(f => ({ ...f, yearLevels: e.target.value }))} />
-                <InputField label="Blocks / year" type="number" value={form.blocksPerYear} onChange={e => setForm(f => ({ ...f, blocksPerYear: e.target.value }))} />
-                <InputField label="Capacity" type="number" value={form.blockCapacity} onChange={e => setForm(f => ({ ...f, blockCapacity: e.target.value }))} />
+                <InputField label="Year levels" type="number" value={form.yearLevels} onChange={e => setForm(f => ({ ...f, yearLevels: e.target.value }))} error={fieldErrors.yearLevels} />
+                <InputField label="Blocks / year" type="number" value={form.blocksPerYear} onChange={e => setForm(f => ({ ...f, blocksPerYear: e.target.value }))} error={fieldErrors.blocksPerYear} />
+                <InputField label="Capacity" type="number" value={form.blockCapacity} onChange={e => setForm(f => ({ ...f, blockCapacity: e.target.value }))} error={fieldErrors.blockCapacity} />
               </div>
               <p className="text-xs text-stone-400 mt-2">
                 {Number(form.yearLevels || 0) * Number(form.blocksPerYear || 0)} blocks will be generated — e.g.{' '}
@@ -103,10 +98,10 @@ export default function Programs() {
               </p>
             </div>
 
-            {err && <p className="text-red-600 text-sm">{err}</p>}
+            {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
-              <button className="btn-ghost" onClick={() => { setShowCreate(false); setErr(''); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => createMut.mutate()}
+              <button className="btn-ghost" onClick={() => { setShowCreate(false); resetErr(); }}>Cancel</button>
+              <button className="btn-primary" onClick={() => { resetErr(); createMut.mutate(); }}
                 disabled={createMut.isPending || !form.code || !form.name || !form.totalUnits}>
                 {createMut.isPending ? 'Creating…' : 'Create program'}
               </button>

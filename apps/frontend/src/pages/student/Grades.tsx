@@ -7,6 +7,7 @@ import EmptyState from '../../components/EmptyState';
 import DataTable from '../../components/DataTable';
 import Chip from '../../components/Chip';
 import Icon from '../../components/Icon';
+import Skeleton from '../../components/Skeleton';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 
@@ -61,7 +62,17 @@ export default function StudentGrades() {
       />
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <div className="space-y-7">
+          {[0, 1].map(i => (
+            <div key={i}>
+              <div className="flex items-end justify-between mb-3 px-1">
+                <div className="space-y-2"><Skeleton className="h-3 w-12" /><Skeleton className="h-5 w-48" /></div>
+                <Skeleton className="h-8 w-24" />
+              </div>
+              <Skeleton className="h-48 rounded-xl" />
+            </div>
+          ))}
+        </div>
       ) : grouped.length === 0 ? (
         <div className="card p-0"><EmptyState icon="bar-chart" title="No grades yet" message="You aren't enrolled in any sections yet." /></div>
       ) : (

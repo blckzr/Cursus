@@ -4,9 +4,11 @@ import { getTerms, createTerm, updateTerm, getSections, getEnrollments } from '.
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
+import CardGridSkeleton from '../../components/CardGridSkeleton';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
+import { parseApiError } from '../../lib/apiError';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 const WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -23,25 +25,27 @@ export default function Terms() {
   const [form, setForm] = useState({ name: '', startDate: '', endDate: '', isActive: 'false' });
   const [editActive, setEditActive] = useState('false');
   const [err, setErr] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const resetErr = () => { setErr(''); setFieldErrors({}); };
 
   const createMut = useMutation({
     mutationFn: () => createTerm({ ...form, isActive: form.isActive === 'true' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['terms'] });
-      setShowCreate(false); setForm({ name: '', startDate: '', endDate: '', isActive: 'false' }); setErr('');
+      setShowCreate(false); setForm({ name: '', startDate: '', endDate: '', isActive: 'false' }); resetErr();
       toast.push({ tone: 'success', title: 'Term created' });
     },
-    onError: (e: unknown) => setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error'),
+    onError: (e: unknown) => { const p = parseApiError(e, 'Failed to create term'); setErr(p.message); setFieldErrors(p.fields); },
   });
 
   const updateMut = useMutation({
     mutationFn: () => updateTerm(editTerm!.id, { isActive: editActive === 'true' }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['terms'] });
-      setEditTerm(null); setErr('');
+      setEditTerm(null); resetErr();
       toast.push({ tone: 'success', title: 'Term updated' });
     },
-    onError: (e: unknown) => setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error'),
+    onError: (e: unknown) => { const p = parseApiError(e, 'Failed to update term'); setErr(p.message); setFieldErrors(p.fields); },
   });
 
   const termStats = (t: any) => {
@@ -62,11 +66,11 @@ export default function Terms() {
         eyebrow="Academic calendar"
         title="Terms"
         subtitle="Manage academic terms and the active period."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); setErr(''); }}><Icon name="plus" size={14} /> New term</button>}
+        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New term</button>}
       />
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <CardGridSkeleton count={4} cols={2} />
       ) : terms.length === 0 ? (
         <div className="card p-0"><EmptyState icon="calendar" title="No terms yet" message="Create the first academic term." /></div>
       ) : (
@@ -89,7 +93,7 @@ export default function Terms() {
                   <div className="flex items-center gap-1.5">
                     {active && <span className="badge badge-completed">Current</span>}
                     <button className="btn-icon" title="Edit"
-                      onClick={() => { setEditTerm(t); setEditActive(String(t.is_active)); setErr(''); }}>
+                      onClick={() => { setEditTerm(t); setEditActive(String(t.is_active)); resetErr(); }}>
                       <Icon name="pencil" size={13} />
                     </button>
                   </div>
@@ -106,21 +110,22 @@ export default function Terms() {
       )}
 
       {showCreate && (
-        <Modal title="New term" onClose={() => { setShowCreate(false); setErr(''); }}>
+        <Modal title="New term" onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">
-            <InputField label="Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="AY 2025–2026, 2nd Semester" />
+            <InputField label="Name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="AY 2025–2026, 2nd Semester" error={fieldErrors.name} />
             <div className="grid grid-cols-2 gap-3">
-              <InputField label="Start date" type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} />
-              <InputField label="End date" type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} />
+              <InputField label="Start date" type="date" value={form.startDate} onChange={e => setForm(f => ({ ...f, startDate: e.target.value }))} error={fieldErrors.startDate} />
+              <InputField label="End date" type="date" value={form.endDate} onChange={e => setForm(f => ({ ...f, endDate: e.target.value }))} error={fieldErrors.endDate} />
             </div>
             <SelectField label="Active?" value={form.isActive} onChange={e => setForm(f => ({ ...f, isActive: e.target.value }))}>
               <option value="false">No</option>
               <option value="true">Yes</option>
             </SelectField>
-            {err && <p className="text-red-600 text-sm">{err}</p>}
+            {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
-              <button className="btn-ghost" onClick={() => { setShowCreate(false); setErr(''); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => createMut.mutate()} disabled={createMut.isPending}>
+              <button className="btn-ghost" onClick={() => { setShowCreate(false); resetErr(); }}>Cancel</button>
+              <button className="btn-primary" onClick={() => { resetErr(); createMut.mutate(); }} disabled={createMut.isPending}>
                 {createMut.isPending ? 'Creating…' : 'Create term'}
               </button>
             </div>
@@ -129,16 +134,16 @@ export default function Terms() {
       )}
 
       {editTerm && (
-        <Modal title={`Edit — ${editTerm.name}`} onClose={() => { setEditTerm(null); setErr(''); }}>
+        <Modal title={`Edit — ${editTerm.name}`} onClose={() => { setEditTerm(null); resetErr(); }}>
           <div className="space-y-4">
             <SelectField label="Active?" value={editActive} onChange={e => setEditActive(e.target.value)}>
               <option value="false">No</option>
               <option value="true">Yes</option>
             </SelectField>
-            {err && <p className="text-red-600 text-sm">{err}</p>}
+            {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
-              <button className="btn-ghost" onClick={() => { setEditTerm(null); setErr(''); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => updateMut.mutate()} disabled={updateMut.isPending}>
+              <button className="btn-ghost" onClick={() => { setEditTerm(null); resetErr(); }}>Cancel</button>
+              <button className="btn-primary" onClick={() => { resetErr(); updateMut.mutate(); }} disabled={updateMut.isPending}>
                 {updateMut.isPending ? 'Saving…' : 'Save'}
               </button>
             </div>

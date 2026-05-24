@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { getSections, getTerms } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
+import CardGridSkeleton from '../../components/CardGridSkeleton';
 import Chip from '../../components/Chip';
 import FacultySectionCard from './SectionCard';
 
@@ -39,7 +40,7 @@ export default function FacultySections() {
       </div>
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <CardGridSkeleton count={6} cols={3} />
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="school" title="No sections" message="Nothing assigned for this filter." /></div>
       ) : (

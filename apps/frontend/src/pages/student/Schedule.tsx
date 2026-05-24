@@ -4,6 +4,7 @@ import { getStudentGrades } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
+import Skeleton from '../../components/Skeleton';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 
@@ -58,7 +59,7 @@ export default function StudentSchedule() {
       />
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <div className="card p-4"><Skeleton className="h-[600px] rounded-lg" /></div>
       ) : active.length === 0 ? (
         <div className="card p-0"><EmptyState icon="calendar" title="Nothing scheduled" message="You aren't enrolled in any courses this term." /></div>
       ) : (

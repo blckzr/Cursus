@@ -4,14 +4,21 @@ import { getSections, createSection, getCourses, getTerms, getUsers, getEnrollme
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
-import DataTable from '../../components/DataTable';
+import DataTable, { type DataTableHeader } from '../../components/DataTable';
+import TableSkeleton from '../../components/TableSkeleton';
 import SearchInput from '../../components/SearchInput';
 import Chip from '../../components/Chip';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
+import { parseApiError } from '../../lib/apiError';
 
 const EMPTY = { courseId: '', termId: '', facultyId: '', sectionCode: '', dayOfWeek: '', startTime: '', endTime: '', room: '', capacity: '' };
+
+const HEADERS: DataTableHeader[] = [
+  { label: 'Section' }, { label: 'Course' }, { label: 'Term' }, { label: 'Faculty' },
+  { label: 'Schedule' }, { label: 'Room' }, { label: 'Enrolled', align: 'center' },
+];
 
 export default function Sections() {
   const qc = useQueryClient();
@@ -25,6 +32,8 @@ export default function Sections() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState(EMPTY);
   const [err, setErr] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const resetErr = () => { setErr(''); setFieldErrors({}); };
   const [query, setQuery] = useState('');
   const [termFilter, setTermFilter] = useState('all');
 
@@ -32,10 +41,10 @@ export default function Sections() {
     mutationFn: () => createSection({ ...form, capacity: Number(form.capacity) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['sections'] });
-      setShowCreate(false); setForm(EMPTY); setErr('');
+      setShowCreate(false); setForm(EMPTY); resetErr();
       toast.push({ tone: 'success', title: 'Section created' });
     },
-    onError: (e: unknown) => setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error'),
+    onError: (e: unknown) => { const p = parseApiError(e, 'Failed to create section'); setErr(p.message); setFieldErrors(p.fields); },
   });
 
   const enrolledFor = (sectionId: string) =>
@@ -56,7 +65,7 @@ export default function Sections() {
         eyebrow="Scheduling"
         title="Sections"
         subtitle="Class sections — schedule, room, and assigned faculty."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); setErr(''); }}><Icon name="plus" size={14} /> New section</button>}
+        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New section</button>}
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -71,14 +80,11 @@ export default function Sections() {
       </div>
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <TableSkeleton headers={HEADERS} rows={6} />
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="school" title="No sections match" message="Try a different filter or add a section." /></div>
       ) : (
-        <DataTable headers={[
-          { label: 'Section' }, { label: 'Course' }, { label: 'Term' }, { label: 'Faculty' },
-          { label: 'Schedule' }, { label: 'Room' }, { label: 'Enrolled', align: 'center' },
-        ]}>
+        <DataTable headers={HEADERS}>
           {filtered.map((s: any) => {
             const enrolled = enrolledFor(s.id);
             const fillPct = s.capacity ? (enrolled / s.capacity) * 100 : 0;
@@ -115,34 +121,34 @@ export default function Sections() {
       )}
 
       {showCreate && (
-        <Modal title="New section" onClose={() => { setShowCreate(false); setErr(''); }}>
+        <Modal title="New section" onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-3">
-            <SelectField label="Course" value={form.courseId} onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))}>
+            <SelectField label="Course" value={form.courseId} onChange={e => setForm(f => ({ ...f, courseId: e.target.value }))} error={fieldErrors.courseId}>
               <option value="">Select course</option>
               {courses.map((c: any) => <option key={c.id} value={c.id}>{c.code} — {c.title}</option>)}
             </SelectField>
             <div className="grid grid-cols-2 gap-3">
-              <SelectField label="Term" value={form.termId} onChange={e => setForm(f => ({ ...f, termId: e.target.value }))}>
+              <SelectField label="Term" value={form.termId} onChange={e => setForm(f => ({ ...f, termId: e.target.value }))} error={fieldErrors.termId}>
                 <option value="">Select term</option>
                 {terms.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </SelectField>
-              <SelectField label="Faculty" value={form.facultyId} onChange={e => setForm(f => ({ ...f, facultyId: e.target.value }))}>
+              <SelectField label="Faculty" value={form.facultyId} onChange={e => setForm(f => ({ ...f, facultyId: e.target.value }))} error={fieldErrors.facultyId}>
                 <option value="">Select faculty</option>
                 {faculty.map((f: any) => <option key={f.id} value={f.id}>{f.full_name}</option>)}
               </SelectField>
             </div>
-            <InputField label="Section code" value={form.sectionCode} onChange={e => setForm(f => ({ ...f, sectionCode: e.target.value }))} placeholder="CS101-A" />
+            <InputField label="Section code" value={form.sectionCode} onChange={e => setForm(f => ({ ...f, sectionCode: e.target.value }))} placeholder="CS101-A" error={fieldErrors.sectionCode} />
             <div className="grid grid-cols-2 gap-3">
-              <InputField label="Day of week" value={form.dayOfWeek} onChange={e => setForm(f => ({ ...f, dayOfWeek: e.target.value }))} placeholder="MWF" />
-              <InputField label="Room" value={form.room} onChange={e => setForm(f => ({ ...f, room: e.target.value }))} placeholder="Room 201" />
-              <InputField label="Start time" type="time" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} />
-              <InputField label="End time" type="time" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} />
+              <InputField label="Day of week" value={form.dayOfWeek} onChange={e => setForm(f => ({ ...f, dayOfWeek: e.target.value }))} placeholder="MWF" error={fieldErrors.dayOfWeek} />
+              <InputField label="Room" value={form.room} onChange={e => setForm(f => ({ ...f, room: e.target.value }))} placeholder="Room 201" error={fieldErrors.room} />
+              <InputField label="Start time" type="time" value={form.startTime} onChange={e => setForm(f => ({ ...f, startTime: e.target.value }))} error={fieldErrors.startTime} />
+              <InputField label="End time" type="time" value={form.endTime} onChange={e => setForm(f => ({ ...f, endTime: e.target.value }))} error={fieldErrors.endTime} />
             </div>
-            <InputField label="Capacity" type="number" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} placeholder="40" />
-            {err && <p className="text-red-600 text-sm">{err}</p>}
+            <InputField label="Capacity" type="number" value={form.capacity} onChange={e => setForm(f => ({ ...f, capacity: e.target.value }))} placeholder="40" error={fieldErrors.capacity} />
+            {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
-              <button className="btn-ghost" onClick={() => { setShowCreate(false); setErr(''); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => createMut.mutate()} disabled={createMut.isPending}>
+              <button className="btn-ghost" onClick={() => { setShowCreate(false); resetErr(); }}>Cancel</button>
+              <button className="btn-primary" onClick={() => { resetErr(); createMut.mutate(); }} disabled={createMut.isPending}>
                 {createMut.isPending ? 'Creating…' : 'Create section'}
               </button>
             </div>

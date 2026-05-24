@@ -4,12 +4,21 @@ import { getCourses, createCourse, getPrograms, getSections } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
-import DataTable from '../../components/DataTable';
+import DataTable, { type DataTableHeader } from '../../components/DataTable';
+import TableSkeleton from '../../components/TableSkeleton';
 import SearchInput from '../../components/SearchInput';
 import Chip from '../../components/Chip';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
+import { parseApiError } from '../../lib/apiError';
+
+const HEADERS: DataTableHeader[] = [
+  { label: 'Code' }, { label: 'Title' },
+  { label: 'Units', align: 'center', width: 80 },
+  { label: 'Program' },
+  { label: 'Sections', align: 'center', width: 100 },
+];
 
 export default function Courses() {
   const qc = useQueryClient();
@@ -21,6 +30,8 @@ export default function Courses() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ code: '', title: '', units: '3', programId: '' });
   const [err, setErr] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const resetErr = () => { setErr(''); setFieldErrors({}); };
   const [query, setQuery] = useState('');
   const [progFilter, setProgFilter] = useState('all');
 
@@ -28,10 +39,10 @@ export default function Courses() {
     mutationFn: () => createCourse({ code: form.code, title: form.title, units: Number(form.units), programId: form.programId || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['courses'] });
-      setShowCreate(false); setForm({ code: '', title: '', units: '3', programId: '' }); setErr('');
+      setShowCreate(false); setForm({ code: '', title: '', units: '3', programId: '' }); resetErr();
       toast.push({ tone: 'success', title: 'Course added' });
     },
-    onError: (e: unknown) => setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error'),
+    onError: (e: unknown) => { const p = parseApiError(e, 'Failed to create course'); setErr(p.message); setFieldErrors(p.fields); },
   });
 
   const sectionCountFor = (code: string) => sections.filter((s: any) => s.course_code === code).length;
@@ -49,7 +60,7 @@ export default function Courses() {
         eyebrow="Catalog"
         title="Courses"
         subtitle="Master list of courses offered."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); setErr(''); }}><Icon name="plus" size={14} /> New course</button>}
+        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New course</button>}
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -65,16 +76,11 @@ export default function Courses() {
       </div>
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <TableSkeleton headers={HEADERS} rows={6} />
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="book-open" title="No courses match" message="Try a different filter or add a course." /></div>
       ) : (
-        <DataTable headers={[
-          { label: 'Code' }, { label: 'Title' },
-          { label: 'Units', align: 'center', width: 80 },
-          { label: 'Program' },
-          { label: 'Sections', align: 'center', width: 100 },
-        ]}>
+        <DataTable headers={HEADERS}>
           {filtered.map((c: any) => (
             <tr key={c.id} className="hover:bg-beige-50 transition-colors">
               <td className="table-td font-mono font-semibold text-olive-500">{c.code}</td>
@@ -90,25 +96,25 @@ export default function Courses() {
       )}
 
       {showCreate && (
-        <Modal title="New course" onClose={() => { setShowCreate(false); setErr(''); }}>
+        <Modal title="New course" onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">
             <div className="grid grid-cols-3 gap-3">
-              <InputField label="Code" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="CS101" />
+              <InputField label="Code" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="CS101" error={fieldErrors.code} />
               <div className="col-span-2">
-                <InputField label="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Introduction to Programming" />
+                <InputField label="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Introduction to Programming" error={fieldErrors.title} />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <InputField label="Units" type="number" min="1" max="6" value={form.units} onChange={e => setForm(f => ({ ...f, units: e.target.value }))} />
-              <SelectField label="Program" value={form.programId} onChange={e => setForm(f => ({ ...f, programId: e.target.value }))}>
+              <InputField label="Units" type="number" min="1" max="6" value={form.units} onChange={e => setForm(f => ({ ...f, units: e.target.value }))} error={fieldErrors.units} />
+              <SelectField label="Program" value={form.programId} onChange={e => setForm(f => ({ ...f, programId: e.target.value }))} error={fieldErrors.programId}>
                 <option value="">— General Ed —</option>
                 {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
               </SelectField>
             </div>
-            {err && <p className="text-red-600 text-sm">{err}</p>}
+            {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
-              <button className="btn-ghost" onClick={() => { setShowCreate(false); setErr(''); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => createMut.mutate()} disabled={createMut.isPending || !form.code || !form.title}>
+              <button className="btn-ghost" onClick={() => { setShowCreate(false); resetErr(); }}>Cancel</button>
+              <button className="btn-primary" onClick={() => { resetErr(); createMut.mutate(); }} disabled={createMut.isPending || !form.code || !form.title}>
                 {createMut.isPending ? 'Creating…' : 'Create course'}
               </button>
             </div>

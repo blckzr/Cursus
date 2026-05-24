@@ -11,6 +11,7 @@ import EmptyState from '../../components/EmptyState';
 import SearchInput from '../../components/SearchInput';
 import Chip from '../../components/Chip';
 import Avatar from '../../components/Avatar';
+import Skeleton from '../../components/Skeleton';
 import RiskPill from '../../components/RiskPill';
 import GradeRing from '../../components/GradeRing';
 import ProgressBar from '../../components/ProgressBar';
@@ -224,7 +225,18 @@ export default function Gradebook() {
     return () => document.removeEventListener('keydown', onKey);
   }, [editCount, saveMut]);
 
-  if (isLoading) return <div className="text-center text-stone-400 py-16 text-sm">Loading gradebook…</div>;
+  if (isLoading) return (
+    <div className="space-y-4">
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-8 w-2/3" />
+      <Skeleton className="h-3 w-1/2" />
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+        {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
+      </div>
+      <Skeleton className="h-12 mt-3" />
+      <Skeleton className="h-[60vh] mt-3" />
+    </div>
+  );
   if (!data || !section) return <div className="text-center text-red-500 py-16 text-sm">Section not found.</div>;
 
   return (

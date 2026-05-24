@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { getBlocks, promoteYear } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
+import Skeleton from '../../components/Skeleton';
 import { useToast } from '../../components/Toast';
 
 interface Block {
@@ -64,7 +65,26 @@ export default function Blocks() {
       />
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <div className="space-y-6">
+          {[0, 1].map(i => (
+            <div key={i} className="card space-y-4">
+              <Skeleton className="h-5 w-2/3" />
+              <div className="space-y-3">
+                {[0, 1, 2].map(y => (
+                  <div key={y} className="border border-beige-200 rounded-lg p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <Skeleton className="h-4 w-24" />
+                      <Skeleton className="h-6 w-32 rounded-lg" />
+                    </div>
+                    <div className="flex gap-2 flex-wrap">
+                      {[0, 1, 2].map(b => <Skeleton key={b} className="h-9 w-28 rounded-lg" />)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
       ) : blocks.length === 0 ? (
         <div className="card p-0"><EmptyState icon="boxes" title="No blocks yet" message="Create a program to generate its blocks." /></div>
       ) : (

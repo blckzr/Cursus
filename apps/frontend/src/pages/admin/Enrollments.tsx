@@ -4,13 +4,20 @@ import { getEnrollments, createEnrollment, updateEnrollment, getSections, getUse
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
-import DataTable from '../../components/DataTable';
+import DataTable, { type DataTableHeader } from '../../components/DataTable';
+import TableSkeleton from '../../components/TableSkeleton';
 import SearchInput from '../../components/SearchInput';
 import Chip from '../../components/Chip';
 import Avatar from '../../components/Avatar';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { SelectField } from '../../components/FormField';
+import { parseApiError } from '../../lib/apiError';
+
+const HEADERS: DataTableHeader[] = [
+  { label: 'Student' }, { label: 'Section' }, { label: 'Course' }, { label: 'Term' },
+  { label: 'Status' }, { label: 'Final grade', align: 'right' }, { label: '', align: 'right' },
+];
 
 export default function Enrollments() {
   const qc = useQueryClient();
@@ -22,6 +29,8 @@ export default function Enrollments() {
   const [showCreate, setShowCreate] = useState(false);
   const [form, setForm] = useState({ studentId: '', sectionId: '' });
   const [err, setErr] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const resetErr = () => { setErr(''); setFieldErrors({}); };
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [termFilter, setTermFilter] = useState('all');
@@ -30,10 +39,10 @@ export default function Enrollments() {
     mutationFn: () => createEnrollment(form),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['enrollments'] });
-      setShowCreate(false); setForm({ studentId: '', sectionId: '' }); setErr('');
+      setShowCreate(false); setForm({ studentId: '', sectionId: '' }); resetErr();
       toast.push({ tone: 'success', title: 'Student enrolled' });
     },
-    onError: (e: unknown) => setErr((e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Error'),
+    onError: (e: unknown) => { const p = parseApiError(e, 'Failed to enroll'); setErr(p.message); setFieldErrors(p.fields); },
   });
 
   const dropMut = useMutation({
@@ -44,7 +53,7 @@ export default function Enrollments() {
     },
     onError: (e: unknown) => toast.push({
       tone: 'error', title: 'Could not drop',
-      message: (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '',
+      message: parseApiError(e).message,
     }),
   });
 
@@ -81,7 +90,7 @@ export default function Enrollments() {
         eyebrow="Records"
         title="Enrollments"
         subtitle="Student section enrollments across all terms."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); setErr(''); }}><Icon name="plus" size={14} /> Enroll student</button>}
+        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> Enroll student</button>}
       />
 
       <div className="flex items-center gap-3 mb-4 flex-wrap">
@@ -100,14 +109,11 @@ export default function Enrollments() {
       </div>
 
       {isLoading ? (
-        <div className="card p-8 text-center text-stone-400 text-sm">Loading…</div>
+        <TableSkeleton headers={HEADERS} rows={8} />
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="clipboard-list" title="No enrollments match" message="Try a different filter or enroll a student." /></div>
       ) : (
-        <DataTable headers={[
-          { label: 'Student' }, { label: 'Section' }, { label: 'Course' }, { label: 'Term' },
-          { label: 'Status' }, { label: 'Final grade', align: 'right' }, { label: '', align: 'right' },
-        ]}>
+        <DataTable headers={HEADERS}>
           {filtered.slice(0, 100).map((e: any) => (
             <tr key={e.id} className="hover:bg-beige-50 transition-colors">
               <td className="table-td">
@@ -148,20 +154,20 @@ export default function Enrollments() {
       )}
 
       {showCreate && (
-        <Modal title="Enroll student" subtitle="Add a student to a section." onClose={() => { setShowCreate(false); setErr(''); }}>
+        <Modal title="Enroll student" subtitle="Add a student to a section." onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">
-            <SelectField label="Student" value={form.studentId} onChange={e => setForm(f => ({ ...f, studentId: e.target.value }))}>
+            <SelectField label="Student" value={form.studentId} onChange={e => setForm(f => ({ ...f, studentId: e.target.value }))} error={fieldErrors.studentId}>
               <option value="">Select student</option>
               {students.map((s: any) => <option key={s.id} value={s.id}>{s.full_name} ({s.user_code ?? s.email})</option>)}
             </SelectField>
-            <SelectField label="Section" value={form.sectionId} onChange={e => setForm(f => ({ ...f, sectionId: e.target.value }))}>
+            <SelectField label="Section" value={form.sectionId} onChange={e => setForm(f => ({ ...f, sectionId: e.target.value }))} error={fieldErrors.sectionId}>
               <option value="">Select section</option>
               {sections.map((s: any) => <option key={s.id} value={s.id}>{s.section_code} — {s.course_title} ({s.term_name})</option>)}
             </SelectField>
-            {err && <p className="text-red-600 text-sm">{err}</p>}
+            {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
-              <button className="btn-ghost" onClick={() => { setShowCreate(false); setErr(''); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => createMut.mutate()} disabled={createMut.isPending || !form.studentId || !form.sectionId}>
+              <button className="btn-ghost" onClick={() => { setShowCreate(false); resetErr(); }}>Cancel</button>
+              <button className="btn-primary" onClick={() => { resetErr(); createMut.mutate(); }} disabled={createMut.isPending || !form.studentId || !form.sectionId}>
                 {createMut.isPending ? 'Enrolling…' : 'Enroll'}
               </button>
             </div>
