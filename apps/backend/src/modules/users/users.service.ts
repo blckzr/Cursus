@@ -77,7 +77,31 @@ export async function createUser(data: {
     [data.email, hash, data.fullName, data.role, branch, userCode,
      data.programId ?? null, yearLevel, blockSectionId],
   );
+
+  // Auto-enroll new student into every section of their block in any active term.
+  // (No-op if the term hasn't been opened yet — they get picked up when 'Open term' runs.)
+  if (data.role === 'student' && blockSectionId) {
+    await enrollStudentInBlockActiveSections(rows[0].id, blockSectionId);
+  }
+
   return rows[0];
+}
+
+/**
+ * Enrolls a student into every section linked to a block in any currently active term.
+ * Used both when creating a new student and when reassigning a student's block.
+ * Idempotent — re-running skips duplicates.
+ */
+async function enrollStudentInBlockActiveSections(studentId: string, blockId: string) {
+  await db.query(
+    `INSERT INTO enrollments (student_id, section_id)
+     SELECT $1, s.id
+     FROM sections s
+     JOIN terms t ON t.id = s.term_id
+     WHERE s.block_id = $2 AND t.is_active = TRUE
+     ON CONFLICT (student_id, section_id) DO NOTHING`,
+    [studentId, blockId],
+  );
 }
 
 export async function updateUser(id: string, data: {
@@ -123,5 +147,12 @@ export async function updateUser(id: string, data: {
     `UPDATE users SET ${sets.join(', ')} WHERE id = $${i} RETURNING ${SAFE_COLS}`,
     vals,
   );
+
+  // If we reassigned the student to a new block (program change), enroll them
+  // into that new block's active-term sections.
+  if (rows[0]?.role === 'student' && rows[0].block_id) {
+    await enrollStudentInBlockActiveSections(rows[0].id, rows[0].block_id);
+  }
+
   return rows[0] ?? null;
 }
