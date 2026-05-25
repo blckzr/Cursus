@@ -75,6 +75,42 @@ export async function updateSection(id: string, data: {
   dayOfWeek?: string | null; startTime?: string | null; endTime?: string | null;
   room?: string | null; capacity?: number;
 }) {
+  // Pull current state so we can compute the post-update snapshot for conflict checking.
+  const { rows: cur } = await db.query(
+    'SELECT term_id, faculty_id, day_of_week, start_time, end_time FROM sections WHERE id = $1',
+    [id],
+  );
+  if (!cur[0]) throw Object.assign(new Error('Section not found'), { status: 404 });
+
+  const merged = {
+    termId:     cur[0].term_id as string,
+    facultyId:  data.facultyId !== undefined ? data.facultyId : (cur[0].faculty_id as string | null),
+    dayOfWeek:  data.dayOfWeek !== undefined ? data.dayOfWeek : (cur[0].day_of_week as string | null),
+    startTime:  data.startTime !== undefined ? data.startTime : (cur[0].start_time as string | null),
+    endTime:    data.endTime   !== undefined ? data.endTime   : (cur[0].end_time   as string | null),
+  };
+
+  // Schedule conflict check — only when the section has a complete assignment.
+  if (merged.facultyId && merged.dayOfWeek && merged.startTime && merged.endTime) {
+    const clash = await findScheduleConflict({
+      sectionId:  id,
+      facultyId:  merged.facultyId,
+      termId:     merged.termId,
+      dayOfWeek:  merged.dayOfWeek,
+      startTime:  merged.startTime,
+      endTime:    merged.endTime,
+    });
+    if (clash) {
+      throw Object.assign(
+        new Error(
+          `Schedule conflict: faculty already teaches ${clash.section_code} ` +
+          `on ${clash.day_of_week} ${String(clash.start_time).slice(0, 5)}–${String(clash.end_time).slice(0, 5)}.`,
+        ),
+        { status: 409 },
+      );
+    }
+  }
+
   const map: Record<string, string> = {
     facultyId: 'faculty_id',
     dayOfWeek: 'day_of_week', startTime: 'start_time', endTime: 'end_time',
@@ -100,4 +136,62 @@ export async function updateSection(id: string, data: {
     vals,
   );
   return rows[0] ?? null;
+}
+
+// ============================================================================
+// Schedule overlap helpers
+// ============================================================================
+
+/**
+ * Parse a day-of-week string like 'MWF' or 'TTh' into the canonical day tokens.
+ * Multi-char tokens ('Th', 'Sat') are matched first so single-letter day codes
+ * don't accidentally capture letters that belong to them.
+ */
+function parseDays(s: string): string[] {
+  let rest = s.replace(/\s+/g, '');
+  const out = new Set<string>();
+  // Multi-char first
+  while (/sat/i.test(rest)) { out.add('Sat'); rest = rest.replace(/sat/i, ''); }
+  while (/th/i.test(rest))  { out.add('Th');  rest = rest.replace(/th/i,  ''); }
+  for (const c of rest.toUpperCase()) {
+    if ('MTWF'.includes(c)) out.add(c);
+  }
+  return [...out];
+}
+
+/**
+ * Returns the FIRST other section taught by `facultyId` in `termId` whose
+ * day + time overlaps the given window, or null if there's no clash.
+ *
+ * Time overlap: A.start < B.end  AND  B.start < A.end
+ * Day overlap:  parsed day-token sets share at least one element
+ */
+async function findScheduleConflict(opts: {
+  sectionId: string;
+  facultyId: string;
+  termId: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+}) {
+  const { rows } = await db.query(
+    `SELECT s.id, s.section_code, s.day_of_week, s.start_time, s.end_time
+     FROM sections s
+     WHERE s.faculty_id = $1
+       AND s.term_id = $2
+       AND s.id <> $3
+       AND s.day_of_week IS NOT NULL
+       AND s.start_time IS NOT NULL
+       AND s.end_time   IS NOT NULL
+       AND s.start_time < $5::time
+       AND s.end_time   > $4::time`,
+    [opts.facultyId, opts.termId, opts.sectionId, opts.startTime, opts.endTime],
+  );
+
+  const newDays = parseDays(opts.dayOfWeek);
+  for (const r of rows) {
+    const otherDays = parseDays(r.day_of_week);
+    if (newDays.some(d => otherDays.includes(d))) return r;
+  }
+  return null;
 }

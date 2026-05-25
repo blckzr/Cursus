@@ -19,6 +19,27 @@ const HEADERS: DataTableHeader[] = [
   { label: '', align: 'right' },
 ];
 
+// Day-of-week parser + builder — keeps the storage format ('MWF', 'TTh') aligned
+// with the per-day chip UI.
+const DAY_ORDER = ['M', 'T', 'W', 'Th', 'F', 'Sat'] as const;
+const DAY_LABEL: Record<string, string> = { M: 'Mon', T: 'Tue', W: 'Wed', Th: 'Thu', F: 'Fri', Sat: 'Sat' };
+
+function parseDays(s: string | null | undefined): string[] {
+  if (!s) return [];
+  let rest = s.replace(/\s+/g, '');
+  const out = new Set<string>();
+  while (/sat/i.test(rest)) { out.add('Sat'); rest = rest.replace(/sat/i, ''); }
+  while (/th/i.test(rest))  { out.add('Th');  rest = rest.replace(/th/i,  ''); }
+  for (const c of rest.toUpperCase()) {
+    if ('MTWF'.includes(c)) out.add(c);
+  }
+  return [...out];
+}
+
+function joinDays(days: string[]): string {
+  return DAY_ORDER.filter(d => days.includes(d)).join('');
+}
+
 export default function Sections() {
   const qc = useQueryClient();
   const toast = useToast();
@@ -176,17 +197,34 @@ export default function Sections() {
               <option value="">— TBA —</option>
               {faculty.map((f: any) => <option key={f.id} value={f.id}>{f.full_name}</option>)}
             </SelectField>
-            <div className="grid grid-cols-2 gap-3">
-              <InputField label="Day(s)" value={editForm.dayOfWeek}
-                onChange={e => setEditForm(f => ({ ...f, dayOfWeek: e.target.value }))}
-                placeholder="MWF, TTh, …" error={fieldErrors.dayOfWeek} />
-              <InputField label="Room" value={editForm.room}
-                onChange={e => setEditForm(f => ({ ...f, room: e.target.value }))}
-                placeholder="Room 201" error={fieldErrors.room} />
+            <div>
+              <label className="label">Day(s)</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {DAY_ORDER.map(d => {
+                  const selected = parseDays(editForm.dayOfWeek);
+                  const active = selected.includes(d);
+                  return (
+                    <button key={d} type="button"
+                      className={`chip ${active ? 'active' : ''}`}
+                      onClick={() => {
+                        const next = active ? selected.filter(x => x !== d) : [...selected, d];
+                        setEditForm(f => ({ ...f, dayOfWeek: joinDays(next) }));
+                      }}>
+                      {DAY_LABEL[d]}
+                    </button>
+                  );
+                })}
+              </div>
+              {fieldErrors.dayOfWeek && <p className="text-xs text-red-600 mt-1">{fieldErrors.dayOfWeek}</p>}
+            </div>
+            <div className="grid grid-cols-3 gap-3">
               <InputField label="Start time" type="time" value={editForm.startTime}
                 onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))} error={fieldErrors.startTime} />
               <InputField label="End time" type="time" value={editForm.endTime}
                 onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))} error={fieldErrors.endTime} />
+              <InputField label="Room" value={editForm.room}
+                onChange={e => setEditForm(f => ({ ...f, room: e.target.value }))}
+                placeholder="Room 201" error={fieldErrors.room} />
             </div>
             {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
