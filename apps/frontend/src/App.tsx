@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
@@ -16,6 +16,7 @@ import Blocks from './pages/admin/Blocks';
 import Enrollments from './pages/admin/Enrollments';
 import FacultyDashboard from './pages/faculty/Dashboard';
 import FacultySections from './pages/faculty/Sections';
+import FacultyAvailability from './pages/faculty/Availability';
 import Gradebook from './pages/faculty/Gradebook';
 import StudentDashboard from './pages/student/Dashboard';
 import StudentGrades from './pages/student/Grades';
@@ -46,8 +47,9 @@ const adminNav = [
 ];
 
 const facultyNav = [
-  { label: 'Overview',    to: '/faculty',          icon: Home       },
-  { label: 'My Sections', to: '/faculty/sections', icon: LayoutGrid },
+  { label: 'Overview',      to: '/faculty',              icon: Home       },
+  { label: 'My Sections',   to: '/faculty/sections',     icon: LayoutGrid },
+  { label: 'Availability',  to: '/faculty/availability', icon: Clock      },
 ];
 const studentNav = [
   { label: 'Overview',  to: '/student',          icon: Home      },
@@ -96,6 +98,7 @@ export default function App() {
               <Route index element={<FacultyDashboard />} />
               <Route path="sections" element={<FacultySections />} />
               <Route path="sections/:id" element={<Gradebook />} />
+              <Route path="availability" element={<FacultyAvailability />} />
             </Route>
 
             {/* Student */}

@@ -21,13 +21,14 @@ const HEADERS: DataTableHeader[] = [
 
 // Day-of-week parser + builder — keeps the storage format ('MWF', 'TTh') aligned
 // with the per-day chip UI.
-const DAY_ORDER = ['M', 'T', 'W', 'Th', 'F', 'Sat'] as const;
-const DAY_LABEL: Record<string, string> = { M: 'Mon', T: 'Tue', W: 'Wed', Th: 'Thu', F: 'Fri', Sat: 'Sat' };
+const DAY_ORDER = ['M', 'T', 'W', 'Th', 'F', 'Sat', 'Sun'] as const;
+const DAY_LABEL: Record<string, string> = { M: 'Mon', T: 'Tue', W: 'Wed', Th: 'Thu', F: 'Fri', Sat: 'Sat', Sun: 'Sun' };
 
 function parseDays(s: string | null | undefined): string[] {
   if (!s) return [];
   let rest = s.replace(/\s+/g, '');
   const out = new Set<string>();
+  while (/sun/i.test(rest)) { out.add('Sun'); rest = rest.replace(/sun/i, ''); }
   while (/sat/i.test(rest)) { out.add('Sat'); rest = rest.replace(/sat/i, ''); }
   while (/th/i.test(rest))  { out.add('Th');  rest = rest.replace(/th/i,  ''); }
   for (const c of rest.toUpperCase()) {

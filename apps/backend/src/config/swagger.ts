@@ -74,6 +74,7 @@ const options: swaggerJsdoc.Options = {
       { name: 'Enrollments', description: 'Student enrollment in sections' },
       { name: 'Blocks',      description: 'Year/program cohort blocks and promotion' },
       { name: 'Curriculum',  description: 'Per-program course placement (year + semester)' },
+      { name: 'Availability', description: 'Faculty weekly teaching + office-hour slots' },
       { name: 'Gradebook',   description: 'Categories, assessments, scores, and final grades' },
     ],
   },

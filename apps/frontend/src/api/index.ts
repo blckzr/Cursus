@@ -38,6 +38,12 @@ export const getSections   = (params?: object)         => api.get('/sections', {
 export const createSection = (data: object)            => api.post('/sections', data).then(r => r.data);
 export const updateSection = (id: string, data: object) => api.patch(`/sections/${id}`, data).then(r => r.data);
 
+// ── Faculty availability ──────────────────────────────────────────────────────
+export const getAvailability     = (facultyId: string) =>
+  api.get(`/availability/${facultyId}`).then(r => r.data);
+export const saveAvailability    = (facultyId: string, slots: object[]) =>
+  api.put(`/availability/${facultyId}`, { slots }).then(r => r.data);
+
 // ── Blocks (year/program cohorts) ─────────────────────────────────────────────
 export const getBlocks   = ()                                  => api.get('/blocks').then(r => r.data);
 export const promoteYear = (programId: string, yearLevel: number) =>

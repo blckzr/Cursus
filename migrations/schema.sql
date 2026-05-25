@@ -25,6 +25,7 @@ CREATE TYPE user_role         AS ENUM ('admin', 'faculty', 'student');
 CREATE TYPE enroll_status     AS ENUM ('enrolled', 'dropped', 'completed');
 CREATE TYPE semester_type     AS ENUM ('1', '2', 'summer');
 CREATE TYPE course_visibility AS ENUM ('public', 'restricted');
+CREATE TYPE availability_kind AS ENUM ('teaching', 'office_hour');
 
 
 -- ============================================================
@@ -199,6 +200,28 @@ CREATE TABLE sections (
 CREATE INDEX idx_sections_block   ON sections(block_id);
 CREATE INDEX idx_sections_term    ON sections(term_id);
 CREATE INDEX idx_sections_faculty ON sections(faculty_id);
+
+
+-- ============================================================
+-- FACULTY_AVAILABILITY  (weekly teaching + office-hour slots)
+--
+--   `day_of_week` uses the same compact format as sections
+--   ('MWF', 'TTh', 'SunSat', …). Slots are independent rows —
+--   one teaching block per row, one office-hour block per row.
+-- ============================================================
+
+CREATE TABLE faculty_availability (
+    id          UUID              PRIMARY KEY DEFAULT gen_random_uuid(),
+    faculty_id  UUID              NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    day_of_week TEXT              NOT NULL,
+    start_time  TIME              NOT NULL,
+    end_time    TIME              NOT NULL,
+    kind        availability_kind NOT NULL,
+    created_at  TIMESTAMPTZ       NOT NULL DEFAULT now(),
+    CHECK (end_time > start_time)
+);
+
+CREATE INDEX idx_faculty_availability_faculty ON faculty_availability(faculty_id);
 
 
 -- ============================================================

@@ -90,8 +90,9 @@ export async function updateSection(id: string, data: {
     endTime:    data.endTime   !== undefined ? data.endTime   : (cur[0].end_time   as string | null),
   };
 
-  // Schedule conflict check — only when the section has a complete assignment.
+  // Schedule conflict checks — only when the section has a complete assignment.
   if (merged.facultyId && merged.dayOfWeek && merged.startTime && merged.endTime) {
+    // 1. Clash with another section taught by this faculty in the same term.
     const clash = await findScheduleConflict({
       sectionId:  id,
       facultyId:  merged.facultyId,
@@ -108,6 +109,17 @@ export async function updateSection(id: string, data: {
         ),
         { status: 409 },
       );
+    }
+
+    // 2. Faculty must be available to teach in this slot — and not during office hours.
+    const avail = await checkAvailability({
+      facultyId: merged.facultyId,
+      dayOfWeek: merged.dayOfWeek,
+      startTime: merged.startTime,
+      endTime:   merged.endTime,
+    });
+    if (avail) {
+      throw Object.assign(new Error(avail.message), { status: 409 });
     }
   }
 
@@ -147,10 +159,11 @@ export async function updateSection(id: string, data: {
  * Multi-char tokens ('Th', 'Sat') are matched first so single-letter day codes
  * don't accidentally capture letters that belong to them.
  */
-function parseDays(s: string): string[] {
+export function parseDays(s: string): string[] {
   let rest = s.replace(/\s+/g, '');
   const out = new Set<string>();
-  // Multi-char first
+  // Multi-char first (longest before shortest)
+  while (/sun/i.test(rest)) { out.add('Sun'); rest = rest.replace(/sun/i, ''); }
   while (/sat/i.test(rest)) { out.add('Sat'); rest = rest.replace(/sat/i, ''); }
   while (/th/i.test(rest))  { out.add('Th');  rest = rest.replace(/th/i,  ''); }
   for (const c of rest.toUpperCase()) {
@@ -193,5 +206,66 @@ async function findScheduleConflict(opts: {
     const otherDays = parseDays(r.day_of_week);
     if (newDays.some(d => otherDays.includes(d))) return r;
   }
+  return null;
+}
+
+/**
+ * Validate that a proposed (faculty, day, time) slot fits the faculty's declared
+ * weekly availability:
+ *   • The full window must lie inside at least one `teaching` slot for each day.
+ *   • The window must not overlap any `office_hour` slot.
+ *
+ * Returns null if all good, or { message } if a rule fails.
+ * If the faculty has NO availability rows yet, validation is skipped (admins can
+ * still assign sections; this only kicks in once availability is configured).
+ */
+async function checkAvailability(opts: {
+  facultyId: string;
+  dayOfWeek: string;
+  startTime: string;
+  endTime: string;
+}): Promise<{ message: string } | null> {
+  const { rows: slots } = await db.query(
+    `SELECT day_of_week, start_time::text AS start_time, end_time::text AS end_time, kind
+     FROM faculty_availability
+     WHERE faculty_id = $1`,
+    [opts.facultyId],
+  );
+  if (slots.length === 0) return null;
+
+  const newDays = parseDays(opts.dayOfWeek);
+
+  for (const day of newDays) {
+    // Must lie inside at least one teaching slot on this day
+    const teachingOnDay = slots.filter(
+      (s: { kind: string; day_of_week: string }) =>
+        s.kind === 'teaching' && parseDays(s.day_of_week).includes(day),
+    );
+    const covered = teachingOnDay.some(
+      (s: { start_time: string; end_time: string }) =>
+        s.start_time <= opts.startTime && s.end_time >= opts.endTime,
+    );
+    if (!covered) {
+      return {
+        message: `Faculty is not available to teach ${opts.startTime.slice(0, 5)}–${opts.endTime.slice(0, 5)} on ${day}. Update their teaching availability first.`,
+      };
+    }
+
+    // Must NOT overlap any office-hour slot on this day
+    const officeOnDay = slots.filter(
+      (s: { kind: string; day_of_week: string }) =>
+        s.kind === 'office_hour' && parseDays(s.day_of_week).includes(day),
+    );
+    const overlap = officeOnDay.find(
+      (s: { start_time: string; end_time: string }) =>
+        s.start_time < opts.endTime && s.end_time > opts.startTime,
+    );
+    if (overlap) {
+      return {
+        message: `Conflicts with faculty's office hours on ${day} (${overlap.start_time.slice(0, 5)}–${overlap.end_time.slice(0, 5)}).`,
+      };
+    }
+  }
+
   return null;
 }
