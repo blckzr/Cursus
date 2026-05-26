@@ -250,13 +250,13 @@ export default function Gradebook() {
         eyebrow={section.term_name}
         title={section.course_title}
         subtitle={
-          <span className="flex items-center gap-3 flex-wrap">
+          <span className="flex items-center gap-x-2 gap-y-1 flex-wrap">
             <span className="font-mono font-semibold text-olive-500">{section.section_code}</span>
             {section.day_of_week && (
-              <><span>·</span><span><span className="font-mono">{section.day_of_week}</span> · {section.start_time?.slice(0,5)}–{section.end_time?.slice(0,5)}</span></>
+              <><span className="hidden sm:inline">·</span><span><span className="font-mono">{section.day_of_week}</span> · {section.start_time?.slice(0,5)}–{section.end_time?.slice(0,5)}</span></>
             )}
-            {section.room && <><span>·</span><span className="flex items-center gap-1"><Icon name="map-pin" size={11} /> {section.room}</span></>}
-            <span>·</span>
+            {section.room && <><span className="hidden sm:inline">·</span><span className="flex items-center gap-1"><Icon name="map-pin" size={11} /> {section.room}</span></>}
+            <span className="hidden sm:inline">·</span>
             <span className="flex items-center gap-1"><Icon name="users" size={11} /> {students.length} enrolled</span>
           </span>
         }
@@ -266,7 +266,9 @@ export default function Gradebook() {
               <Icon name="users" size={14} /> Roster
             </Link>
             <button className="btn-ghost flex items-center gap-2 border border-khaki-200" onClick={() => setShowImport(true)}>
-              <Icon name="upload" size={14} /> Import CSV
+              <Icon name="upload" size={14} />
+              <span className="hidden sm:inline">Import CSV</span>
+              <span className="sm:hidden">CSV</span>
             </button>
             <button className="btn-secondary flex items-center gap-2" onClick={() => setShowAsm(true)}>
               <Icon name="plus" size={14} /> Assessment
@@ -275,7 +277,9 @@ export default function Gradebook() {
               <Icon name="plus" size={13} /> Category
             </button>
             <button className="btn-primary flex items-center gap-2" onClick={() => setShowFinalize(true)} disabled={totalWeight !== 100}>
-              <Icon name="award" size={14} /> Finalize grades
+              <Icon name="award" size={14} />
+              <span className="hidden sm:inline">Finalize grades</span>
+              <span className="sm:hidden">Finalize</span>
             </button>
           </div>
         }
@@ -309,24 +313,28 @@ export default function Gradebook() {
         </div>
       )}
 
-      {/* Filter / save bar */}
-      <div className="flex items-center gap-3 mb-3 flex-wrap">
-        <SearchInput value={query} onChange={setQuery} placeholder="Search students…" className="w-64" />
-        <div className="flex items-center gap-1.5">
-          <Chip active={filter === 'all'}    onClick={() => setFilter('all')}>All ({students.length})</Chip>
-          <Chip active={filter === 'risk'}   onClick={() => setFilter('risk')}><Icon name="alert-triangle" size={10} className="text-red-500" /> At risk ({atRiskCount})</Chip>
-          <Chip active={filter === 'watch'}  onClick={() => setFilter('watch')}><Icon name="info" size={10} className="text-amber-500" /> Watch</Chip>
-          <Chip active={filter === 'strong'} onClick={() => setFilter('strong')}><Icon name="award" size={10} className="text-olive-500" /> Strong</Chip>
+      {/* Filter / save bar — search full-width on mobile, chips scroll sideways, save bar drops to its own row. */}
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-3 md:flex-wrap">
+        <SearchInput value={query} onChange={setQuery} placeholder="Search students…" className="w-full md:w-64" />
+        <div className="-mx-4 px-4 md:mx-0 md:px-0 overflow-x-auto scrollable">
+          <div className="flex items-center gap-1.5 w-max md:w-auto">
+            <Chip active={filter === 'all'}    onClick={() => setFilter('all')}>All ({students.length})</Chip>
+            <Chip active={filter === 'risk'}   onClick={() => setFilter('risk')}><Icon name="alert-triangle" size={10} className="text-red-500" /> At risk ({atRiskCount})</Chip>
+            <Chip active={filter === 'watch'}  onClick={() => setFilter('watch')}><Icon name="info" size={10} className="text-amber-500" /> Watch</Chip>
+            <Chip active={filter === 'strong'} onClick={() => setFilter('strong')}><Icon name="award" size={10} className="text-olive-500" /> Strong</Chip>
+          </div>
         </div>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="md:ml-auto flex items-center justify-between md:justify-end gap-3 flex-wrap">
           {editCount > 0 ? (
             <>
               <span className="text-xs text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full font-medium flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                {editCount} unsaved change{editCount === 1 ? '' : 's'}
+                {editCount} unsaved
               </span>
               <button className="btn-primary flex items-center gap-2" onClick={() => saveMut.mutate()} disabled={saveMut.isPending}>
-                {saveMut.isPending ? <><span className="spinner" /> Saving…</> : <>Save changes <span className="kbd">⌘S</span></>}
+                {saveMut.isPending
+                  ? <><span className="spinner" /> Saving…</>
+                  : <>Save <span className="hidden sm:inline">changes <span className="kbd">⌘S</span></span></>}
               </button>
             </>
           ) : (

@@ -31,12 +31,15 @@ export default function FacultySections() {
         subtitle="Every section assigned to you. Click any card to open its gradebook."
       />
 
-      <div className="flex items-center gap-2 mb-5 flex-wrap">
-        <Chip active={termFilter === 'active'} onClick={() => setTermFilter('active')}>This term</Chip>
-        <Chip active={termFilter === 'all'} onClick={() => setTermFilter('all')}>All</Chip>
-        {terms.filter((t: any) => !isActive(t.is_active)).map((t: any) => (
-          <Chip key={t.id} active={termFilter === t.name} onClick={() => setTermFilter(t.name)}>{t.name}</Chip>
-        ))}
+      {/* Horizontally scroll the chip row on narrow viewports rather than wrapping into multiple lines. */}
+      <div className="-mx-4 px-4 md:mx-0 md:px-0 mb-5 overflow-x-auto scrollable">
+        <div className="flex items-center gap-2 w-max md:w-auto md:flex-wrap">
+          <Chip active={termFilter === 'active'} onClick={() => setTermFilter('active')}>This term</Chip>
+          <Chip active={termFilter === 'all'} onClick={() => setTermFilter('all')}>All</Chip>
+          {terms.filter((t: any) => !isActive(t.is_active)).map((t: any) => (
+            <Chip key={t.id} active={termFilter === t.name} onClick={() => setTermFilter(t.name)}>{t.name}</Chip>
+          ))}
+        </div>
       </div>
 
       {isLoading ? (
@@ -44,7 +47,7 @@ export default function FacultySections() {
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="school" title="No sections" message="Nothing assigned for this filter." /></div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {filtered.map(s => <FacultySectionCard key={s.id} section={s} />)}
         </div>
       )}

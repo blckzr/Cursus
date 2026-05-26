@@ -53,14 +53,14 @@ export default function Roster() {
         title={section?.course_title || 'Roster'}
         subtitle={
           section ? (
-            <span className="flex items-center gap-3 flex-wrap">
+            <span className="flex items-center gap-x-2 gap-y-1 flex-wrap">
               <span className="font-mono font-semibold text-olive-500">{section.section_code}</span>
               {section.day_of_week && (
-                <><span>·</span><span><span className="font-mono">{section.day_of_week}</span> · {section.start_time?.slice(0,5)}–{section.end_time?.slice(0,5)}</span></>
+                <><span className="hidden sm:inline">·</span><span><span className="font-mono">{section.day_of_week}</span> · {section.start_time?.slice(0,5)}–{section.end_time?.slice(0,5)}</span></>
               )}
-              {section.room && <><span>·</span><span className="flex items-center gap-1"><Icon name="map-pin" size={11} /> {section.room}</span></>}
-              {section.faculty_name && <><span>·</span><span className="flex items-center gap-1"><Icon name="user" size={11} /> {section.faculty_name}</span></>}
-              <span>·</span>
+              {section.room && <><span className="hidden sm:inline">·</span><span className="flex items-center gap-1"><Icon name="map-pin" size={11} /> {section.room}</span></>}
+              {section.faculty_name && <><span className="hidden sm:inline">·</span><span className="flex items-center gap-1"><Icon name="user" size={11} /> {section.faculty_name}</span></>}
+              <span className="hidden sm:inline">·</span>
               <span className="flex items-center gap-1"><Icon name="users" size={11} /> {students.length} enrolled</span>
             </span>
           ) : null

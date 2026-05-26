@@ -207,7 +207,7 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
         </header>
 
         <div className="flex-1 overflow-y-auto scrollable">
-          <div className="p-4 md:p-7 max-w-[1200px] mx-auto">
+          <div className="px-3 py-4 sm:px-4 sm:py-5 md:p-7 max-w-[1200px] mx-auto">
             <Outlet />
           </div>
         </div>
