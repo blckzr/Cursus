@@ -7,7 +7,6 @@ import {
 } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
-import EmptyState from '../../components/EmptyState';
 import SearchInput from '../../components/SearchInput';
 import Chip from '../../components/Chip';
 import Avatar from '../../components/Avatar';

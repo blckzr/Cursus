@@ -10,7 +10,7 @@ import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
 
-import { DAY_ORDER, DAY_LABEL, parseDays, joinDays } from '../../lib/days';
+import { DAY_ORDER, DAY_LABEL, parseDays, joinDays, type DayCode } from '../../lib/days';
 
 interface Slot {
   id?: string;
@@ -69,7 +69,7 @@ export default function FacultyAvailability() {
     onError: (e: unknown) => toast.push({ tone: 'error', title: 'Save failed', message: parseApiError(e).message }),
   });
 
-  const toggleDraftDay = (d: string) => {
+  const toggleDraftDay = (d: DayCode) => {
     const cur = parseDays(draft.dayOfWeek);
     const next = cur.includes(d) ? cur.filter(x => x !== d) : [...cur, d];
     setDraft(s => ({ ...s, dayOfWeek: joinDays(next) }));
