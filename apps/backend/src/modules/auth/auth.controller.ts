@@ -1,12 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { loginSchema } from './auth.schema';
-import { loginUser } from './auth.service';
-import { db } from '../../config/db';
+import { loginSchema, updateMeSchema, changePasswordSchema } from './auth.schema';
+import * as svc from './auth.service';
 
 export async function login(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const { userCode, password } = loginSchema.parse(req.body);
-    const result = await loginUser(userCode, password);
+    const result = await svc.loginUser(userCode, password);
     res.json(result);
   } catch (err) {
     if (err instanceof Error && err.message === 'Invalid credentials') {
@@ -19,37 +18,36 @@ export async function login(req: Request, res: Response, next: NextFunction): Pr
 
 export async function me(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const { rows } = await db.query(
-      `SELECT u.id, u.user_code, u.email, u.full_name, u.role, u.branch,
-              u.program_id, u.year_level,
-              p.code AS program_code, p.name AS program_name,
-              CASE WHEN b.id IS NOT NULL
-                   THEN p.code || ' ' || b.year_level || '-' || b.block_number
-              END AS block_label
-       FROM users u
-       LEFT JOIN programs p        ON p.id  = u.program_id
-       LEFT JOIN blocks b          ON b.id  = u.block_id
-       WHERE u.id = $1`,
-      [req.user!.sub],
-    );
-    if (!rows[0]) {
+    const profile = await svc.getProfile(req.user!.sub);
+    if (!profile) {
       res.status(404).json({ error: 'User not found' });
       return;
     }
-    const u = rows[0];
-    res.json({
-      id:          u.id,
-      userCode:    u.user_code,
-      email:       u.email,
-      fullName:    u.full_name,
-      role:        u.role,
-      branch:      u.branch,
-      programId:   u.program_id,
-      programCode: u.program_code,
-      programName: u.program_name,
-      yearLevel:   u.year_level,
-      blockLabel:  u.block_label,
-    });
+    res.json(profile);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function updateMe(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const data = updateMeSchema.parse(req.body);
+    const profile = await svc.updateMe(req.user!.sub, data);
+    if (!profile) {
+      res.status(404).json({ error: 'User not found' });
+      return;
+    }
+    res.json(profile);
+  } catch (err) {
+    next(err);
+  }
+}
+
+export async function changePassword(req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const { currentPassword, newPassword } = changePasswordSchema.parse(req.body);
+    await svc.changePassword(req.user!.sub, currentPassword, newPassword);
+    res.json({ ok: true });
   } catch (err) {
     next(err);
   }

@@ -10,24 +10,7 @@ import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
 
-const DAY_ORDER = ['M', 'T', 'W', 'Th', 'F', 'Sat', 'Sun'] as const;
-const DAY_LABEL: Record<string, string> = { M: 'Mon', T: 'Tue', W: 'Wed', Th: 'Thu', F: 'Fri', Sat: 'Sat', Sun: 'Sun' };
-
-function parseDays(s: string | null | undefined): string[] {
-  if (!s) return [];
-  let rest = s.replace(/\s+/g, '');
-  const out = new Set<string>();
-  while (/sun/i.test(rest)) { out.add('Sun'); rest = rest.replace(/sun/i, ''); }
-  while (/sat/i.test(rest)) { out.add('Sat'); rest = rest.replace(/sat/i, ''); }
-  while (/th/i.test(rest))  { out.add('Th');  rest = rest.replace(/th/i,  ''); }
-  for (const c of rest.toUpperCase()) {
-    if ('MTWF'.includes(c)) out.add(c);
-  }
-  return [...out];
-}
-function joinDays(days: string[]) {
-  return DAY_ORDER.filter(d => days.includes(d)).join('');
-}
+import { DAY_ORDER, DAY_LABEL, parseDays, joinDays } from '../../lib/days';
 
 interface Slot {
   id?: string;

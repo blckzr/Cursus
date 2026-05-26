@@ -111,6 +111,111 @@ export async function addCurriculumEntry(programId: string, data: {
   return rows[0];
 }
 
+/**
+ * The student-facing roadmap view. For each course in the student's program
+ * curriculum, returns its status:
+ *   completed — finalized enrollment with passing grade (≥ 75)
+ *   current   — currently enrolled (status = 'enrolled')
+ *   locked    — not yet taken AND at least one prerequisite isn't yet completed
+ *   pending   — not yet taken AND all prerequisites are met (or there are none)
+ */
+export async function getCurriculumProgress(studentId: string) {
+  const { rows: u } = await db.query(
+    `SELECT program_id FROM users WHERE id = $1 AND role = 'student'`,
+    [studentId],
+  );
+  if (!u[0]) throw Object.assign(new Error('Student not found'), { status: 404 });
+  const programId = u[0].program_id;
+  if (!programId) return { program: null, entries: [] };
+
+  // Program meta for the page header
+  const { rows: programRows } = await db.query(
+    `SELECT code, name, total_units FROM programs WHERE id = $1`, [programId],
+  );
+
+  // Curriculum + each course's prereqs in one query (aggregated to JSON)
+  const { rows: curr } = await db.query(
+    `SELECT cc.year_level, cc.semester, cc.display_order,
+            c.id AS course_id, c.code AS course_code, c.title AS course_title, c.units,
+            COALESCE(
+              json_agg(jsonb_build_object('id', pre.id, 'code', pre.code) ORDER BY pre.code)
+                FILTER (WHERE pre.id IS NOT NULL),
+              '[]'
+            ) AS prereqs
+     FROM curriculum_courses cc
+     JOIN courses c ON c.id = cc.course_id
+     LEFT JOIN course_prerequisites cp ON cp.course_id = c.id
+     LEFT JOIN courses pre              ON pre.id = cp.prerequisite_id
+     WHERE cc.program_id = $1
+     GROUP BY cc.year_level, cc.semester, cc.display_order, c.id, c.code, c.title, c.units
+     ORDER BY cc.year_level,
+              CASE cc.semester WHEN '1' THEN 1 WHEN '2' THEN 2 ELSE 3 END,
+              cc.display_order, c.code`,
+    [programId],
+  );
+
+  // The student's enrollments — most recent per course
+  const { rows: enrolls } = await db.query(
+    `SELECT DISTINCT ON (s.course_id)
+            s.course_id, e.status, e.numeric_grade, e.letter_grade,
+            t.name AS term_name
+     FROM enrollments e
+     JOIN sections s ON s.id = e.section_id
+     JOIN terms    t ON t.id = s.term_id
+     WHERE e.student_id = $1
+     ORDER BY s.course_id, e.enrolled_at DESC`,
+    [studentId],
+  );
+  const enrollByCourse = new Map<string, any>(enrolls.map((e: any) => [e.course_id, e]));
+  const passedCourseIds = new Set<string>(
+    enrolls
+      .filter((e: any) => e.status === 'completed' && Number(e.numeric_grade) >= 75)
+      .map((e: any) => e.course_id),
+  );
+
+  const entries = curr.map((c: any) => {
+    const enrollment = enrollByCourse.get(c.course_id);
+    let status: 'completed' | 'current' | 'pending' | 'locked';
+    let grade: { numeric: number; letter: string } | null = null;
+    let blockedBy: string[] = [];
+
+    if (enrollment?.status === 'enrolled') {
+      status = 'current';
+    } else if (enrollment?.status === 'completed' && Number(enrollment.numeric_grade) >= 75) {
+      status = 'completed';
+      grade = {
+        numeric: Number(enrollment.numeric_grade),
+        letter:  enrollment.letter_grade,
+      };
+    } else {
+      const unmet = (c.prereqs as { id: string; code: string }[])
+        .filter(p => !passedCourseIds.has(p.id));
+      if (unmet.length > 0) {
+        status = 'locked';
+        blockedBy = unmet.map(p => p.code);
+      } else {
+        status = 'pending';
+      }
+    }
+
+    return {
+      yearLevel:   c.year_level,
+      semester:    c.semester,
+      displayOrder: c.display_order,
+      courseId:    c.course_id,
+      courseCode:  c.course_code,
+      courseTitle: c.course_title,
+      units:       c.units,
+      status,
+      grade,
+      blockedBy,
+      termName:    enrollment?.term_name ?? null,
+    };
+  });
+
+  return { program: programRows[0] ?? null, entries };
+}
+
 /** Remove a curriculum entry. Blocked if any course in the curriculum depends on it. */
 export async function removeCurriculumEntry(programId: string, entryId: string) {
   // Find the course being removed

@@ -20,18 +20,49 @@ interface UserRow {
   block_label: string | null;
 }
 
+// Columns shared by /auth/me + /auth/me PATCH + login response.
+const PROFILE_SELECT = `
+  u.id, u.user_code, u.email, u.full_name, u.role, u.branch, u.is_active,
+  u.program_id, u.year_level,
+  p.code AS program_code, p.name AS program_name,
+  CASE WHEN b.id IS NOT NULL
+       THEN p.code || ' ' || b.year_level || '-' || b.block_number
+  END AS block_label
+`;
+
+const PROFILE_JOINS = `
+  FROM users u
+  LEFT JOIN programs p ON p.id = u.program_id
+  LEFT JOIN blocks   b ON b.id = u.block_id
+`;
+
+function rowToProfile(u: UserRow) {
+  return {
+    id:          u.id,
+    userCode:    u.user_code,
+    email:       u.email,
+    fullName:    u.full_name,
+    role:        u.role,
+    branch:      u.branch,
+    programId:   u.program_id,
+    programCode: u.program_code,
+    programName: u.program_name,
+    yearLevel:   u.year_level,
+    blockLabel:  u.block_label,
+  };
+}
+
+export async function getProfile(userId: string) {
+  const { rows } = await db.query<UserRow>(
+    `SELECT ${PROFILE_SELECT} ${PROFILE_JOINS} WHERE u.id = $1`,
+    [userId],
+  );
+  return rows[0] ? rowToProfile(rows[0]) : null;
+}
+
 export async function loginUser(userCode: string, password: string) {
   const { rows } = await db.query<UserRow>(
-    `SELECT u.id, u.user_code, u.email, u.password_hash, u.full_name, u.role, u.branch, u.is_active,
-            u.program_id, u.year_level,
-            p.code AS program_code, p.name AS program_name,
-            CASE WHEN b.id IS NOT NULL
-                 THEN p.code || ' ' || b.year_level || '-' || b.block_number
-            END AS block_label
-     FROM users u
-     LEFT JOIN programs p        ON p.id  = u.program_id
-     LEFT JOIN blocks b          ON b.id  = u.block_id
-     WHERE u.user_code = $1`,
+    `SELECT ${PROFILE_SELECT}, u.password_hash ${PROFILE_JOINS} WHERE u.user_code = $1`,
     [userCode],
   );
 
@@ -44,20 +75,63 @@ export async function loginUser(userCode: string, password: string) {
   const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
   const token = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn } as jwt.SignOptions);
 
-  return {
-    token,
-    user: {
-      id:          user.id,
-      userCode:    user.user_code,
-      email:       user.email,
-      fullName:    user.full_name,
-      role:        user.role,
-      branch:      user.branch,
-      programId:   user.program_id,
-      programCode: user.program_code,
-      programName: user.program_name,
-      yearLevel:   user.year_level,
-      blockLabel:  user.block_label,
-    },
-  };
+  return { token, user: rowToProfile(user) };
+}
+
+/** Update the calling user's editable profile fields. Returns the fresh profile. */
+export async function updateMe(userId: string, data: { fullName?: string; email?: string }) {
+  const sets: string[] = [];
+  const vals: unknown[] = [];
+  let i = 1;
+
+  if (data.fullName !== undefined) { sets.push(`full_name = $${i++}`); vals.push(data.fullName); }
+
+  if (data.email !== undefined) {
+    // Email must remain unique across all users.
+    const { rows: existing } = await db.query(
+      'SELECT id FROM users WHERE email = $1 AND id <> $2',
+      [data.email, userId],
+    );
+    if (existing[0]) {
+      throw Object.assign(
+        new Error('Email is already in use by another account.'),
+        { status: 409 },
+      );
+    }
+    sets.push(`email = $${i++}`); vals.push(data.email);
+  }
+
+  if (sets.length > 0) {
+    vals.push(userId);
+    await db.query(`UPDATE users SET ${sets.join(', ')} WHERE id = $${i}`, vals);
+
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_value)
+       VALUES ($1, 'UPDATE_PROFILE', 'users', $1, $2)`,
+      [userId, JSON.stringify(data)],
+    );
+  }
+
+  return getProfile(userId);
+}
+
+/** Verifies the current password and replaces it. */
+export async function changePassword(userId: string, currentPassword: string, newPassword: string) {
+  const { rows } = await db.query<{ password_hash: string }>(
+    'SELECT password_hash FROM users WHERE id = $1',
+    [userId],
+  );
+  if (!rows[0]) throw Object.assign(new Error('User not found'), { status: 404 });
+
+  const valid = await bcrypt.compare(currentPassword, rows[0].password_hash);
+  if (!valid) throw Object.assign(new Error('Current password is incorrect.'), { status: 401 });
+
+  const newHash = await bcrypt.hash(newPassword, 12);
+  await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
+
+  await db.query(
+    `INSERT INTO audit_logs (user_id, action, entity_type, entity_id)
+     VALUES ($1, 'CHANGE_PASSWORD', 'users', $1)`,
+    [userId],
+  );
 }

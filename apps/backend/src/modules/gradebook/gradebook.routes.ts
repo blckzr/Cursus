@@ -413,4 +413,24 @@ router.get(
   ctrl.getStudentGrades,
 );
 
+/**
+ * @openapi
+ * /students/me/transcript:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Download the calling student's transcript as CSV
+ *     description: |
+ *       One row per enrollment (every section ever taken), ordered chronologically
+ *       by term start date then course code.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: CSV file download
+ *         content:
+ *           text/csv:
+ *             schema: { type: string }
+ */
+router.get('/students/me/transcript', authenticate, authorize('student'), ctrl.exportTranscript);
+
 export default router;

@@ -96,3 +96,12 @@ export async function getStudentGrades(req: Request, res: Response, next: NextFu
     res.json(await svc.getStudentGrades(req.params.studentId));
   } catch (e) { next(e); }
 }
+
+export async function exportTranscript(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { csv, studentCode } = await svc.exportTranscriptCsv(req.user!.sub);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="transcript-${studentCode}.csv"`);
+    res.send(csv);
+  } catch (e) { next(e); }
+}

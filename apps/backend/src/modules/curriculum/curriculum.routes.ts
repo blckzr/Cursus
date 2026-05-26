@@ -65,4 +65,23 @@ router.post('/programs/:programId/curriculum',          authenticate, authorize(
  */
 router.delete('/programs/:programId/curriculum/:entryId', authenticate, authorize('admin'), ctrl.removeEntry);
 
+/**
+ * @openapi
+ * /students/me/curriculum-progress:
+ *   get:
+ *     tags: [Curriculum]
+ *     summary: The calling student's curriculum roadmap with per-course status
+ *     description: |
+ *       For each course in the student's program curriculum, classifies it as:
+ *         • completed (finalized passing grade ≥ 75)
+ *         • current   (status = 'enrolled')
+ *         • locked    (a prerequisite isn't completed yet)
+ *         • pending   (eligible to take)
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Curriculum entries enriched with status }
+ */
+router.get('/students/me/curriculum-progress', authenticate, ctrl.progressForMe);
+
 export default router;

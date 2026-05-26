@@ -18,6 +18,8 @@ interface AuthCtx {
   user: User | null;
   token: string | null;
   setAuth: (user: User, token: string) => void;
+  /** Refresh just the user object (keep the existing token). Used after profile edits. */
+  refreshUser: (user: User) => void;
   logout: () => void;
 }
 
@@ -35,13 +37,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('sis_token', t);
   };
 
+  const refreshUser = (u: User) => {
+    setUser(u);
+    localStorage.setItem('sis_user', JSON.stringify(u));
+  };
+
   const logout = () => {
     setUser(null); setToken(null);
     localStorage.removeItem('sis_user');
     localStorage.removeItem('sis_token');
   };
 
-  return <AuthContext.Provider value={{ user, token, setAuth, logout }}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={{ user, token, setAuth, refreshUser, logout }}>{children}</AuthContext.Provider>;
 }
 
 export const useAuth = () => useContext(AuthContext);

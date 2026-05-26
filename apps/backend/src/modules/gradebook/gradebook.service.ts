@@ -252,7 +252,67 @@ export async function getStudentGrades(studentId: string) {
   return rows;
 }
 
-// ─── CSV Export ───────────────────────────────────────────────────────────────
+// ─── Student Transcript CSV ───────────────────────────────────────────────────
+
+export async function exportTranscriptCsv(studentId: string): Promise<{ csv: string; studentName: string; studentCode: string }> {
+  const { rows: u } = await db.query(
+    `SELECT full_name, user_code FROM users WHERE id = $1 AND role = 'student'`,
+    [studentId],
+  );
+  if (!u[0]) throw Object.assign(new Error('Student not found'), { status: 404 });
+
+  const { rows } = await db.query(
+    `SELECT c.code, c.title, c.units,
+            t.name AS term_name, t.semester AS term_semester,
+            t.start_date,
+            e.status, e.numeric_grade, e.letter_grade, e.finalized_at,
+            u.full_name AS faculty_name
+     FROM enrollments e
+     JOIN sections s ON s.id = e.section_id
+     JOIN courses  c ON c.id = s.course_id
+     JOIN terms    t ON t.id = s.term_id
+     LEFT JOIN users u ON u.id = s.faculty_id
+     WHERE e.student_id = $1
+     ORDER BY t.start_date, c.code`,
+    [studentId],
+  );
+
+  const csvSafe = (v: unknown) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const header = [
+    'Course Code', 'Course Title', 'Units',
+    'Term', 'Semester',
+    'Status', 'Numeric Grade', 'Letter Grade', 'Faculty',
+  ].join(',');
+
+  const csvRows = rows.map((r: {
+    code: string; title: string; units: number;
+    term_name: string; term_semester: string;
+    status: string; numeric_grade: string | null; letter_grade: string | null;
+    faculty_name: string | null;
+  }) => [
+    csvSafe(r.code),
+    csvSafe(r.title),
+    r.units,
+    csvSafe(r.term_name),
+    r.term_semester,
+    r.status,
+    r.numeric_grade ? Number(r.numeric_grade).toFixed(2) : '',
+    csvSafe(r.letter_grade ?? ''),
+    csvSafe(r.faculty_name ?? ''),
+  ].join(','));
+
+  return {
+    csv: [header, ...csvRows].join('\n'),
+    studentName: u[0].full_name,
+    studentCode: u[0].user_code,
+  };
+}
+
+// ─── Gradebook CSV Export ─────────────────────────────────────────────────────
 
 export async function exportGradebookCsv(sectionId: string): Promise<string> {
   const data = await getGradebook(sectionId);

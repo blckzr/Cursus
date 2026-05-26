@@ -21,3 +21,9 @@ export async function removeEntry(req: Request, res: Response, next: NextFunctio
     res.status(204).send();
   } catch (e) { next(e); }
 }
+
+export async function progressForMe(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.getCurriculumProgress(req.user!.sub));
+  } catch (e) { next(e); }
+}

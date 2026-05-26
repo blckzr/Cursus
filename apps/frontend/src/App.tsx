@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
@@ -21,6 +21,8 @@ import Gradebook from './pages/faculty/Gradebook';
 import StudentDashboard from './pages/student/Dashboard';
 import StudentGrades from './pages/student/Grades';
 import StudentSchedule from './pages/student/Schedule';
+import StudentCurriculum from './pages/student/Curriculum';
+import Account from './pages/Account';
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -44,17 +46,21 @@ const adminNav = [
   { label: 'Terms',       to: '/admin/terms',       icon: Calendar      },
   { label: 'Sections',    to: '/admin/sections',    icon: School        },
   { label: 'Enrollments', to: '/admin/enrollments', icon: ClipboardList },
+  { label: 'Account',     to: '/admin/account',     icon: Settings      },
 ];
 
 const facultyNav = [
   { label: 'Overview',      to: '/faculty',              icon: Home       },
   { label: 'My Sections',   to: '/faculty/sections',     icon: LayoutGrid },
   { label: 'Availability',  to: '/faculty/availability', icon: Clock      },
+  { label: 'Account',       to: '/faculty/account',      icon: Settings   },
 ];
 const studentNav = [
-  { label: 'Overview',  to: '/student',          icon: Home      },
-  { label: 'My grades', to: '/student/grades',   icon: BarChart2 },
-  { label: 'Schedule',  to: '/student/schedule', icon: Calendar  },
+  { label: 'Overview',   to: '/student',            icon: Home      },
+  { label: 'Curriculum', to: '/student/curriculum', icon: ListTree  },
+  { label: 'My grades',  to: '/student/grades',     icon: BarChart2 },
+  { label: 'Schedule',   to: '/student/schedule',   icon: Calendar  },
+  { label: 'Account',    to: '/student/account',    icon: Settings  },
 ];
 
 function Guard({ role }: { role: 'admin' | 'faculty' | 'student' }) {
@@ -91,6 +97,7 @@ export default function App() {
               <Route path="terms"       element={<Terms />} />
               <Route path="sections"    element={<Sections />} />
               <Route path="enrollments" element={<Enrollments />} />
+              <Route path="account"     element={<Account />} />
             </Route>
 
             {/* Faculty */}
@@ -99,13 +106,16 @@ export default function App() {
               <Route path="sections" element={<FacultySections />} />
               <Route path="sections/:id" element={<Gradebook />} />
               <Route path="availability" element={<FacultyAvailability />} />
+              <Route path="account"      element={<Account />} />
             </Route>
 
             {/* Student */}
             <Route path="/student" element={<><Guard role="student" /><AppLayout navItems={studentNav} roleLabel="Student" /></>}>
               <Route index element={<StudentDashboard />} />
-              <Route path="grades"   element={<StudentGrades />} />
-              <Route path="schedule" element={<StudentSchedule />} />
+              <Route path="curriculum" element={<StudentCurriculum />} />
+              <Route path="grades"     element={<StudentGrades />} />
+              <Route path="schedule"   element={<StudentSchedule />} />
+              <Route path="account"    element={<Account />} />
             </Route>
           </Routes>
           </BrowserRouter>

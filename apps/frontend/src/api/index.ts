@@ -3,6 +3,11 @@ import { api } from './client';
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (userCode: string, password: string) =>
   api.post('/auth/login', { userCode, password }).then(r => r.data);
+export const getMe          = () => api.get('/auth/me').then(r => r.data);
+export const updateMe       = (data: { fullName?: string; email?: string }) =>
+  api.patch('/auth/me', data).then(r => r.data);
+export const changePassword = (currentPassword: string, newPassword: string) =>
+  api.post('/auth/change-password', { currentPassword, newPassword }).then(r => r.data);
 
 // ── Users ─────────────────────────────────────────────────────────────────────
 export const getUsers     = (role?: string) => api.get('/users', { params: { role } }).then(r => r.data);
@@ -66,3 +71,19 @@ export const bulkSaveScores    = (sectionId: string, scores: object[]) => api.pu
 export const finalizeGrades    = (sectionId: string, data?: object) => api.post(`/sections/${sectionId}/finalize`, data ?? {}).then(r => r.data);
 export const exportGradebook   = (sectionId: string)          => api.get(`/sections/${sectionId}/export`, { responseType: 'blob' }).then(r => r.data);
 export const getStudentGrades  = (studentId: string)          => api.get(`/students/${studentId}/grades`).then(r => r.data);
+
+// ── Student curriculum + transcript ───────────────────────────────────────────
+export const getCurriculumProgress = () =>
+  api.get('/students/me/curriculum-progress').then(r => r.data);
+
+export const downloadTranscript = async () => {
+  const res = await api.get('/students/me/transcript', { responseType: 'blob' });
+  const cd  = (res.headers['content-disposition'] as string | undefined) ?? '';
+  const m   = cd.match(/filename="?([^";]+)"?/);
+  const filename = m ? m[1] : 'transcript.csv';
+  const url = URL.createObjectURL(res.data as Blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  URL.revokeObjectURL(url);
+};

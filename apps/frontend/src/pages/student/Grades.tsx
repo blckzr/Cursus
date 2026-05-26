@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getStudentGrades } from '../../api';
+import { getStudentGrades, downloadTranscript } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
@@ -8,6 +8,7 @@ import DataTable from '../../components/DataTable';
 import Chip from '../../components/Chip';
 import Icon from '../../components/Icon';
 import Skeleton from '../../components/Skeleton';
+import { useToast } from '../../components/Toast';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 
@@ -34,12 +35,22 @@ function termGWA(items: any[]): number | null {
 
 export default function StudentGrades() {
   const { user } = useAuth();
+  const toast = useToast();
   const { data: grades = [], isLoading } = useQuery({
     queryKey: ['student-grades', user?.id],
     queryFn: () => getStudentGrades(user!.id),
     enabled: !!user,
   });
   const [termFilter, setTermFilter] = useState('all');
+
+  const handleDownload = async () => {
+    try {
+      await downloadTranscript();
+      toast.push({ tone: 'success', title: 'Transcript downloaded' });
+    } catch {
+      toast.push({ tone: 'error', title: 'Download failed' });
+    }
+  };
 
   const grouped = useMemo(() => {
     const byTerm: Record<string, { term: any; items: any[] }> = {};
@@ -59,6 +70,11 @@ export default function StudentGrades() {
         eyebrow="Academic record"
         title="My grades"
         subtitle="Your complete grade record across every term — grouped chronologically."
+        action={
+          <button onClick={handleDownload} className="btn-secondary flex items-center gap-2">
+            <Icon name="download" size={14} /> Download transcript
+          </button>
+        }
       />
 
       {isLoading ? (
