@@ -1,4 +1,4 @@
-import { useState, useEffect, ReactNode } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { updateMe, changePassword } from '../api';
 import { useAuth } from '../context/AuthContext';
