@@ -166,7 +166,7 @@ export default function AuditLog() {
                   </div>
                 </td>
                 <td className="table-td text-right">
-                  {(r.old_value || r.new_value) && (
+                  {(r.old_value != null || r.new_value != null) && (
                     <button className="btn-icon ml-auto" onClick={() => setDetail(r)} title="View details">
                       <Icon name="more" size={14} />
                     </button>
