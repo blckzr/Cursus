@@ -1,5 +1,6 @@
 import { db } from '../../config/db';
 import { computeWeightedGrade, numericToLetter } from '../../utils/gradeCalc';
+import { createMany as createNotifications } from '../notifications/notifications.service';
 
 // ─── Gradebook Grid ───────────────────────────────────────────────────────────
 
@@ -28,7 +29,7 @@ export async function getGradebook(sectionId: string) {
     ),
     db.query(
       `SELECT e.id, e.student_id, e.status, e.numeric_grade, e.letter_grade, e.finalized_at,
-              u.full_name AS student_name, u.email AS student_email
+              u.full_name AS student_name, u.email AS student_email, u.user_code AS student_user_code
        FROM enrollments e
        JOIN users u ON u.id = e.student_id
        WHERE e.section_id = $1 AND e.status != 'dropped'
@@ -65,16 +66,17 @@ export async function getGradebook(sectionId: string) {
   const students = enrollmentsRes.rows.map(e => {
     const studentScores = scoreMap[e.id] ?? {};
     return {
-      enrollmentId: e.id,
-      studentId: e.student_id,
-      studentName: e.student_name,
-      studentEmail: e.student_email,
-      status: e.status,
-      scores: studentScores,
-      computedGrade: computeWeightedGrade(categoryRefs, studentScores),
-      finalizedGrade: e.numeric_grade ? parseFloat(e.numeric_grade) : null,
-      letterGrade: e.letter_grade,
-      finalizedAt: e.finalized_at,
+      enrollmentId:    e.id,
+      studentId:       e.student_id,
+      studentName:     e.student_name,
+      studentEmail:    e.student_email,
+      studentUserCode: e.student_user_code,
+      status:          e.status,
+      scores:          studentScores,
+      computedGrade:   computeWeightedGrade(categoryRefs, studentScores),
+      finalizedGrade:  e.numeric_grade ? parseFloat(e.numeric_grade) : null,
+      letterGrade:     e.letter_grade,
+      finalizedAt:     e.finalized_at,
     };
   });
 
@@ -219,6 +221,23 @@ export async function finalizeGrades(
       results.push(rows[0]);
     }
 
+    // Notify each student that their grade was finalized.
+    const courseTitle = gradebook.section?.course_title ?? 'a course';
+    const sectionCode = gradebook.section?.section_code ?? '';
+    await createNotifications(
+      results
+        .filter(r => r.student_id)
+        .map(r => ({
+          userId: r.student_id as string,
+          kind:   'grade_finalized',
+          title:  'Final grade posted',
+          body:   `${courseTitle}${sectionCode ? ` (${sectionCode})` : ''} — your final grade is ${r.letter_grade ?? '—'}.`,
+          link:   '/student/grades',
+          data:   { sectionId, enrollmentId: r.id, letterGrade: r.letter_grade },
+        })),
+      client,
+    );
+
     await client.query('COMMIT');
     return results;
   } catch (e) {
@@ -251,6 +270,71 @@ export async function getStudentGrades(studentId: string) {
   );
   return rows;
 }
+
+// ─── Section Roster ───────────────────────────────────────────────────────────
+
+export async function getRoster(sectionId: string) {
+  const { rows: section } = await db.query(
+    `SELECT s.id, s.section_code, s.day_of_week, s.start_time::text AS start_time,
+            s.end_time::text AS end_time, s.room, s.capacity,
+            c.code AS course_code, c.title AS course_title, c.units,
+            t.name AS term_name, t.semester AS term_semester,
+            u.full_name AS faculty_name,
+            p.code AS program_code, p.name AS program_name,
+            b.year_level AS block_year_level, b.block_number,
+            p.code || ' ' || b.year_level || '-' || b.block_number AS block_label
+     FROM sections s
+     JOIN courses  c ON c.id = s.course_id
+     JOIN terms    t ON t.id = s.term_id
+     JOIN blocks   b ON b.id = s.block_id
+     JOIN programs p ON p.id = b.program_id
+     LEFT JOIN users u ON u.id = s.faculty_id
+     WHERE s.id = $1`,
+    [sectionId],
+  );
+  if (!section[0]) return null;
+
+  const { rows: students } = await db.query(
+    `SELECT u.id, u.user_code, u.full_name, u.email, u.year_level,
+            e.id AS enrollment_id, e.status,
+            e.numeric_grade, e.letter_grade
+     FROM enrollments e
+     JOIN users u ON u.id = e.student_id
+     WHERE e.section_id = $1
+     ORDER BY u.full_name`,
+    [sectionId],
+  );
+
+  return { section: section[0], students };
+}
+
+export async function exportRosterCsv(sectionId: string) {
+  const roster = await getRoster(sectionId);
+  if (!roster) throw Object.assign(new Error('Section not found'), { status: 404 });
+
+  const csvSafe = (v: unknown) => {
+    const s = String(v ?? '');
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+
+  const header = ['User Code', 'Name', 'Email', 'Year Level', 'Status'].join(',');
+  const rows = (roster.students as {
+    user_code: string | null; full_name: string; email: string;
+    year_level: number | null; status: string;
+  }[]).map(s => [
+    csvSafe(s.user_code),
+    csvSafe(s.full_name),
+    csvSafe(s.email),
+    s.year_level ?? '',
+    s.status,
+  ].join(','));
+
+  return {
+    csv: [header, ...rows].join('\n'),
+    sectionCode: (roster.section as { section_code: string }).section_code,
+  };
+}
+
 
 // ─── Student Transcript CSV ───────────────────────────────────────────────────
 

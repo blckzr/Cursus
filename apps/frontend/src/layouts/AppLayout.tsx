@@ -4,6 +4,7 @@ import { type LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Icon from '../components/Icon';
 import Avatar from '../components/Avatar';
+import NotificationBell from '../components/NotificationBell';
 
 export interface NavItem {
   label: string;
@@ -190,6 +191,9 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
               <Icon name="calendar" size={12} className="text-stone-400" />
               <span>{today}</span>
             </div>
+
+            {/* Notification bell */}
+            <NotificationBell />
 
             {/* Role chip */}
             <div className="flex items-center gap-2 pl-3 md:pl-4 md:border-l md:border-khaki-200/70 flex-shrink-0">

@@ -105,3 +105,20 @@ export async function exportTranscript(req: Request, res: Response, next: NextFu
     res.send(csv);
   } catch (e) { next(e); }
 }
+
+export async function getRoster(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getRoster(req.params.id);
+    if (!data) { res.status(404).json({ error: 'Section not found' }); return; }
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
+export async function exportRosterCsv(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { csv, sectionCode } = await svc.exportRosterCsv(req.params.id);
+    res.setHeader('Content-Type', 'text/csv');
+    res.setHeader('Content-Disposition', `attachment; filename="roster-${sectionCode.replace(/\s+/g, '_')}.csv"`);
+    res.send(csv);
+  } catch (e) { next(e); }
+}

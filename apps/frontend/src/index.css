@@ -92,3 +92,12 @@
   .modal-backdrop { animation: fadeIn .15s ease; }
   .modal-card { animation: modalIn .2s ease; }
 }
+
+/* ---- Print: strip chrome so any page can be printed cleanly ---- */
+@media print {
+  body { background: white; }
+  aside, header.sticky, .no-print { display: none !important; }
+  main { overflow: visible !important; }
+  .card { box-shadow: none; border: 1px solid #ddd; page-break-inside: avoid; }
+}
+

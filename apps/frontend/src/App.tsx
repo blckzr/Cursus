@@ -19,6 +19,7 @@ import FacultyDashboard from './pages/faculty/Dashboard';
 import FacultySections from './pages/faculty/Sections';
 import FacultyAvailability from './pages/faculty/Availability';
 import Gradebook from './pages/faculty/Gradebook';
+import Roster from './pages/faculty/Roster';
 import StudentDashboard from './pages/student/Dashboard';
 import StudentGrades from './pages/student/Grades';
 import StudentSchedule from './pages/student/Schedule';
@@ -108,6 +109,7 @@ export default function App() {
               <Route index element={<FacultyDashboard />} />
               <Route path="sections" element={<FacultySections />} />
               <Route path="sections/:id" element={<Gradebook />} />
+              <Route path="sections/:id/roster" element={<Roster />} />
               <Route path="availability" element={<FacultyAvailability />} />
               <Route path="account"      element={<Account />} />
             </Route>

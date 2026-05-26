@@ -79,6 +79,28 @@ export const bulkSaveScores    = (sectionId: string, scores: object[]) => api.pu
 export const finalizeGrades    = (sectionId: string, data?: object) => api.post(`/sections/${sectionId}/finalize`, data ?? {}).then(r => r.data);
 export const exportGradebook   = (sectionId: string)          => api.get(`/sections/${sectionId}/export`, { responseType: 'blob' }).then(r => r.data);
 export const getStudentGrades  = (studentId: string)          => api.get(`/students/${studentId}/grades`).then(r => r.data);
+export const getRoster         = (sectionId: string)          => api.get(`/sections/${sectionId}/roster`).then(r => r.data);
+export const downloadRosterCsv = async (sectionId: string) => {
+  const res = await api.get(`/sections/${sectionId}/roster/csv`, { responseType: 'blob' });
+  const cd  = (res.headers['content-disposition'] as string | undefined) ?? '';
+  const m   = cd.match(/filename="?([^";]+)"?/);
+  const filename = m ? m[1] : 'roster.csv';
+  const url = URL.createObjectURL(res.data as Blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  URL.revokeObjectURL(url);
+};
+
+// ── Notifications ─────────────────────────────────────────────────────────────
+export const getNotifications      = (params?: { limit?: number; unreadOnly?: boolean }) =>
+  api.get('/notifications', { params }).then(r => r.data);
+export const getUnreadCount        = () =>
+  api.get('/notifications/unread-count').then(r => r.data);
+export const markNotificationRead  = (id: string) =>
+  api.post(`/notifications/${id}/read`).then(r => r.data);
+export const markAllNotificationsRead = () =>
+  api.post('/notifications/read-all').then(r => r.data);
 
 // ── Student curriculum + transcript ───────────────────────────────────────────
 export const getCurriculumProgress = () =>

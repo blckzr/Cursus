@@ -10,12 +10,23 @@ import { errorHandler } from './middleware/errorHandler';
 
 const app = express();
 
-const allowedOrigins = env.nodeEnv === 'development'
-  ? /^http:\/\/localhost:\d+$/   // allow any localhost port in dev
-  : env.clientOrigin;
-
+/**
+ * CORS origin check:
+ *   • dev: any localhost port
+ *   • prod: explicit allowlist (CLIENT_ORIGIN, comma-separated) + optional regex
+ *     (CLIENT_ORIGIN_PATTERN) for Vercel preview URLs.
+ *   • Requests with no Origin header (curl, server-to-server) pass through.
+ */
+const localhostRe = /^http:\/\/localhost:\d+$/;
 app.use(cors({
-  origin: allowedOrigins,
+  origin: (origin, cb) => {
+    if (!origin) return cb(null, true);
+    const normalized = origin.replace(/\/$/, '');
+    if (env.nodeEnv === 'development' && localhostRe.test(normalized)) return cb(null, true);
+    if (env.clientOrigins.includes(normalized)) return cb(null, true);
+    if (env.clientOriginPattern && env.clientOriginPattern.test(normalized)) return cb(null, true);
+    return cb(new Error(`CORS: origin ${origin} not allowed`));
+  },
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true,
 }));

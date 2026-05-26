@@ -1,4 +1,5 @@
 import { db } from '../../config/db';
+import { createMany as createNotifications } from '../notifications/notifications.service';
 
 export async function listTerms() {
   const { rows } = await db.query('SELECT * FROM terms ORDER BY start_date DESC');
@@ -142,6 +143,28 @@ export async function openTerm(termId: string, scope: { programIds?: string[] },
       `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_value)
        VALUES ($1, 'OPEN_TERM', 'terms', $2, $3)`,
       [adminId, termId, JSON.stringify({ sectionsCreated, sectionsSkipped, enrollmentsCreated })],
+    );
+
+    // Notify every student who now has at least one enrollment in this term.
+    const termNameRes = await client.query('SELECT name FROM terms WHERE id = $1', [termId]);
+    const termName = termNameRes.rows[0]?.name ?? 'A new term';
+    const recipientsRes = await client.query(
+      `SELECT DISTINCT e.student_id
+       FROM enrollments e
+       JOIN sections   s ON s.id = e.section_id
+       WHERE s.term_id = $1 AND e.status = 'enrolled'`,
+      [termId],
+    );
+    await createNotifications(
+      recipientsRes.rows.map((r: { student_id: string }) => ({
+        userId: r.student_id,
+        kind:   'term_opened',
+        title:  `${termName} is now open`,
+        body:   `Your sections and schedule for ${termName} are available.`,
+        link:   '/student/schedule',
+        data:   { termId },
+      })),
+      client,
     );
 
     await client.query('COMMIT');

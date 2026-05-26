@@ -1,4 +1,5 @@
 import { db } from '../../config/db';
+import { createMany as createNotifications } from '../notifications/notifications.service';
 
 const SECTION_QUERY = `
   SELECT s.*,
@@ -147,7 +148,55 @@ export async function updateSection(id: string, data: {
     `UPDATE sections SET ${sets.join(', ')} WHERE id = $${i} RETURNING *`,
     vals,
   );
-  return rows[0] ?? null;
+  const updated = rows[0] ?? null;
+
+  // ── Schedule-change notifications ───────────────────────────────────────────
+  // Fire only when something a student/faculty would *care* about changed:
+  // day/time/room/faculty. Capacity tweaks aren't schedule-relevant.
+  if (updated) {
+    const scheduleFields = ['day_of_week', 'start_time', 'end_time', 'room', 'faculty_id'] as const;
+    const changed = scheduleFields.filter(
+      f => String(cur[0][f] ?? '') !== String(updated[f] ?? ''),
+    );
+    if (changed.length > 0) {
+      const meta = await db.query(
+        `SELECT s.section_code, c.title AS course_title
+         FROM sections s JOIN courses c ON c.id = s.course_id
+         WHERE s.id = $1`,
+        [id],
+      );
+      const courseTitle = meta.rows[0]?.course_title ?? 'Your section';
+      const sectionCode = meta.rows[0]?.section_code ?? '';
+      const when = updated.day_of_week
+        ? `${updated.day_of_week} ${String(updated.start_time ?? '').slice(0, 5)}–${String(updated.end_time ?? '').slice(0, 5)}`
+        : 'TBA';
+      const where = updated.room ?? 'TBA';
+
+      const recipients = await db.query(
+        `SELECT u.id AS user_id, u.role
+         FROM enrollments e JOIN users u ON u.id = e.student_id
+         WHERE e.section_id = $1 AND e.status = 'enrolled'
+         UNION
+         SELECT u.id AS user_id, u.role
+         FROM sections s JOIN users u ON u.id = s.faculty_id
+         WHERE s.id = $1`,
+        [id],
+      );
+
+      await createNotifications(
+        recipients.rows.map((r: { user_id: string; role: string }) => ({
+          userId: r.user_id,
+          kind:   'schedule_changed',
+          title:  'Schedule updated',
+          body:   `${courseTitle}${sectionCode ? ` (${sectionCode})` : ''} — now ${when}, ${where}.`,
+          link:   r.role === 'faculty' ? `/faculty/sections/${id}` : '/student/schedule',
+          data:   { sectionId: id, changed },
+        })),
+      );
+    }
+  }
+
+  return updated;
 }
 
 // ============================================================================

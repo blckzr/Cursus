@@ -305,6 +305,26 @@ CREATE TABLE audit_logs (
 
 
 -- ============================================================
+-- NOTIFICATIONS  (in-app bell-icon feed; one row per recipient)
+-- ============================================================
+
+CREATE TABLE notifications (
+    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id    UUID         NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind       TEXT         NOT NULL,        -- 'grade_finalized', 'term_opened', 'schedule_changed', …
+    title      TEXT         NOT NULL,
+    body       TEXT,
+    link       TEXT,                          -- relative app path, e.g. /student/grades
+    data       JSONB,
+    read_at    TIMESTAMPTZ,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_notifications_user_unread  ON notifications (user_id, read_at, created_at DESC);
+CREATE INDEX idx_notifications_user_created ON notifications (user_id, created_at DESC);
+
+
+-- ============================================================
 -- TRIGGER: category weights per section must sum to ≤ 100%
 -- ============================================================
 

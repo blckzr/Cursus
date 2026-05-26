@@ -433,4 +433,47 @@ router.get(
  */
 router.get('/students/me/transcript', authenticate, authorize('student'), ctrl.exportTranscript);
 
+/**
+ * @openapi
+ * /sections/{id}/roster:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Compact section roster (faculty / admin)
+ *     description: Just the enrolled student list — no scores, no categories. Used for the dedicated roster page.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200: { description: Section info + student array }
+ */
+router.get(
+  '/sections/:id/roster',
+  authenticate, authorize('admin', 'faculty'),
+  requireSectionOwner,
+  ctrl.getRoster,
+);
+
+/**
+ * @openapi
+ * /sections/{id}/roster/csv:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Download the section roster as CSV (faculty / admin)
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200: { description: CSV file download }
+ */
+router.get(
+  '/sections/:id/roster/csv',
+  authenticate, authorize('admin', 'faculty'),
+  requireSectionOwner,
+  ctrl.exportRosterCsv,
+);
+
 export default router;

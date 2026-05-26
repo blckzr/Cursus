@@ -24,6 +24,7 @@ interface Category   { id: string; name: string; weight: number; assessments: As
 interface Student {
   enrollmentId: string;
   studentName: string;
+  studentUserCode?: string | null;
   scores: Record<string, number | null>;
   computedGrade: number | null;
   finalizedGrade: number | null;
@@ -76,6 +77,7 @@ export default function Gradebook() {
   const [showCat, setShowCat] = useState(false);
   const [showAsm, setShowAsm] = useState(false);
   const [showFinalize, setShowFinalize] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [filter, setFilter] = useState<'all' | 'risk' | 'watch' | 'strong'>('all');
   const [query, setQuery] = useState('');
@@ -260,7 +262,13 @@ export default function Gradebook() {
           </span>
         }
         action={
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link to={`/faculty/sections/${sectionId}/roster`} className="btn-ghost flex items-center gap-2 border border-khaki-200">
+              <Icon name="users" size={14} /> Roster
+            </Link>
+            <button className="btn-ghost flex items-center gap-2 border border-khaki-200" onClick={() => setShowImport(true)}>
+              <Icon name="upload" size={14} /> Import CSV
+            </button>
             <button className="btn-secondary flex items-center gap-2" onClick={() => setShowAsm(true)}>
               <Icon name="plus" size={14} /> Assessment
             </button>
@@ -347,8 +355,8 @@ export default function Gradebook() {
               <thead className="sticky top-0 z-20">
                 <tr>
                   <th className="table-th sticky left-0 z-20 bg-beige-100 min-w-[220px]">Student</th>
-                  {categories.map(c => (
-                    <th key={c.id} colSpan={c.assessments.length || 1}
+                  {categories.filter(c => c.assessments.length > 0).map(c => (
+                    <th key={c.id} colSpan={c.assessments.length}
                       className="table-th text-center border-l border-beige-200 text-olive-600 bg-olive-50">
                       {c.name} <span className="text-stone-400 font-normal">· {c.weight}%</span>
                     </th>
@@ -439,6 +447,19 @@ export default function Gradebook() {
       {showFinalize && (
         <FinalizeModal students={students} computedFor={computedFor} onClose={() => setShowFinalize(false)}
           onConfirm={() => finalizeMut.mutate()} isPending={finalizeMut.isPending} />
+      )}
+      {showImport && (
+        <ImportScoresModal
+          categories={categories}
+          students={students}
+          onClose={() => setShowImport(false)}
+          onImport={async (assessmentId, scores) => {
+            await bulkSaveScores(sectionId!, scores.map(s => ({ ...s, assessmentId })));
+            qc.invalidateQueries({ queryKey: ['gradebook', sectionId] });
+            toast.push({ tone: 'success', title: `Imported ${scores.length} score${scores.length === 1 ? '' : 's'}` });
+            setShowImport(false);
+          }}
+        />
       )}
       {selectedStudent && (
         <StudentDetailModal student={selectedStudent} categories={categories} computedFor={computedFor}
@@ -612,6 +633,216 @@ function StudentDetailModal({ student, categories, computedFor, onClose }:
             </div>
           );
         })}
+      </div>
+    </Modal>
+  );
+}
+
+// ============================================================================
+// Import scores CSV
+// ============================================================================
+
+interface ImportRow {
+  rowIndex: number;
+  userCode: string;
+  scoreRaw: string;
+  score: number;
+  enrollmentId?: string;
+  studentName?: string;
+  status: 'ok' | 'not_found' | 'invalid_score';
+  reason?: string;
+}
+
+function ImportScoresModal({ categories, students, onClose, onImport }: {
+  categories: Category[];
+  students: Student[];
+  onClose: () => void;
+  onImport: (assessmentId: string, scores: { enrollmentId: string; score: number }[]) => Promise<void>;
+}) {
+  const allAssessments = useMemo(
+    () => categories.flatMap(c => c.assessments.map(a => ({ ...a, categoryName: c.name }))),
+    [categories],
+  );
+  const [assessmentId, setAssessmentId] = useState(allAssessments[0]?.id ?? '');
+  const [fileName, setFileName] = useState('');
+  const [rows, setRows] = useState<ImportRow[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [err, setErr] = useState('');
+
+  const assessment = allAssessments.find(a => a.id === assessmentId);
+
+  // user_code → { enrollmentId, studentName }
+  const studentByCode = useMemo(() => {
+    const m = new Map<string, { enrollmentId: string; studentName: string }>();
+    students.forEach(s => {
+      if (s.studentUserCode) m.set(s.studentUserCode.toUpperCase(), { enrollmentId: s.enrollmentId, studentName: s.studentName });
+    });
+    return m;
+  }, [students]);
+
+  const parseCsv = (text: string): ImportRow[] => {
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 0);
+    if (lines.length === 0) return [];
+    // Skip header if the first line looks like a header
+    const startIdx = /user[\s_-]*code/i.test(lines[0]) || /^code,/i.test(lines[0]) ? 1 : 0;
+    return lines.slice(startIdx).map((line, i) => {
+      const parts = line.split(',').map(p => p.trim().replace(/^"(.*)"$/, '$1'));
+      const userCode = (parts[0] ?? '').toUpperCase();
+      const scoreRaw = parts[1] ?? '';
+      const score = Number(scoreRaw);
+      const match = studentByCode.get(userCode);
+      let status: ImportRow['status'] = 'ok';
+      let reason: string | undefined;
+      if (!match) {
+        status = 'not_found';
+        reason = 'User code not enrolled in this section';
+      } else if (!Number.isFinite(score) || score < 0) {
+        status = 'invalid_score';
+        reason = 'Score must be a number ≥ 0';
+      } else if (assessment && score > assessment.max_score) {
+        status = 'invalid_score';
+        reason = `Score exceeds max of ${assessment.max_score}`;
+      }
+      return {
+        rowIndex:    startIdx + i + 1,
+        userCode,
+        scoreRaw,
+        score,
+        enrollmentId: match?.enrollmentId,
+        studentName:  match?.studentName,
+        status,
+        reason,
+      };
+    });
+  };
+
+  const handleFile = (f: File | null) => {
+    setErr('');
+    if (!f) { setRows([]); setFileName(''); return; }
+    if (!assessment) { setErr('Pick an assessment first.'); return; }
+    setFileName(f.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      try { setRows(parseCsv(String(reader.result ?? ''))); }
+      catch (e) { setErr('Could not parse the file. Make sure it is a plain CSV.'); console.error(e); }
+    };
+    reader.onerror = () => setErr('Failed to read the file.');
+    reader.readAsText(f);
+  };
+
+  // Re-parse when assessment changes (validation rules depend on max_score)
+  useEffect(() => {
+    if (rows.length > 0 && assessment) {
+      const text = rows.map(r => `${r.userCode},${r.scoreRaw}`).join('\n');
+      setRows(parseCsv(text));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assessmentId]);
+
+  const valid   = rows.filter(r => r.status === 'ok');
+  const invalid = rows.filter(r => r.status !== 'ok');
+
+  const handleImport = async () => {
+    if (!assessmentId || valid.length === 0) return;
+    setImporting(true);
+    try {
+      await onImport(
+        assessmentId,
+        valid.map(r => ({ enrollmentId: r.enrollmentId!, score: r.score })),
+      );
+    } catch (e) {
+      const msg = (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? 'Import failed';
+      setErr(msg);
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  return (
+    <Modal title="Import scores from CSV"
+      subtitle="Upload a file with two columns: user_code, score"
+      onClose={onClose} size="lg">
+      <div className="space-y-4">
+        <SelectField label="Assessment" value={assessmentId} onChange={e => setAssessmentId(e.target.value)}>
+          {allAssessments.length === 0 && <option value="">No assessments — create one first</option>}
+          {allAssessments.map(a => (
+            <option key={a.id} value={a.id}>
+              {a.categoryName} · {a.name} (max {a.max_score})
+            </option>
+          ))}
+        </SelectField>
+
+        <div>
+          <label className="label">CSV file</label>
+          <div className="flex items-center gap-3">
+            <label className="btn-secondary cursor-pointer inline-flex items-center gap-2">
+              <Icon name="upload" size={14} />
+              Choose file
+              <input
+                type="file"
+                accept=".csv,text/csv,text/plain"
+                className="hidden"
+                onChange={e => handleFile(e.target.files?.[0] ?? null)}
+              />
+            </label>
+            {fileName && <span className="text-xs text-stone-500 font-mono">{fileName}</span>}
+          </div>
+          <p className="text-xs text-stone-400 mt-2">
+            Example: <span className="font-mono">2026-00001-MN-0,87.5</span> &nbsp;·&nbsp;
+            Header row optional · case-insensitive user codes.
+          </p>
+        </div>
+
+        {rows.length > 0 && (
+          <div>
+            <div className="flex items-center gap-3 mb-2 text-xs flex-wrap">
+              <span className="badge badge-enrolled">{valid.length} ready</span>
+              {invalid.length > 0 && <span className="badge badge-dropped">{invalid.length} problem{invalid.length === 1 ? '' : 's'}</span>}
+            </div>
+            <div className="border border-beige-200 rounded-lg max-h-72 overflow-y-auto scrollable">
+              <table className="w-full text-xs">
+                <thead className="bg-beige-50 sticky top-0">
+                  <tr>
+                    <th className="table-th !py-1.5 w-12">Row</th>
+                    <th className="table-th !py-1.5">User code</th>
+                    <th className="table-th !py-1.5">Student</th>
+                    <th className="table-th !py-1.5 text-right">Score</th>
+                    <th className="table-th !py-1.5">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map((r, i) => (
+                    <tr key={i} className={r.status !== 'ok' ? 'bg-red-50' : ''}>
+                      <td className="table-td !py-1 text-stone-400 tabular">{r.rowIndex}</td>
+                      <td className="table-td !py-1 font-mono">{r.userCode}</td>
+                      <td className="table-td !py-1">{r.studentName ?? <span className="text-stone-400">—</span>}</td>
+                      <td className="table-td !py-1 text-right tabular">{r.scoreRaw}</td>
+                      <td className="table-td !py-1">
+                        {r.status === 'ok'
+                          ? <span className="text-olive-600">✓ Ready</span>
+                          : <span className="text-red-600">{r.reason}</span>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary flex items-center gap-2"
+            disabled={importing || !assessmentId || valid.length === 0}
+            onClick={handleImport}
+          >
+            <Icon name="upload" size={14} />
+            {importing ? 'Importing…' : `Import ${valid.length} score${valid.length === 1 ? '' : 's'}`}
+          </button>
+        </div>
       </div>
     </Modal>
   );
