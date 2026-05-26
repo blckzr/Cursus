@@ -15,3 +15,10 @@ export async function promoteYear(req: Request, res: Response, next: NextFunctio
     res.json(result);
   } catch (e) { next(e); }
 }
+
+export async function graduateBlock(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await svc.graduateBlock(req.params.id, req.user!.sub);
+    res.json(result);
+  } catch (e) { next(e); }
+}

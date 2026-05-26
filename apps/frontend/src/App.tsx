@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
@@ -14,6 +14,7 @@ import Terms from './pages/admin/Terms';
 import Sections from './pages/admin/Sections';
 import Blocks from './pages/admin/Blocks';
 import Enrollments from './pages/admin/Enrollments';
+import AuditLog from './pages/admin/AuditLog';
 import FacultyDashboard from './pages/faculty/Dashboard';
 import FacultySections from './pages/faculty/Sections';
 import FacultyAvailability from './pages/faculty/Availability';
@@ -46,6 +47,7 @@ const adminNav = [
   { label: 'Terms',       to: '/admin/terms',       icon: Calendar      },
   { label: 'Sections',    to: '/admin/sections',    icon: School        },
   { label: 'Enrollments', to: '/admin/enrollments', icon: ClipboardList },
+  { label: 'Activity log',to: '/admin/audit-log',   icon: FileText      },
   { label: 'Account',     to: '/admin/account',     icon: Settings      },
 ];
 
@@ -97,6 +99,7 @@ export default function App() {
               <Route path="terms"       element={<Terms />} />
               <Route path="sections"    element={<Sections />} />
               <Route path="enrollments" element={<Enrollments />} />
+              <Route path="audit-log"   element={<AuditLog />} />
               <Route path="account"     element={<Account />} />
             </Route>
 

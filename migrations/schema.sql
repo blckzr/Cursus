@@ -88,11 +88,16 @@ CREATE TABLE users (
     year_level    INT,
     -- NULL block_id = irregular student (attached to specific sections by hand)
     block_id      UUID        REFERENCES blocks(id)   ON DELETE SET NULL,
+    -- NOT NULL once a final-year cohort has been graduated. is_active is set
+    -- to FALSE at the same time, so graduated students can't sign in but their
+    -- record persists for transcripts.
+    graduated_at  TIMESTAMPTZ,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-CREATE INDEX idx_users_block   ON users(block_id);
-CREATE INDEX idx_users_program ON users(program_id);
+CREATE INDEX idx_users_block      ON users(block_id);
+CREATE INDEX idx_users_program    ON users(program_id);
+CREATE INDEX idx_users_graduated  ON users(graduated_at) WHERE graduated_at IS NOT NULL;
 
 
 -- ============================================================

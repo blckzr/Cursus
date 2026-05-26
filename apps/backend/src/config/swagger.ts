@@ -75,6 +75,7 @@ const options: swaggerJsdoc.Options = {
       { name: 'Blocks',      description: 'Year/program cohort blocks and promotion' },
       { name: 'Curriculum',  description: 'Per-program course placement (year + semester)' },
       { name: 'Availability', description: 'Faculty weekly teaching + office-hour slots' },
+      { name: 'AuditLogs',    description: 'Append-only system activity log (admin)' },
       { name: 'Gradebook',   description: 'Categories, assessments, scores, and final grades' },
     ],
   },

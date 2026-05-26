@@ -42,4 +42,37 @@ router.get('/', authenticate, authorize('admin'), ctrl.listBlocks);
  */
 router.post('/promote', authenticate, authorize('admin'), ctrl.promoteYear);
 
+/**
+ * @openapi
+ * /blocks/{id}/graduate:
+ *   post:
+ *     tags: [Blocks]
+ *     summary: Graduate every active student in a final-year block (admin)
+ *     description: |
+ *       Marks each active student in the block as graduated:
+ *         • is_active becomes false (they can no longer sign in)
+ *         • graduated_at = now()
+ *       Their enrollment + grade history is preserved for transcript queries.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Result summary
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 graduated:  { type: integer }
+ *                 blockLabel: { type: string }
+ *       409:
+ *         description: Block is not at the program's final year level
+ */
+router.post('/:id/graduate', authenticate, authorize('admin'), ctrl.graduateBlock);
+
 export default router;

@@ -3,12 +3,12 @@ import { db } from '../../config/db';
 import { pickRandomBlock } from '../blocks/blocks.service';
 
 const SAFE_COLS =
-  'id, user_code, email, full_name, role, branch, program_id, year_level, block_id, is_active, created_at';
+  'id, user_code, email, full_name, role, branch, program_id, year_level, block_id, is_active, graduated_at, created_at';
 
 // List/detail query — includes program code/name and the block label via joins
 const LIST_QUERY = `
   SELECT u.id, u.user_code, u.email, u.full_name, u.role, u.branch,
-         u.program_id, u.year_level, u.block_id, u.is_active, u.created_at,
+         u.program_id, u.year_level, u.block_id, u.is_active, u.graduated_at, u.created_at,
          p.code AS program_code, p.name AS program_name,
          b.block_number,
          CASE WHEN b.id IS NOT NULL

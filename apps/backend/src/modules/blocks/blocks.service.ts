@@ -46,6 +46,76 @@ export async function pickRandomBlock(programId: string, yearLevel: number): Pro
 }
 
 /**
+ * Mark every active student in a final-year block as graduated:
+ *   • is_active   → false   (they can no longer sign in)
+ *   • graduated_at → now()
+ *
+ * Their enrollment + grade history is preserved so transcripts still work.
+ * Only the final-year block of a program can graduate — other years promote.
+ */
+export async function graduateBlock(blockId: string, adminId: string) {
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    const { rows: b } = await client.query(
+      `SELECT b.id, b.year_level, b.block_number, b.program_id,
+              p.code AS program_code, p.year_levels
+       FROM blocks b
+       JOIN programs p ON p.id = b.program_id
+       WHERE b.id = $1`,
+      [blockId],
+    );
+    if (!b[0]) throw Object.assign(new Error('Block not found'), { status: 404 });
+
+    if (b[0].year_level !== b[0].year_levels) {
+      throw Object.assign(
+        new Error(
+          `Only final-year blocks can graduate. ${b[0].program_code} ${b[0].year_level}-${b[0].block_number} ` +
+          `is at year ${b[0].year_level} but the program's final year is ${b[0].year_levels}.`,
+        ),
+        { status: 409 },
+      );
+    }
+
+    const { rows: studs } = await client.query(
+      `SELECT id FROM users
+       WHERE block_id = $1 AND role = 'student'
+         AND is_active = TRUE AND graduated_at IS NULL`,
+      [blockId],
+    );
+    const studentIds: string[] = studs.map((s: { id: string }) => s.id);
+
+    if (studentIds.length === 0) {
+      await client.query('COMMIT');
+      return { graduated: 0 };
+    }
+
+    await client.query(
+      `UPDATE users
+       SET is_active = FALSE, graduated_at = now()
+       WHERE id = ANY($1::uuid[])`,
+      [studentIds],
+    );
+
+    const blockLabel = `${b[0].program_code} ${b[0].year_level}-${b[0].block_number}`;
+    await client.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_value)
+       VALUES ($1, 'GRADUATE_COHORT', 'blocks', $2, $3)`,
+      [adminId, blockId, JSON.stringify({ graduated: studentIds.length, blockLabel })],
+    );
+
+    await client.query('COMMIT');
+    return { graduated: studentIds.length, blockLabel };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
+/**
  * Promote every active student in (program, yearLevel) to the next year level
  * and randomly redistribute them across that next year's blocks.
  */

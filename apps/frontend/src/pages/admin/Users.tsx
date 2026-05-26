@@ -85,10 +85,12 @@ export default function Users() {
     admin:   users.filter((u: any) => u.role === 'admin').length,
   }), [users]);
 
+  const isGraduated = (u: any) => u.graduated_at != null;
   const filtered = useMemo(() => users.filter((u: any) => {
     if (roleFilter !== 'all' && u.role !== roleFilter) return false;
-    if (statusFilter === 'active' && !isActiveVal(u.is_active)) return false;
-    if (statusFilter === 'inactive' && isActiveVal(u.is_active)) return false;
+    if (statusFilter === 'active'    && !isActiveVal(u.is_active)) return false;
+    if (statusFilter === 'graduated' && !isGraduated(u))           return false;
+    if (statusFilter === 'inactive'  && (isActiveVal(u.is_active) || isGraduated(u))) return false;
     if (query) {
       const q = query.toLowerCase();
       if (![u.full_name, u.email, u.user_code].some((v: string) => (v || '').toLowerCase().includes(q))) return false;
@@ -122,6 +124,7 @@ export default function Users() {
           <option value="all">Any status</option>
           <option value="active">Active</option>
           <option value="inactive">Inactive</option>
+          <option value="graduated">Graduated</option>
         </select>
         <span className="text-xs text-stone-400 ml-auto tabular">{filtered.length} of {users.length}</span>
       </div>
@@ -156,9 +159,16 @@ export default function Users() {
                   : <span className="text-stone-300">—</span>}
               </td>
               <td className="table-td">
-                <span className={isActiveVal(u.is_active) ? 'badge badge-enrolled' : 'badge badge-dropped'}>
-                  {isActiveVal(u.is_active) ? 'Active' : 'Inactive'}
-                </span>
+                {isGraduated(u) ? (
+                  <span className="badge badge-completed"
+                    title={`Graduated ${new Date(u.graduated_at).toLocaleDateString()}`}>
+                    <Icon name="award" size={10} /> Graduated
+                  </span>
+                ) : isActiveVal(u.is_active) ? (
+                  <span className="badge badge-enrolled">Active</span>
+                ) : (
+                  <span className="badge badge-dropped">Inactive</span>
+                )}
               </td>
               <td className="table-td text-right">
                 <button className="btn-icon ml-auto" title="Edit" onClick={() => {
