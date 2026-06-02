@@ -114,7 +114,7 @@ export default function Blocks() {
             const maxYear = Math.max(...prog.years.keys());
             return (
               <div key={programId} className="card">
-                <h2 className="text-lg font-semibold text-stone-800">
+                <h2 className="text-base sm:text-lg font-semibold text-stone-800 break-words">
                   <span className="font-mono text-olive-500">{prog.code}</span>
                   <span className="text-stone-400 font-normal"> — {prog.name}</span>
                 </h2>
@@ -126,16 +126,16 @@ export default function Blocks() {
                     return (
                       <div key={year} className="border border-beige-200 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
-                          <span className="font-medium text-stone-700">
-                            Year {year}
+                          <span className="font-medium text-stone-700 inline-flex items-center gap-2 flex-wrap">
+                            <span>Year {year}</span>
                             {year === maxYear && (
-                              <span className="ml-2 badge badge-completed text-[10px]"><Icon name="award" size={10} /> Final year</span>
+                              <span className="badge badge-completed text-[10px]"><Icon name="award" size={10} /> Final year</span>
                             )}
-                            <span className="text-stone-400 text-sm ml-2">{total} student{total === 1 ? '' : 's'}</span>
+                            <span className="text-stone-400 text-sm">{total} student{total === 1 ? '' : 's'}</span>
                           </span>
                           {year < maxYear && (
                             <button
-                              className="btn-secondary text-xs"
+                              className="btn-secondary text-xs whitespace-nowrap"
                               disabled={promoteMut.isPending || total === 0}
                               onClick={() => {
                                 if (window.confirm(
@@ -143,7 +143,8 @@ export default function Blocks() {
                                 )) promoteMut.mutate({ programId, yearLevel: year });
                               }}
                             >
-                              Promote to Year {year + 1} →
+                              <span className="hidden sm:inline">Promote to Year {year + 1} →</span>
+                              <span className="sm:hidden">Promote →</span>
                             </button>
                           )}
                         </div>

@@ -84,11 +84,11 @@ export default function AdminDashboard() {
               <p className="text-sm text-stone-400 text-center py-4">No students assigned to programs yet.</p>
             ) : topPrograms.map(p => (
               <div key={p.code} className="flex items-center gap-3">
-                <div className="w-20 flex-shrink-0 font-mono text-xs font-semibold text-olive-500">{p.code}</div>
-                <div className="flex-1">
-                  <div className="flex items-center justify-between text-xs mb-1">
+                <div className="w-14 sm:w-20 flex-shrink-0 font-mono text-xs font-semibold text-olive-500 truncate">{p.code}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2 text-xs mb-1">
                     <span className="text-stone-700 truncate font-medium">{p.name}</span>
-                    <span className="tabular text-stone-500">{p.count} <span className="text-stone-400">students</span></span>
+                    <span className="tabular text-stone-500 flex-shrink-0">{p.count} <span className="text-stone-400 hidden sm:inline">students</span></span>
                   </div>
                   <div className="h-2 rounded-full bg-beige-200 overflow-hidden">
                     <div className="h-full bg-olive-300 rounded-full transition-all" style={{ width: `${(p.count / maxProg) * 100}%` }} />
@@ -101,10 +101,10 @@ export default function AdminDashboard() {
           <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-2">
             {quickActions.map(a => (
               <button key={a.to} onClick={() => navigate(a.to)}
-                className="card hover:border-olive-200 hover:shadow-pop transition-all !p-3 text-left flex items-center gap-3">
-                <span className="w-9 h-9 rounded-lg bg-olive-50 text-olive-500 flex items-center justify-center"><Icon name={a.icon} size={16} /></span>
-                <div>
-                  <div className="text-sm font-medium text-stone-800">{a.label}</div>
+                className="card hover:border-olive-200 hover:shadow-pop transition-all !p-3 text-left flex items-center gap-3 min-w-0">
+                <span className="w-9 h-9 rounded-lg bg-olive-50 text-olive-500 flex items-center justify-center flex-shrink-0"><Icon name={a.icon} size={16} /></span>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-stone-800 truncate">{a.label}</div>
                   <div className="text-[11px] text-stone-400 flex items-center gap-1">Open <Icon name="arrow-right" size={9} /></div>
                 </div>
               </button>
@@ -159,19 +159,19 @@ export default function AdminDashboard() {
           {recent.length === 0 ? (
             <p className="text-sm text-stone-400 text-center py-8">No enrollments yet.</p>
           ) : recent.map((e: any, i: number) => (
-            <div key={e.id} className={`flex items-center gap-4 px-4 py-3 ${i > 0 ? 'border-t border-beige-200' : ''}`}>
+            <div key={e.id} className={`flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 ${i > 0 ? 'border-t border-beige-200' : ''}`}>
               <Avatar name={e.student_name} size={32} tone="beige" />
               <div className="flex-1 min-w-0">
                 <div className="text-sm font-medium text-stone-800 truncate">{e.student_name}</div>
                 <div className="text-[11px] text-stone-500 truncate">{e.student_email}</div>
               </div>
-              <div className="hidden sm:block min-w-0">
+              <div className="hidden sm:block min-w-0 max-w-[280px]">
                 <div className="text-sm text-stone-700 truncate">
                   <span className="font-mono text-olive-500 text-xs font-semibold">{e.course_code}</span> · {e.course_title}
                 </div>
-                <div className="text-[11px] text-stone-400">{e.term_name}</div>
+                <div className="text-[11px] text-stone-400 truncate">{e.term_name}</div>
               </div>
-              <span className={e.status === 'completed' ? 'badge badge-completed' : e.status === 'dropped' ? 'badge badge-dropped' : 'badge badge-enrolled'}>
+              <span className={`flex-shrink-0 ${e.status === 'completed' ? 'badge badge-completed' : e.status === 'dropped' ? 'badge badge-dropped' : 'badge badge-enrolled'}`}>
                 {e.status}
               </span>
             </div>

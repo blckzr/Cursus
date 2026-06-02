@@ -79,18 +79,22 @@ export default function Courses() {
         action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New course</button>}
       />
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <SearchInput value={query} onChange={setQuery} placeholder="Search code or title…" className="w-72" />
-        <div className="flex items-center gap-1.5">
-          <Chip active={visibilityFilter === 'all'}        onClick={() => setVisibilityFilter('all')}>All</Chip>
-          <Chip active={visibilityFilter === 'public'}     onClick={() => setVisibilityFilter('public')}>Public</Chip>
-          <Chip active={visibilityFilter === 'restricted'} onClick={() => setVisibilityFilter('restricted')}>Restricted</Chip>
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
+        <SearchInput value={query} onChange={setQuery} placeholder="Search code or title…" className="w-full md:w-72" />
+        <div className="-mx-3 px-3 md:mx-0 md:px-0 overflow-x-auto scrollable">
+          <div className="flex items-center gap-1.5 w-max md:w-auto">
+            <Chip active={visibilityFilter === 'all'}        onClick={() => setVisibilityFilter('all')}>All</Chip>
+            <Chip active={visibilityFilter === 'public'}     onClick={() => setVisibilityFilter('public')}>Public</Chip>
+            <Chip active={visibilityFilter === 'restricted'} onClick={() => setVisibilityFilter('restricted')}>Restricted</Chip>
+          </div>
         </div>
-        <select className="input !w-auto" value={progFilter} onChange={e => setProgFilter(e.target.value)}>
-          <option value="all">Any program</option>
-          {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code}</option>)}
-        </select>
-        <span className="text-xs text-stone-400 ml-auto tabular">{filtered.length} of {courses.length}</span>
+        <div className="flex items-center justify-between gap-3">
+          <select className="input w-full md:!w-auto" value={progFilter} onChange={e => setProgFilter(e.target.value)}>
+            <option value="all">Any program</option>
+            {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code}</option>)}
+          </select>
+          <span className="text-xs text-stone-400 md:ml-auto tabular whitespace-nowrap">{filtered.length} of {courses.length}</span>
+        </div>
       </div>
 
       {isLoading ? (
@@ -131,9 +135,9 @@ export default function Courses() {
       {showCreate && (
         <Modal title="New course" onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <InputField label="Code" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="CS101" error={fieldErrors.code} />
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <InputField label="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Introduction to Programming" error={fieldErrors.title} />
               </div>
             </div>

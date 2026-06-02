@@ -77,9 +77,9 @@ export default function Programs() {
       {showCreate && (
         <Modal title="New program" subtitle="Block sections are generated automatically from the configuration." onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <InputField label="Code" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="BSCS" error={fieldErrors.code} />
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <InputField label="Program name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Bachelor of Science in Computer Science" error={fieldErrors.name} />
               </div>
             </div>

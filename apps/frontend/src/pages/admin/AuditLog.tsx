@@ -98,31 +98,37 @@ export default function AuditLog() {
         subtitle="Every state-changing action across the system, newest first. Used for audit trails."
       />
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
         <SearchInput
           value={actor}
           onChange={setActor}
           placeholder="Search actor (name / code / email)…"
-          className="w-72"
+          className="w-full md:w-72"
         />
-        <select className="input !w-auto" value={action} onChange={e => setAction(e.target.value)}>
+        <select className="input w-full md:!w-auto" value={action} onChange={e => setAction(e.target.value)}>
           <option value="">All actions</option>
           {actionTypes.map(a => (
             <option key={a} value={a}>{ACTION_META[a]?.label ?? a}</option>
           ))}
         </select>
-        <div className="flex items-center gap-2 text-xs text-stone-500">
-          <span>From</span>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="input !w-auto !py-1" />
-          <span>To</span>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} className="input !w-auto !py-1" />
+        <div className="grid grid-cols-2 md:flex md:items-center gap-2 text-xs text-stone-500">
+          <div className="flex items-center gap-2">
+            <span className="flex-shrink-0">From</span>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="input flex-1 md:!w-auto !py-1" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex-shrink-0">To</span>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} className="input flex-1 md:!w-auto !py-1" />
+          </div>
         </div>
-        {hasFilters && (
-          <button onClick={clearFilters} className="btn-ghost text-xs">Clear filters</button>
-        )}
-        <span className="text-xs text-stone-400 ml-auto tabular">
-          {isLoading ? '…' : `${total.toLocaleString()} entr${total === 1 ? 'y' : 'ies'}`}
-        </span>
+        <div className="flex items-center justify-between gap-3">
+          {hasFilters && (
+            <button onClick={clearFilters} className="btn-ghost text-xs">Clear filters</button>
+          )}
+          <span className="text-xs text-stone-400 md:ml-auto tabular whitespace-nowrap">
+            {isLoading ? '…' : `${total.toLocaleString()} entr${total === 1 ? 'y' : 'ies'}`}
+          </span>
+        </div>
       </div>
 
       {isLoading ? (
@@ -213,7 +219,7 @@ export default function AuditLog() {
           size="lg"
         >
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-beige-50 rounded-lg p-2">
                 <div className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">Actor</div>
                 <div className="text-stone-700 mt-1">{detail.user_full_name ?? '—'}</div>

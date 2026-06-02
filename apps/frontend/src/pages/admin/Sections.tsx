@@ -161,12 +161,14 @@ export default function Sections() {
 
       {level === 'subjects' && block && (
         <>
-          <div className="flex items-center gap-3 mb-4 flex-wrap">
-            <SearchInput value={query} onChange={setQuery} placeholder="Search course code or title…" className="w-80" />
-            <Chip active={tbaOnly} onClick={() => setTbaOnly(v => !v)}>
-              <Icon name="alert-triangle" size={10} className="text-amber-500" /> TBA only ({tbaCount})
-            </Chip>
-            <span className="text-xs text-stone-400 ml-auto tabular">{filteredSubjects.length} of {blockSections.length}</span>
+          <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
+            <SearchInput value={query} onChange={setQuery} placeholder="Search course code or title…" className="w-full md:w-80" />
+            <div className="flex items-center justify-between gap-3">
+              <Chip active={tbaOnly} onClick={() => setTbaOnly(v => !v)}>
+                <Icon name="alert-triangle" size={10} className="text-amber-500" /> TBA only ({tbaCount})
+              </Chip>
+              <span className="text-xs text-stone-400 md:ml-auto tabular whitespace-nowrap">{filteredSubjects.length} of {blockSections.length}</span>
+            </div>
           </div>
 
           {loadingSecs ? (
@@ -278,14 +280,16 @@ export default function Sections() {
               </div>
               {fieldErrors.dayOfWeek && <p className="text-xs text-red-600 mt-1">{fieldErrors.dayOfWeek}</p>}
             </div>
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               <InputField label="Start time" type="time" value={editForm.startTime}
                 onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))} error={fieldErrors.startTime} />
               <InputField label="End time" type="time" value={editForm.endTime}
                 onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))} error={fieldErrors.endTime} />
-              <InputField label="Room" value={editForm.room}
-                onChange={e => setEditForm(f => ({ ...f, room: e.target.value }))}
-                placeholder="Room 201" error={fieldErrors.room} />
+              <div className="col-span-2 sm:col-span-1">
+                <InputField label="Room" value={editForm.room}
+                  onChange={e => setEditForm(f => ({ ...f, room: e.target.value }))}
+                  placeholder="Room 201" error={fieldErrors.room} />
+              </div>
             </div>
             {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
@@ -352,7 +356,7 @@ function TermsView({ terms, sections, loading, onPick }: {
     return <div className="card p-0"><EmptyState icon="calendar" title="No terms" message="Create a term first from the Terms page." /></div>;
   }
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {terms.map((t: any) => {
         const active = isActive(t.is_active);
         const count = countFor(t.id);
@@ -416,7 +420,7 @@ function YearsView({ program, sections, blocks, onPick }: {
 }) {
   const years = Array.from({ length: program.year_levels }, (_, i) => i + 1);
   return (
-    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
       {years.map(y => {
         const blockCount = blocks.filter((b: any) => b.program_id === program.id && b.year_level === y).length;
         const secCount   = sections.filter((s: any) => s.block_year_level === y).length;

@@ -112,7 +112,9 @@ export default function Terms() {
                     className="btn-secondary w-full mt-3 flex items-center justify-center gap-2"
                     onClick={() => setOpenWizardTerm(t)}
                   >
-                    <Icon name="sparkles" size={14} /> Open term — generate sections & enrollments
+                    <Icon name="sparkles" size={14} />
+                    <span className="hidden sm:inline">Open term — generate sections &amp; enrollments</span>
+                    <span className="sm:hidden">Open term</span>
                   </button>
                 )}
               </div>
@@ -228,7 +230,7 @@ function OpenTermWizard({ term, onClose, onDone }: { term: any; onClose: () => v
       <div className="space-y-4">
         {result ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="card text-center !py-4">
                 <div className="text-3xl font-display tabular font-medium text-olive-500">{result.sectionsCreated}</div>
                 <div className="text-xs text-stone-500 mt-1">Sections created</div>

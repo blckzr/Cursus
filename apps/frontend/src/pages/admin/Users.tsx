@@ -112,21 +112,25 @@ export default function Users() {
         action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New user</button>}
       />
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <SearchInput value={query} onChange={setQuery} placeholder="Search name, email or user code…" className="w-80" />
-        <div className="flex items-center gap-1.5">
-          <Chip active={roleFilter === 'all'}     onClick={() => setRoleFilter('all')}>All ({counts.all})</Chip>
-          <Chip active={roleFilter === 'student'} onClick={() => setRoleFilter('student')}>Students ({counts.student})</Chip>
-          <Chip active={roleFilter === 'faculty'} onClick={() => setRoleFilter('faculty')}>Faculty ({counts.faculty})</Chip>
-          <Chip active={roleFilter === 'admin'}   onClick={() => setRoleFilter('admin')}>Admin ({counts.admin})</Chip>
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
+        <SearchInput value={query} onChange={setQuery} placeholder="Search name, email or user code…" className="w-full md:w-80" />
+        <div className="-mx-3 px-3 md:mx-0 md:px-0 overflow-x-auto scrollable">
+          <div className="flex items-center gap-1.5 w-max md:w-auto">
+            <Chip active={roleFilter === 'all'}     onClick={() => setRoleFilter('all')}>All ({counts.all})</Chip>
+            <Chip active={roleFilter === 'student'} onClick={() => setRoleFilter('student')}>Students ({counts.student})</Chip>
+            <Chip active={roleFilter === 'faculty'} onClick={() => setRoleFilter('faculty')}>Faculty ({counts.faculty})</Chip>
+            <Chip active={roleFilter === 'admin'}   onClick={() => setRoleFilter('admin')}>Admin ({counts.admin})</Chip>
+          </div>
         </div>
-        <select className="input !w-auto" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-          <option value="all">Any status</option>
-          <option value="active">Active</option>
-          <option value="inactive">Inactive</option>
-          <option value="graduated">Graduated</option>
-        </select>
-        <span className="text-xs text-stone-400 ml-auto tabular">{filtered.length} of {users.length}</span>
+        <div className="flex items-center justify-between gap-3">
+          <select className="input w-full md:!w-auto" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
+            <option value="all">Any status</option>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="graduated">Graduated</option>
+          </select>
+          <span className="text-xs text-stone-400 md:ml-auto tabular whitespace-nowrap">{filtered.length} of {users.length}</span>
+        </div>
       </div>
 
       {isLoading ? (

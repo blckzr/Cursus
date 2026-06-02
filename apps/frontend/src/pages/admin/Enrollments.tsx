@@ -90,22 +90,32 @@ export default function Enrollments() {
         eyebrow="Records"
         title="Enrollments"
         subtitle="Regular enrollments are auto-created by 'Open term'. Use the action below to enroll irregular students (those without a permanent block) in specific sections."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> Enroll irregular student</button>}
+        action={
+          <button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}>
+            <Icon name="plus" size={14} />
+            <span className="hidden sm:inline">Enroll irregular student</span>
+            <span className="sm:hidden">Enroll</span>
+          </button>
+        }
       />
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <SearchInput value={query} onChange={setQuery} placeholder="Search student, section, course…" className="w-72" />
-        <div className="flex items-center gap-1.5">
-          <Chip active={statusFilter === 'all'}       onClick={() => setStatusFilter('all')}>All ({counts.all})</Chip>
-          <Chip active={statusFilter === 'enrolled'}  onClick={() => setStatusFilter('enrolled')}>Enrolled ({counts.enrolled})</Chip>
-          <Chip active={statusFilter === 'completed'} onClick={() => setStatusFilter('completed')}>Completed ({counts.completed})</Chip>
-          <Chip active={statusFilter === 'dropped'}   onClick={() => setStatusFilter('dropped')}>Dropped ({counts.dropped})</Chip>
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
+        <SearchInput value={query} onChange={setQuery} placeholder="Search student, section, course…" className="w-full md:w-72" />
+        <div className="-mx-3 px-3 md:mx-0 md:px-0 overflow-x-auto scrollable">
+          <div className="flex items-center gap-1.5 w-max md:w-auto">
+            <Chip active={statusFilter === 'all'}       onClick={() => setStatusFilter('all')}>All ({counts.all})</Chip>
+            <Chip active={statusFilter === 'enrolled'}  onClick={() => setStatusFilter('enrolled')}>Enrolled ({counts.enrolled})</Chip>
+            <Chip active={statusFilter === 'completed'} onClick={() => setStatusFilter('completed')}>Completed ({counts.completed})</Chip>
+            <Chip active={statusFilter === 'dropped'}   onClick={() => setStatusFilter('dropped')}>Dropped ({counts.dropped})</Chip>
+          </div>
         </div>
-        <select className="input !w-auto" value={termFilter} onChange={e => setTermFilter(e.target.value)}>
-          <option value="all">All terms</option>
-          {terms.map(t => <option key={t} value={t}>{t}</option>)}
-        </select>
-        <span className="text-xs text-stone-400 ml-auto tabular">{filtered.length} of {enrollments.length}</span>
+        <div className="flex items-center justify-between gap-3">
+          <select className="input w-full md:!w-auto" value={termFilter} onChange={e => setTermFilter(e.target.value)}>
+            <option value="all">All terms</option>
+            {terms.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+          <span className="text-xs text-stone-400 md:ml-auto tabular whitespace-nowrap">{filtered.length} of {enrollments.length}</span>
+        </div>
       </div>
 
       {isLoading ? (
