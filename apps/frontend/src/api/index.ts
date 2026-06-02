@@ -117,3 +117,18 @@ export const downloadTranscript = async () => {
   document.body.appendChild(link); link.click(); link.remove();
   URL.revokeObjectURL(url);
 };
+
+// ── Certificate of Registration ──────────────────────────────────────────────
+export const getCor = () => api.get('/students/me/cor').then(r => r.data);
+
+export const downloadCor = async () => {
+  const res = await api.get('/students/me/cor.pdf', { responseType: 'blob' });
+  const cd  = (res.headers['content-disposition'] as string | undefined) ?? '';
+  const m   = cd.match(/filename="?([^";]+)"?/);
+  const filename = m ? m[1] : 'COR.pdf';
+  const url = URL.createObjectURL(res.data as Blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  URL.revokeObjectURL(url);
+};

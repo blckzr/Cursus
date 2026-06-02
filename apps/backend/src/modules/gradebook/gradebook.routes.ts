@@ -435,6 +435,44 @@ router.get('/students/me/transcript', authenticate, authorize('student'), ctrl.e
 
 /**
  * @openapi
+ * /students/me/cor:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Certificate of Registration — JSON payload (preview)
+ *     description: |
+ *       Returns the data that will appear on the student's Certificate of
+ *       Registration: the active term, student profile, and enrolled
+ *       subjects with schedule. The frontend renders an on-page preview
+ *       from this payload before the student downloads the PDF.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Registration payload }
+ *       404: { description: No active registration }
+ */
+router.get('/students/me/cor', authenticate, authorize('student'), ctrl.getCor);
+
+/**
+ * @openapi
+ * /students/me/cor.pdf:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Download the Certificate of Registration as a PDF
+ *     description: Landscape A4 PDF — single page covering the active term.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: PDF file download
+ *         content:
+ *           application/pdf:
+ *             schema: { type: string, format: binary }
+ *       404: { description: No active registration }
+ */
+router.get('/students/me/cor.pdf', authenticate, authorize('student'), ctrl.downloadCor);
+
+/**
+ * @openapi
  * /sections/{id}/roster:
  *   get:
  *     tags: [Gradebook]

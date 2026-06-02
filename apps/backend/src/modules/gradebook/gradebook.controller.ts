@@ -5,6 +5,7 @@ import {
   bulkScoreSchema, finalizeSchema,
 } from './gradebook.schema';
 import * as svc from './gradebook.service';
+import { renderCorPdf } from '../../lib/pdf/cor';
 
 export async function getGradebook(req: Request, res: Response, next: NextFunction) {
   try {
@@ -103,6 +104,37 @@ export async function exportTranscript(req: Request, res: Response, next: NextFu
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="transcript-${studentCode}.csv"`);
     res.send(csv);
+  } catch (e) { next(e); }
+}
+
+/**
+ * GET /students/me/cor  — returns the Certificate of Registration as a PDF.
+ * 404 when the student has no enrollments in the active term so the UI can
+ * show a useful empty state ("wait until the registrar opens the term").
+ */
+export async function getCor(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getCorData(req.user!.sub);
+    if (!data) {
+      res.status(404).json({ error: 'No active registration. Wait until the registrar opens the term.' });
+      return;
+    }
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
+export async function downloadCor(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getCorData(req.user!.sub);
+    if (!data) {
+      res.status(404).json({ error: 'No active registration. Wait until the registrar opens the term.' });
+      return;
+    }
+    const pdf = await renderCorPdf(data);
+    const code = data.student.user_code ?? 'student';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="COR-${code}.pdf"`);
+    res.send(pdf);
   } catch (e) { next(e); }
 }
 

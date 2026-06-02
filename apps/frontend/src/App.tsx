@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText, FileBadge } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
@@ -24,6 +24,7 @@ import StudentDashboard from './pages/student/Dashboard';
 import StudentGrades from './pages/student/Grades';
 import StudentSchedule from './pages/student/Schedule';
 import StudentCurriculum from './pages/student/Curriculum';
+import StudentCor from './pages/student/COR';
 import Account from './pages/Account';
 
 const qc = new QueryClient({
@@ -59,11 +60,12 @@ const facultyNav = [
   { label: 'Account',       to: '/faculty/account',      icon: Settings   },
 ];
 const studentNav = [
-  { label: 'Overview',   to: '/student',            icon: Home      },
-  { label: 'Curriculum', to: '/student/curriculum', icon: ListTree  },
-  { label: 'My grades',  to: '/student/grades',     icon: BarChart2 },
-  { label: 'Schedule',   to: '/student/schedule',   icon: Calendar  },
-  { label: 'Account',    to: '/student/account',    icon: Settings  },
+  { label: 'Overview',   to: '/student',            icon: Home       },
+  { label: 'Curriculum', to: '/student/curriculum', icon: ListTree   },
+  { label: 'My grades',  to: '/student/grades',     icon: BarChart2  },
+  { label: 'Schedule',   to: '/student/schedule',   icon: Calendar   },
+  { label: 'COR',        to: '/student/cor',        icon: FileBadge  },
+  { label: 'Account',    to: '/student/account',    icon: Settings   },
 ];
 
 function Guard({ role }: { role: 'admin' | 'faculty' | 'student' }) {
@@ -120,6 +122,7 @@ export default function App() {
               <Route path="curriculum" element={<StudentCurriculum />} />
               <Route path="grades"     element={<StudentGrades />} />
               <Route path="schedule"   element={<StudentSchedule />} />
+              <Route path="cor"        element={<StudentCor />} />
               <Route path="account"    element={<Account />} />
             </Route>
           </Routes>

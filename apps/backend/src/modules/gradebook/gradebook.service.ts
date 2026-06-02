@@ -336,6 +336,80 @@ export async function exportRosterCsv(sectionId: string) {
 }
 
 
+// ─── Certificate of Registration (COR) ───────────────────────────────────────
+
+/**
+ * Returns everything needed to render a student's Certificate of Registration
+ * for the currently active term: student profile, program, block, term info,
+ * and the list of registered subjects with schedule + faculty.
+ *
+ * If there is no currently active term, or the student has no enrollments in
+ * it, returns `null` so the caller can 404 with a helpful message.
+ */
+export async function getCorData(studentId: string) {
+  const { rows: studentRows } = await db.query(
+    `SELECT u.id, u.user_code, u.full_name, u.email, u.year_level,
+            p.code AS program_code, p.name AS program_name,
+            b.year_level AS block_year_level, b.block_number,
+            CASE WHEN b.id IS NOT NULL
+                 THEN p.code || ' ' || b.year_level || '-' || b.block_number
+            END AS block_label
+     FROM users u
+     LEFT JOIN programs p ON p.id = u.program_id
+     LEFT JOIN blocks   b ON b.id = u.block_id
+     WHERE u.id = $1 AND u.role = 'student'`,
+    [studentId],
+  );
+  if (!studentRows[0]) {
+    throw Object.assign(new Error('Student not found'), { status: 404 });
+  }
+  const student = studentRows[0];
+
+  // The student's enrollments in the currently active term — these are the
+  // rows that will fill the COR's subject table.
+  const { rows: enrollments } = await db.query(
+    `SELECT e.id AS enrollment_id, e.status,
+            s.id AS section_id, s.section_code,
+            s.day_of_week, s.start_time::text AS start_time, s.end_time::text AS end_time,
+            s.room,
+            c.code AS course_code, c.title AS course_title, c.units,
+            t.id AS term_id, t.name AS term_name, t.semester AS term_semester,
+            t.start_date, t.end_date,
+            f.full_name AS faculty_name
+     FROM enrollments e
+     JOIN sections s ON s.id = e.section_id
+     JOIN terms    t ON t.id = s.term_id
+     JOIN courses  c ON c.id = s.course_id
+     LEFT JOIN users f ON f.id = s.faculty_id
+     WHERE e.student_id = $1
+       AND e.status     = 'enrolled'
+       AND t.is_active  = TRUE
+     ORDER BY s.day_of_week NULLS LAST, s.start_time NULLS LAST, c.code`,
+    [studentId],
+  );
+
+  if (enrollments.length === 0) return null;
+
+  // Every row carries the term fields; lift them to a single object for the header.
+  const first = enrollments[0];
+  const term = {
+    id:         first.term_id,
+    name:       first.term_name,
+    semester:   first.term_semester,
+    startDate:  first.start_date,
+    endDate:    first.end_date,
+  };
+  const totalUnits = enrollments.reduce((sum: number, e: { units: number }) => sum + Number(e.units || 0), 0);
+
+  return {
+    student,
+    term,
+    subjects: enrollments,
+    totalUnits,
+    issuedAt: new Date(),
+  };
+}
+
 // ─── Student Transcript CSV ───────────────────────────────────────────────────
 
 export async function exportTranscriptCsv(studentId: string): Promise<{ csv: string; studentName: string; studentCode: string }> {
