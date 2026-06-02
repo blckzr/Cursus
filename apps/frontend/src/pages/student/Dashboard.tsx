@@ -96,9 +96,9 @@ export default function StudentDashboard() {
           <div className="absolute -right-8 -top-8 w-32 h-32 rounded-full bg-olive-50/70 pointer-events-none" />
           <div className="relative">
             <div className="text-[0.7rem] uppercase tracking-wider text-stone-400 font-medium">General Weighted Average</div>
-            <div className="flex items-end gap-5 mt-3">
-              <div>
-                <div className="text-5xl font-display font-medium tabular text-stone-800 leading-none">
+            <div className="flex items-end gap-3 sm:gap-5 mt-3 flex-wrap">
+              <div className="min-w-0">
+                <div className="text-4xl sm:text-5xl font-display font-medium tabular text-stone-800 leading-none">
                   {gwa != null ? gwa.toFixed(2) : '—'}
                 </div>
                 <div className="text-xs text-stone-500 mt-2">
@@ -165,20 +165,20 @@ export default function StudentDashboard() {
         ) : (
           <div className="card p-0 overflow-hidden">
             {todays.map((e: any, i: number) => (
-              <div key={e.id} className={`flex items-center gap-4 px-4 py-3.5 ${i > 0 ? 'border-t border-beige-200' : ''}`}>
-                <div className="text-center w-14 flex-shrink-0">
+              <div key={e.id} className={`flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-3.5 ${i > 0 ? 'border-t border-beige-200' : ''}`}>
+                <div className="text-center w-12 sm:w-14 flex-shrink-0">
                   <div className="font-mono text-sm font-semibold tabular text-stone-800 tracking-tight">{e.start_time?.slice(0, 5)}</div>
                   <div className="text-[10px] text-stone-400">to {e.end_time?.slice(0, 5)}</div>
                 </div>
                 <div className="w-1 h-10 rounded-full bg-olive-300 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-baseline gap-2">
-                    <span className="font-mono text-xs font-semibold text-olive-500">{e.course_code}</span>
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <span className="font-mono text-xs font-semibold text-olive-500 flex-shrink-0">{e.course_code}</span>
                     <span className="font-medium text-stone-800 text-sm truncate">{e.course_title}</span>
                   </div>
-                  <div className="text-xs text-stone-500 mt-0.5 flex items-center gap-3">
-                    {e.room && <span className="flex items-center gap-1"><Icon name="map-pin" size={11} /> {e.room}</span>}
-                    {e.faculty_name && <span className="flex items-center gap-1"><Icon name="user" size={11} /> {e.faculty_name}</span>}
+                  <div className="text-xs text-stone-500 mt-0.5 flex items-center gap-x-3 gap-y-0.5 flex-wrap">
+                    {e.room && <span className="flex items-center gap-1 truncate"><Icon name="map-pin" size={11} className="flex-shrink-0" /> {e.room}</span>}
+                    {e.faculty_name && <span className="flex items-center gap-1 truncate"><Icon name="user" size={11} className="flex-shrink-0" /> <span className="truncate">{e.faculty_name}</span></span>}
                   </div>
                 </div>
               </div>

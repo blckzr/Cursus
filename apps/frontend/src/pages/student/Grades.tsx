@@ -72,7 +72,9 @@ export default function StudentGrades() {
         subtitle="Your complete grade record across every term — grouped chronologically."
         action={
           <button onClick={handleDownload} className="btn-secondary flex items-center gap-2">
-            <Icon name="download" size={14} /> Download transcript
+            <Icon name="download" size={14} />
+            <span className="hidden sm:inline">Download transcript</span>
+            <span className="sm:hidden">Transcript</span>
           </button>
         }
       />
@@ -93,13 +95,16 @@ export default function StudentGrades() {
         <div className="card p-0"><EmptyState icon="bar-chart" title="No grades yet" message="You aren't enrolled in any sections yet." /></div>
       ) : (
         <>
-          <div className="flex items-center gap-2 mb-5 flex-wrap">
-            <Chip active={termFilter === 'all'} onClick={() => setTermFilter('all')}>All terms</Chip>
-            {grouped.map(g => g.term.id && (
-              <Chip key={g.term.id} active={termFilter === g.term.id} onClick={() => setTermFilter(g.term.id)}>
-                {g.term.name}
-              </Chip>
-            ))}
+          {/* Horizontally scroll the chip row on narrow viewports rather than wrapping. */}
+          <div className="-mx-3 px-3 sm:mx-0 sm:px-0 mb-5 overflow-x-auto scrollable">
+            <div className="flex items-center gap-2 w-max sm:w-auto sm:flex-wrap">
+              <Chip active={termFilter === 'all'} onClick={() => setTermFilter('all')}>All terms</Chip>
+              {grouped.map(g => g.term.id && (
+                <Chip key={g.term.id} active={termFilter === g.term.id} onClick={() => setTermFilter(g.term.id)}>
+                  {g.term.name}
+                </Chip>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-7">
@@ -109,14 +114,14 @@ export default function StudentGrades() {
               const units = g.items.reduce((s, e) => s + Number(e.units || 0), 0);
               return (
                 <section key={g.term.id || g.term.name}>
-                  <div className="flex items-end justify-between mb-3 px-1">
-                    <div>
+                  <div className="flex items-end justify-between mb-3 px-1 gap-3 flex-wrap">
+                    <div className="min-w-0">
                       <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Term</div>
-                      <h2 className="text-base font-semibold text-stone-800">{g.term.name}</h2>
+                      <h2 className="text-base font-semibold text-stone-800 truncate">{g.term.name}</h2>
                     </div>
-                    <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-4 sm:gap-5">
                       <div className="text-right">
-                        <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">
+                        <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold whitespace-nowrap">
                           {activeTerm ? 'In progress' : 'Final GWA'}
                         </div>
                         <div className="text-xl font-display tabular font-medium text-stone-800">
