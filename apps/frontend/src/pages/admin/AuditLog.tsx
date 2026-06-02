@@ -10,11 +10,13 @@ import Modal from '../../components/Modal';
 import Avatar from '../../components/Avatar';
 import Icon from '../../components/Icon';
 
+// Mobile keeps Time, Action, Details button. Actor + Entity collapse — they're still
+// visible inside the details modal opened by the chevron button.
 const HEADERS: DataTableHeader[] = [
   { label: 'Time' },
-  { label: 'Actor' },
+  { label: 'Actor',  hideBelow: 'sm' },
   { label: 'Action' },
-  { label: 'Entity' },
+  { label: 'Entity', hideBelow: 'md' },
   { label: '', align: 'right', width: 60 },
 ];
 
@@ -149,7 +151,7 @@ export default function AuditLog() {
                     {timeAgo(r.created_at)}
                   </div>
                 </td>
-                <td className="table-td">
+                <td className="table-td hidden sm:table-cell">
                   {r.user_id ? (
                     <div className="flex items-center gap-2">
                       <Avatar name={r.user_full_name ?? '?'} size={24} tone="beige" />
@@ -163,7 +165,7 @@ export default function AuditLog() {
                 <td className="table-td">
                   <span className={`badge ${meta.badge}`}>{meta.label}</span>
                 </td>
-                <td className="table-td">
+                <td className="table-td hidden md:table-cell">
                   <div className="leading-tight">
                     <div className="text-xs text-stone-700">{r.entity_type}</div>
                     {r.entity_id && (

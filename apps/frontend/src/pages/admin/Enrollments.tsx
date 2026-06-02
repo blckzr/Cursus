@@ -14,9 +14,15 @@ import { useToast } from '../../components/Toast';
 import { SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
 
+// Mobile keeps Student, Status, Action. Section/Course/Term/Final grade collapse below sm/md.
 const HEADERS: DataTableHeader[] = [
-  { label: 'Student' }, { label: 'Section' }, { label: 'Course' }, { label: 'Term' },
-  { label: 'Status' }, { label: 'Final grade', align: 'right' }, { label: '', align: 'right' },
+  { label: 'Student' },
+  { label: 'Section', hideBelow: 'sm' },
+  { label: 'Course',  hideBelow: 'md' },
+  { label: 'Term',    hideBelow: 'lg' },
+  { label: 'Status' },
+  { label: 'Final grade', align: 'right', hideBelow: 'md' },
+  { label: '', align: 'right' },
 ];
 
 export default function Enrollments() {
@@ -132,11 +138,11 @@ export default function Enrollments() {
                   <span className="font-medium text-stone-800">{e.student_name}</span>
                 </div>
               </td>
-              <td className="table-td font-mono text-olive-500 text-xs font-semibold">{e.section_code}</td>
-              <td className="table-td">{e.course_title}</td>
-              <td className="table-td text-stone-500 text-xs">{e.term_name}</td>
+              <td className="table-td font-mono text-olive-500 text-xs font-semibold hidden sm:table-cell">{e.section_code}</td>
+              <td className="table-td hidden md:table-cell">{e.course_title}</td>
+              <td className="table-td text-stone-500 text-xs hidden lg:table-cell">{e.term_name}</td>
               <td className="table-td">{statusBadge(e.status)}</td>
-              <td className="table-td text-right">
+              <td className="table-td text-right hidden md:table-cell">
                 {e.letter_grade
                   ? <span className="font-semibold text-olive-600 tabular">{e.letter_grade}
                       <span className="text-stone-400 text-[10px] ml-1">({Number(e.numeric_grade).toFixed(2)})</span>

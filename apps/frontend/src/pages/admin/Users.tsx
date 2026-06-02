@@ -16,10 +16,17 @@ import { parseApiError } from '../../lib/apiError';
 
 const isActiveVal = (v: unknown) => v === true || v === 'true';
 
+// Mobile keeps User code, Name, Role, Action.
+// Email, Program, Block, Status collapse below sm and live in the edit modal anyway.
 const HEADERS: DataTableHeader[] = [
-  { label: 'User code' }, { label: 'Name' }, { label: 'Email' },
-  { label: 'Role' }, { label: 'Program' }, { label: 'Block' },
-  { label: 'Status' }, { label: '', align: 'right' },
+  { label: 'User code' },
+  { label: 'Name' },
+  { label: 'Email',   hideBelow: 'md' },
+  { label: 'Role' },
+  { label: 'Program', hideBelow: 'md' },
+  { label: 'Block',   hideBelow: 'lg' },
+  { label: 'Status',  hideBelow: 'sm' },
+  { label: '', align: 'right' },
 ];
 
 export default function Users() {
@@ -150,19 +157,19 @@ export default function Users() {
                   <span className="font-medium text-stone-800">{u.full_name}</span>
                 </div>
               </td>
-              <td className="table-td text-stone-500 text-xs">{u.email}</td>
+              <td className="table-td text-stone-500 text-xs hidden md:table-cell">{u.email}</td>
               <td className="table-td">{roleBadge(u.role)}</td>
-              <td className="table-td">
+              <td className="table-td hidden md:table-cell">
                 {u.program_code
                   ? <span className="font-mono text-xs bg-beige-100 text-olive-600 px-2 py-0.5 rounded font-semibold">{u.program_code}</span>
                   : <span className="text-stone-300">—</span>}
               </td>
-              <td className="table-td">
+              <td className="table-td hidden lg:table-cell">
                 {u.block_label
                   ? <span className="font-mono text-xs text-stone-600">{u.block_label}</span>
                   : <span className="text-stone-300">—</span>}
               </td>
-              <td className="table-td">
+              <td className="table-td hidden sm:table-cell">
                 {isGraduated(u) ? (
                   <span className="badge badge-completed"
                     title={`Graduated ${new Date(u.graduated_at).toLocaleDateString()}`}>

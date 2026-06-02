@@ -13,11 +13,14 @@ import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
 
+// Mobile keeps Code, Title, Units. Visibility / Programs / Sections collapse below sm/md.
 const HEADERS: DataTableHeader[] = [
-  { label: 'Code' }, { label: 'Title' },
-  { label: 'Units', align: 'center', width: 70 },
-  { label: 'Visibility' }, { label: 'Programs' },
-  { label: 'Sections', align: 'center', width: 90 },
+  { label: 'Code' },
+  { label: 'Title' },
+  { label: 'Units',    align: 'center', width: 70 },
+  { label: 'Visibility', hideBelow: 'sm' },
+  { label: 'Programs',   hideBelow: 'md' },
+  { label: 'Sections', align: 'center', width: 90, hideBelow: 'sm' },
 ];
 
 type Visibility = 'public' | 'restricted';
@@ -108,12 +111,12 @@ export default function Courses() {
               <td className="table-td font-mono font-semibold text-olive-500">{c.code}</td>
               <td className="table-td">{c.title}</td>
               <td className="table-td text-center tabular">{c.units}</td>
-              <td className="table-td">
+              <td className="table-td hidden sm:table-cell">
                 {c.visibility === 'public'
                   ? <span className="badge badge-enrolled">Public</span>
                   : <span className="badge badge-faculty">Restricted</span>}
               </td>
-              <td className="table-td">
+              <td className="table-td hidden md:table-cell">
                 {c.visibility === 'public' ? (
                   <span className="text-xs text-stone-400 italic">All programs</span>
                 ) : (c.programs || []).length === 0 ? (
@@ -126,7 +129,7 @@ export default function Courses() {
                   </div>
                 )}
               </td>
-              <td className="table-td text-center tabular">{sectionCountFor(c.code)}</td>
+              <td className="table-td text-center tabular hidden sm:table-cell">{sectionCountFor(c.code)}</td>
             </tr>
           ))}
         </DataTable>
