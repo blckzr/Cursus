@@ -135,11 +135,17 @@ export default function StudentGrades() {
                     </div>
                   </div>
 
+                  {/*
+                    Mobile keeps Course + Grade — the whole point of "my grades".
+                    Section / Faculty / Status collapse below md; Units below sm.
+                  */}
                   <DataTable headers={[
-                    { label: 'Course' }, { label: 'Section' },
-                    { label: 'Units', align: 'center' },
-                    { label: 'Faculty' }, { label: 'Status' },
-                    { label: 'Grade', align: 'right' },
+                    { label: 'Course' },
+                    { label: 'Section', hideBelow: 'md' },
+                    { label: 'Units',   align: 'center', hideBelow: 'sm' },
+                    { label: 'Faculty', hideBelow: 'lg' },
+                    { label: 'Status',  hideBelow: 'md' },
+                    { label: 'Grade',   align: 'right' },
                   ]}>
                     {g.items.map((e: any) => (
                       <tr key={e.id} className="hover:bg-beige-50 transition-colors">
@@ -147,10 +153,10 @@ export default function StudentGrades() {
                           <span className="font-mono text-xs text-olive-500 font-semibold">{e.course_code}</span>
                           <span className="ml-2">{e.course_title}</span>
                         </td>
-                        <td className="table-td font-mono text-stone-500 text-xs">{e.section_code}</td>
-                        <td className="table-td text-center tabular">{e.units}</td>
-                        <td className="table-td text-stone-500 text-xs">{e.faculty_name}</td>
-                        <td className="table-td">
+                        <td className="table-td font-mono text-stone-500 text-xs hidden md:table-cell">{e.section_code}</td>
+                        <td className="table-td text-center tabular hidden sm:table-cell">{e.units}</td>
+                        <td className="table-td text-stone-500 text-xs hidden lg:table-cell">{e.faculty_name}</td>
+                        <td className="table-td hidden md:table-cell">
                           {e.status === 'enrolled'  ? <span className="badge badge-enrolled">Enrolled</span>
                             : e.status === 'dropped' ? <span className="badge badge-dropped">Dropped</span>
                             : <span className="badge badge-completed">Completed</span>}
@@ -160,7 +166,7 @@ export default function StudentGrades() {
                             <div className="leading-tight">
                               <span className="font-display text-lg font-medium text-olive-600 tabular">{e.letter_grade}</span>
                               {e.numeric_grade != null && (
-                                <span className="text-stone-400 text-[11px] ml-1 tabular">({Number(e.numeric_grade).toFixed(2)})</span>
+                                <span className="text-stone-400 text-[11px] ml-1 tabular hidden sm:inline">({Number(e.numeric_grade).toFixed(2)})</span>
                               )}
                             </div>
                           ) : (

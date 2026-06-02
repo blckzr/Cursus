@@ -161,20 +161,29 @@ export default function FacultyAvailability() {
           message="Add at least one teaching slot above so the admin can assign you to sections." /></div>
       ) : (
         <div className="card p-0 overflow-hidden">
+          {/*
+            Mobile keeps Day(s), Time, Remove button. Kind collapses below sm —
+            the badge re-appears on the row itself so users still know which
+            slot is teaching vs office-hour.
+          */}
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[420px]">
+            <table className="w-full">
               <thead><tr>
                 <th className="table-th">Day(s)</th>
                 <th className="table-th">Time</th>
-                <th className="table-th">Kind</th>
+                <th className="table-th hidden sm:table-cell">Kind</th>
                 <th className="table-th text-right"></th>
               </tr></thead>
               <tbody>
                 {slots.map((s, i) => (
                   <tr key={i} className="hover:bg-beige-50 transition-colors">
-                    <td className="table-td font-mono whitespace-nowrap">{s.dayOfWeek}</td>
+                    <td className="table-td font-mono whitespace-nowrap">
+                      {s.dayOfWeek}
+                      {/* Inline mini-badge so mobile users still see the kind without the column. */}
+                      <span className={`badge ${KIND_BADGE[s.kind]} ml-2 sm:hidden`}>{KIND_LABEL[s.kind]}</span>
+                    </td>
                     <td className="table-td tabular text-stone-700 whitespace-nowrap">{s.startTime} – {s.endTime}</td>
-                    <td className="table-td">
+                    <td className="table-td hidden sm:table-cell">
                       <span className={`badge ${KIND_BADGE[s.kind]}`}>{KIND_LABEL[s.kind]}</span>
                     </td>
                     <td className="table-td text-right">

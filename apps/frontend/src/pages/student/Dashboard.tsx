@@ -194,9 +194,14 @@ export default function StudentDashboard() {
         {activeEnrollments.length === 0 ? (
           <div className="card p-0"><EmptyState icon="book-open" title="No active enrollments" message="You aren't enrolled in any courses this term." /></div>
         ) : (
+          // Mobile keeps Course + Schedule (the "what + when"). Section/Faculty/Status
+          // collapse on smaller viewports — Status is always "Enrolled" here anyway.
           <DataTable headers={[
-            { label: 'Course' }, { label: 'Section' }, { label: 'Faculty' },
-            { label: 'Schedule' }, { label: 'Status', align: 'right' },
+            { label: 'Course' },
+            { label: 'Section',  hideBelow: 'md' },
+            { label: 'Faculty',  hideBelow: 'md' },
+            { label: 'Schedule' },
+            { label: 'Status', align: 'right', hideBelow: 'sm' },
           ]}>
             {activeEnrollments.map((e: any) => (
               <tr key={e.id} className="hover:bg-beige-50 transition-colors">
@@ -204,14 +209,14 @@ export default function StudentDashboard() {
                   <span className="font-mono text-xs text-olive-500 font-semibold">{e.course_code}</span>
                   <span className="ml-2">{e.course_title}</span>
                 </td>
-                <td className="table-td font-mono text-stone-500 text-xs">{e.section_code}</td>
-                <td className="table-td text-stone-500">{e.faculty_name}</td>
+                <td className="table-td font-mono text-stone-500 text-xs hidden md:table-cell">{e.section_code}</td>
+                <td className="table-td text-stone-500 hidden md:table-cell">{e.faculty_name}</td>
                 <td className="table-td text-stone-500 text-xs">
                   {e.day_of_week
                     ? <><span className="font-mono">{e.day_of_week}</span> · {e.start_time?.slice(0,5)}–{e.end_time?.slice(0,5)}</>
                     : <span className="text-stone-300">—</span>}
                 </td>
-                <td className="table-td text-right"><span className="badge badge-enrolled">Enrolled</span></td>
+                <td className="table-td text-right hidden sm:table-cell"><span className="badge badge-enrolled">Enrolled</span></td>
               </tr>
             ))}
           </DataTable>

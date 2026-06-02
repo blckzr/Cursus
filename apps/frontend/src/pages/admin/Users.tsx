@@ -37,7 +37,9 @@ export default function Users() {
 
   const [showCreate, setShowCreate] = useState(false);
   const [editUser, setEditUser]     = useState<Record<string, string> | null>(null);
-  const [form, setForm]     = useState({ email: '', password: '', fullName: '', role: 'student', branch: '', programId: '' });
+  // Password isn't on the create form — the backend assigns the default
+  // (1.PolytechnicU) and the user changes it on first login.
+  const [form, setForm]     = useState({ email: '', fullName: '', role: 'student', branch: '', programId: '' });
   const [editForm, setEditForm] = useState({ fullName: '', isActive: 'true', branch: '', programId: '' });
   const [err, setErr] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -57,7 +59,7 @@ export default function Users() {
     onSuccess: (u: any) => {
       qc.invalidateQueries({ queryKey: ['users'] });
       setShowCreate(false);
-      setForm({ email: '', password: '', fullName: '', role: 'student', branch: '', programId: '' });
+      setForm({ email: '', fullName: '', role: 'student', branch: '', programId: '' });
       resetErr();
       toast.push({ tone: 'success', title: 'User created', message: u?.user_code });
     },
@@ -201,8 +203,6 @@ export default function Users() {
               placeholder="Juan Miguel dela Cruz" error={fieldErrors.fullName} autoFocus />
             <InputField label="Email" type="email" value={form.email} onChange={e => setForm(f => ({ ...f, email: e.target.value }))}
               placeholder="juan@sis.local" error={fieldErrors.email} />
-            <InputField label="Password" type="password" value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))}
-              placeholder="Min 8 characters" error={fieldErrors.password} />
             <div className="grid grid-cols-2 gap-3">
               <SelectField label="Role" value={form.role} onChange={e => setForm(f => ({ ...f, role: e.target.value }))} error={fieldErrors.role}>
                 <option value="student">Student</option>
@@ -220,9 +220,15 @@ export default function Users() {
                 {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
               </SelectField>
             )}
-            <div className="bg-beige-100 rounded-lg px-3 py-2.5 text-xs text-stone-600 flex items-start gap-2">
-              <Icon name="info" size={12} className="mt-0.5 text-stone-400 flex-shrink-0" />
-              <span>User code preview: <span className="font-mono text-olive-600 font-semibold">{new Date().getFullYear()}-NNNNN-{form.branch || 'MN'}-{form.role === 'student' ? '0' : form.role === 'faculty' ? '1' : '2'}</span></span>
+            <div className="bg-beige-100 rounded-lg px-3 py-2.5 text-xs text-stone-600 space-y-1.5">
+              <div className="flex items-start gap-2">
+                <Icon name="info" size={12} className="mt-0.5 text-stone-400 flex-shrink-0" />
+                <span>User code preview: <span className="font-mono text-olive-600 font-semibold">{new Date().getFullYear()}-NNNNN-{form.branch || 'MN'}-{form.role === 'student' ? '0' : form.role === 'faculty' ? '1' : '2'}</span></span>
+              </div>
+              <div className="flex items-start gap-2">
+                <Icon name="shield" size={12} className="mt-0.5 text-stone-400 flex-shrink-0" />
+                <span>Default password: <span className="font-mono text-olive-600 font-semibold">1.PolytechnicU</span> — share it with the user out-of-band; they'll be asked to change it on first login.</span>
+              </div>
             </div>
             {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">

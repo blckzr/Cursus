@@ -9,11 +9,13 @@ import Avatar from '../../components/Avatar';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 
+// Mobile keeps User code, Name, Status (the at-a-glance enrolled/dropped/completed badge).
+// Email and Year level collapse below sm/md.
 const HEADERS: DataTableHeader[] = [
   { label: 'User code' },
   { label: 'Name' },
-  { label: 'Email' },
-  { label: 'Year' },
+  { label: 'Email',  hideBelow: 'md' },
+  { label: 'Year',   hideBelow: 'sm' },
   { label: 'Status' },
 ];
 
@@ -99,8 +101,8 @@ export default function Roster() {
                   <span className="font-medium text-stone-800">{s.full_name}</span>
                 </div>
               </td>
-              <td className="table-td text-stone-500 text-xs">{s.email}</td>
-              <td className="table-td text-stone-500">{s.year_level ?? '—'}</td>
+              <td className="table-td text-stone-500 text-xs hidden md:table-cell">{s.email}</td>
+              <td className="table-td text-stone-500 hidden sm:table-cell">{s.year_level ?? '—'}</td>
               <td className="table-td">
                 {s.status === 'completed'
                   ? <span className="badge badge-completed">Completed</span>

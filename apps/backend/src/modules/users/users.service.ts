@@ -2,6 +2,13 @@ import bcrypt from 'bcryptjs';
 import { db } from '../../config/db';
 import { pickRandomBlock } from '../blocks/blocks.service';
 
+/**
+ * Default password assigned to every newly created account. The user is
+ * expected to change it on first login. Exported so the notifications/email
+ * layer can include it in the onboarding message.
+ */
+export const DEFAULT_NEW_USER_PASSWORD = '1.PolytechnicU';
+
 const SAFE_COLS =
   'id, user_code, email, full_name, role, branch, program_id, year_level, block_id, is_active, graduated_at, created_at';
 
@@ -48,12 +55,14 @@ export async function getUserById(id: string) {
 }
 
 export async function createUser(data: {
-  email: string; password: string; fullName: string; role: string;
+  email: string; password?: string; fullName: string; role: string;
   branch?: string; programId?: string;
 }) {
   const branch   = (data.branch ?? 'MN').toUpperCase();
   const year     = new Date().getFullYear();
-  const hash     = await bcrypt.hash(data.password, 12);
+  // Use the supplied password if given, otherwise the system default.
+  const password = data.password ?? DEFAULT_NEW_USER_PASSWORD;
+  const hash     = await bcrypt.hash(password, 12);
   const userCode = await generateUserCode(data.role, branch, year);
 
   // Students are auto-assigned to a random year-1 block of their program.

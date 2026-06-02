@@ -20,10 +20,14 @@ import { parseApiError } from '../../lib/apiError';
 import { DAY_ORDER, DAY_LABEL, parseDays, joinDays } from '../../lib/days';
 import FacultyScheduleGrid from '../../components/FacultyScheduleGrid';
 
+// Mobile keeps Course, Faculty (so TBA badges stay visible — the main point of this view),
+// and the edit button. Schedule / Room / Enrolled collapse below sm/md.
 const HEADERS: DataTableHeader[] = [
-  { label: 'Course' }, { label: 'Faculty' },
-  { label: 'Schedule' }, { label: 'Room' },
-  { label: 'Enrolled', align: 'center' },
+  { label: 'Course' },
+  { label: 'Faculty' },
+  { label: 'Schedule', hideBelow: 'sm' },
+  { label: 'Room',     hideBelow: 'md' },
+  { label: 'Enrolled', align: 'center', hideBelow: 'md' },
   { label: '', align: 'right' },
 ];
 
@@ -195,13 +199,13 @@ export default function Sections() {
                         ? <span className="text-stone-700">{s.faculty_name}</span>
                         : <span className="badge badge-amber"><Icon name="alert-triangle" size={10} /> TBA</span>}
                     </td>
-                    <td className="table-td text-xs">
+                    <td className="table-td text-xs hidden sm:table-cell">
                       {s.day_of_week
                         ? <><span className="font-mono">{s.day_of_week}</span> {s.start_time?.slice(0, 5)}–{s.end_time?.slice(0, 5)}</>
                         : <span className="text-stone-300">—</span>}
                     </td>
-                    <td className="table-td text-stone-500 text-xs">{s.room ?? <span className="text-stone-300">—</span>}</td>
-                    <td className="table-td">
+                    <td className="table-td text-stone-500 text-xs hidden md:table-cell">{s.room ?? <span className="text-stone-300">—</span>}</td>
+                    <td className="table-td hidden md:table-cell">
                       <div className="flex items-center gap-2 justify-center">
                         <span className="tabular text-xs font-semibold text-stone-700 w-12 text-right">{enrolled}/{s.capacity}</span>
                         <div className="w-16 h-1.5 bg-beige-200 rounded-full overflow-hidden">
