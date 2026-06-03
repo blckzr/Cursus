@@ -118,6 +118,22 @@ export const downloadTranscript = async () => {
   URL.revokeObjectURL(url);
 };
 
+// ── Wishlist (pre-registration) ──────────────────────────────────────────────
+export const getWishlistTerms      = () =>
+  api.get('/wishlist/terms').then(r => r.data);
+export const getWishlistCandidates = (termId: string) =>
+  api.get('/wishlist/candidates', { params: { termId } }).then(r => r.data);
+export const getMyWishlist         = (termId?: string) =>
+  api.get('/wishlist/me', { params: { termId } }).then(r => r.data);
+export const addToWishlist         = (data: { termId: string; courseId: string; priority?: number; notes?: string }) =>
+  api.post('/wishlist/me', data).then(r => r.data);
+export const updateWishlistEntry   = (id: string, data: { priority?: number; notes?: string | null }) =>
+  api.patch(`/wishlist/me/${id}`, data).then(r => r.data);
+export const removeFromWishlist    = (id: string) =>
+  api.delete(`/wishlist/me/${id}`);
+export const getWishlistDemand     = (termId: string) =>
+  api.get('/wishlist/demand', { params: { termId } }).then(r => r.data);
+
 // ── Certificate of Registration ──────────────────────────────────────────────
 export const getCor = () => api.get('/students/me/cor').then(r => r.data);
 

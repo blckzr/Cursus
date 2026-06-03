@@ -1,10 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTerms, createTerm, updateTerm, openTerm, getSections, getEnrollments, getPrograms, getBlocks } from '../../api';
+import { getTerms, createTerm, updateTerm, openTerm, getSections, getEnrollments, getPrograms, getBlocks, getWishlistDemand } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import CardGridSkeleton from '../../components/CardGridSkeleton';
+import Skeleton from '../../components/Skeleton';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
@@ -24,6 +25,7 @@ export default function Terms() {
   const [showCreate, setShowCreate] = useState(false);
   const [editTerm, setEditTerm] = useState<Record<string, string> | null>(null);
   const [openWizardTerm, setOpenWizardTerm] = useState<Record<string, any> | null>(null);
+  const [demandTerm, setDemandTerm] = useState<Record<string, any> | null>(null);
   const [form, setForm] = useState({ name: '', semester: '1', startDate: '', endDate: '', isActive: 'false' });
   const [editActive, setEditActive] = useState('false');
   const [err, setErr] = useState('');
@@ -117,6 +119,15 @@ export default function Terms() {
                     <span className="sm:hidden">Open term</span>
                   </button>
                 )}
+                {!active && (
+                  <button
+                    className="btn-ghost w-full mt-3 flex items-center justify-center gap-2 border border-khaki-200"
+                    onClick={() => setDemandTerm(t)}
+                  >
+                    <Icon name="star" size={14} />
+                    See wishlist demand
+                  </button>
+                )}
               </div>
             );
           })}
@@ -179,6 +190,10 @@ export default function Terms() {
           qc.invalidateQueries({ queryKey: ['blocks'] });
           setOpenWizardTerm(null);
         }} />
+      )}
+
+      {demandTerm && (
+        <DemandModal term={demandTerm} onClose={() => setDemandTerm(null)} />
       )}
     </div>
   );
@@ -285,5 +300,144 @@ function OpenTermWizard({ term, onClose, onDone }: { term: any; onClose: () => v
         )}
       </div>
     </Modal>
+  );
+}
+
+// ============================================================================
+// Wishlist demand modal
+// ============================================================================
+
+interface DemandRow {
+  courseId:     string;
+  code:         string;
+  title:        string;
+  units:        number;
+  programCode:  string | null;
+  demand:       number;
+  highPriority: number;
+  byYearLevel:  { yearLevel: number; count: number }[];
+  students:     {
+    studentId:   string; studentName: string; userCode: string | null;
+    yearLevel:   number | null; priority: number; notes: string | null;
+  }[];
+}
+
+function DemandModal({ term, onClose }: { term: any; onClose: () => void }) {
+  const { data: rows = [], isLoading } = useQuery<DemandRow[]>({
+    queryKey: ['wishlist-demand', term.id],
+    queryFn:  () => getWishlistDemand(term.id),
+  });
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const totalDemand = rows.reduce((s, r) => s + r.demand, 0);
+  const uniqueStudents = new Set(rows.flatMap(r => r.students.map(s => s.studentId))).size;
+
+  return (
+    <Modal
+      title={`Wishlist demand — ${term.name}`}
+      subtitle="What students are asking for, before sections are opened. Use this to decide how many sections of each course to provision."
+      onClose={onClose}
+      size="lg"
+    >
+      {isLoading ? (
+        <Skeleton className="h-64 rounded-lg" />
+      ) : rows.length === 0 ? (
+        <EmptyState icon="inbox" title="No demand yet" message="Students haven't wishlisted any courses for this term." />
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-olive-500">{rows.length}</div>
+              <div className="text-xs text-stone-500 mt-1">Courses wished</div>
+            </div>
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-olive-500">{totalDemand}</div>
+              <div className="text-xs text-stone-500 mt-1">Total entries</div>
+            </div>
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-olive-500">{uniqueStudents}</div>
+              <div className="text-xs text-stone-500 mt-1">Unique students</div>
+            </div>
+          </div>
+
+          <div className="border border-beige-200 rounded-lg max-h-[480px] overflow-y-auto scrollable">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-beige-50 z-10">
+                <tr>
+                  <th className="table-th !py-2">Course</th>
+                  <th className="table-th !py-2 text-center" style={{ width: 70 }}>Demand</th>
+                  <th className="table-th !py-2 text-center hidden sm:table-cell" style={{ width: 70 }}>High prio</th>
+                  <th className="table-th !py-2 hidden md:table-cell">By year</th>
+                  <th className="table-th !py-2" style={{ width: 40 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <FragmentRow key={`${r.courseId}-${r.programCode ?? 'all'}`}
+                    row={r}
+                    expanded={expanded === r.courseId}
+                    onToggle={() => setExpanded(prev => prev === r.courseId ? null : r.courseId)} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bg-beige-100 rounded-lg p-3 text-xs text-stone-600 flex items-start gap-2">
+            <Icon name="info" size={14} className="mt-0.5 flex-shrink-0 text-stone-400" />
+            <span>Click any row to see which students requested the course and at what priority.</span>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function FragmentRow({ row, expanded, onToggle }: { row: DemandRow; expanded: boolean; onToggle: () => void }) {
+  return (
+    <>
+      <tr className="hover:bg-beige-50 cursor-pointer transition-colors" onClick={onToggle}>
+        <td className="table-td !py-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-xs font-semibold text-olive-600">{row.code}</span>
+            <span className="text-stone-700 truncate">{row.title}</span>
+            {row.programCode && <span className="badge badge-neutral text-[10px]">{row.programCode}</span>}
+          </div>
+          <div className="text-[10px] text-stone-400 mt-0.5 tabular">{row.units} units</div>
+        </td>
+        <td className="table-td !py-2 text-center tabular font-semibold text-olive-600">{row.demand}</td>
+        <td className="table-td !py-2 text-center tabular hidden sm:table-cell">{row.highPriority}</td>
+        <td className="table-td !py-2 hidden md:table-cell">
+          <div className="flex items-center gap-1 flex-wrap">
+            {row.byYearLevel.map(y => (
+              <span key={y.yearLevel} className="text-[10px] bg-beige-100 text-stone-600 rounded px-1.5 py-0.5 tabular">
+                Y{y.yearLevel}: {y.count}
+              </span>
+            ))}
+          </div>
+        </td>
+        <td className="table-td !py-2 text-right">
+          <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={12} className="text-stone-400" />
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={5} className="bg-beige-50/60 px-4 py-3">
+            <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold mb-2">
+              Interested students ({row.students.length})
+            </div>
+            <ul className="space-y-1 max-h-48 overflow-y-auto scrollable">
+              {row.students.map(s => (
+                <li key={s.studentId} className="flex items-center gap-3 text-xs px-2 py-1 rounded hover:bg-white">
+                  <span className="font-mono text-stone-500 truncate max-w-[140px]">{s.userCode ?? '—'}</span>
+                  <span className="flex-1 text-stone-700 truncate">{s.studentName}</span>
+                  {s.yearLevel != null && <span className="text-stone-400">Y{s.yearLevel}</span>}
+                  <span className={`badge ${s.priority <= 2 ? 'badge-dropped' : s.priority >= 4 ? 'badge-neutral' : 'badge-faculty'}`}>P{s.priority}</span>
+                </li>
+              ))}
+            </ul>
+          </td>
+        </tr>
+      )}
+    </>
   );
 }

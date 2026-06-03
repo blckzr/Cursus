@@ -13,6 +13,7 @@ import availabilityRouter from '../modules/availability/availability.routes';
 import auditLogsRouter from '../modules/audit-logs/audit-logs.routes';
 import gradebookRouter from '../modules/gradebook/gradebook.routes';
 import notificationsRouter from '../modules/notifications/notifications.routes';
+import wishlistRouter from '../modules/wishlist/wishlist.routes';
 
 const router = Router();
 
@@ -153,6 +154,7 @@ router.use('/blocks', blocksRouter);
 router.use('/availability', availabilityRouter);
 router.use('/audit-logs', auditLogsRouter);
 router.use('/notifications', notificationsRouter);
+router.use('/wishlist',      wishlistRouter);
 router.use('/', curriculumRouter);
 router.use('/', gradebookRouter);
 

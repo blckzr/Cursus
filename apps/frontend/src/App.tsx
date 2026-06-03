@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText, FileBadge } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText, FileBadge, Star } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
@@ -25,6 +25,7 @@ import StudentGrades from './pages/student/Grades';
 import StudentSchedule from './pages/student/Schedule';
 import StudentCurriculum from './pages/student/Curriculum';
 import StudentCor from './pages/student/COR';
+import StudentWishlist from './pages/student/Wishlist';
 import Account from './pages/Account';
 
 const qc = new QueryClient({
@@ -64,6 +65,7 @@ const studentNav = [
   { label: 'Curriculum', to: '/student/curriculum', icon: ListTree   },
   { label: 'My grades',  to: '/student/grades',     icon: BarChart2  },
   { label: 'Schedule',   to: '/student/schedule',   icon: Calendar   },
+  { label: 'Wishlist',   to: '/student/wishlist',   icon: Star       },
   { label: 'COR',        to: '/student/cor',        icon: FileBadge  },
   { label: 'Account',    to: '/student/account',    icon: Settings   },
 ];
@@ -122,6 +124,7 @@ export default function App() {
               <Route path="curriculum" element={<StudentCurriculum />} />
               <Route path="grades"     element={<StudentGrades />} />
               <Route path="schedule"   element={<StudentSchedule />} />
+              <Route path="wishlist"   element={<StudentWishlist />} />
               <Route path="cor"        element={<StudentCor />} />
               <Route path="account"    element={<Account />} />
             </Route>

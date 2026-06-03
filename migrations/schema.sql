@@ -305,6 +305,25 @@ CREATE TABLE audit_logs (
 
 
 -- ============================================================
+-- WISHLIST  (student pre-registration intent for an upcoming term)
+-- ============================================================
+
+CREATE TABLE wishlist_entries (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    student_id  UUID         NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
+    term_id     UUID         NOT NULL REFERENCES terms(id)   ON DELETE CASCADE,
+    course_id   UUID         NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    priority    INT          NOT NULL DEFAULT 3 CHECK (priority BETWEEN 1 AND 5),
+    notes       TEXT,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    UNIQUE (student_id, term_id, course_id)
+);
+
+CREATE INDEX idx_wishlist_student_term ON wishlist_entries(student_id, term_id);
+CREATE INDEX idx_wishlist_term_course  ON wishlist_entries(term_id, course_id);
+
+
+-- ============================================================
 -- NOTIFICATIONS  (in-app bell-icon feed; one row per recipient)
 -- ============================================================
 
