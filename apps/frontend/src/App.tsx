@@ -20,6 +20,7 @@ import FacultySections from './pages/faculty/Sections';
 import FacultyAvailability from './pages/faculty/Availability';
 import Gradebook from './pages/faculty/Gradebook';
 import Roster from './pages/faculty/Roster';
+import FacultySubjects from './pages/faculty/Subjects';
 import StudentDashboard from './pages/student/Dashboard';
 import StudentGrades from './pages/student/Grades';
 import StudentSchedule from './pages/student/Schedule';
@@ -57,6 +58,7 @@ const adminNav = [
 const facultyNav = [
   { label: 'Overview',      to: '/faculty',              icon: Home       },
   { label: 'My Sections',   to: '/faculty/sections',     icon: LayoutGrid },
+  { label: 'My Subjects',   to: '/faculty/subjects',     icon: BookOpen   },
   { label: 'Availability',  to: '/faculty/availability', icon: Clock      },
   { label: 'Account',       to: '/faculty/account',      icon: Settings   },
 ];
@@ -114,6 +116,7 @@ export default function App() {
               <Route path="sections" element={<FacultySections />} />
               <Route path="sections/:id" element={<Gradebook />} />
               <Route path="sections/:id/roster" element={<Roster />} />
+              <Route path="subjects"     element={<FacultySubjects />} />
               <Route path="availability" element={<FacultyAvailability />} />
               <Route path="account"      element={<Account />} />
             </Route>

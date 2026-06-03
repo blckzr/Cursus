@@ -92,6 +92,10 @@ CREATE TABLE users (
     -- to FALSE at the same time, so graduated students can't sign in but their
     -- record persists for transcripts.
     graduated_at  TIMESTAMPTZ,
+    -- Soft cap consumed by the section auto-assigner (3.4). NULL = unlimited.
+    -- 24 units/week is a common PH teaching-load default.
+    max_teaching_units INT  DEFAULT 24
+                            CHECK (max_teaching_units IS NULL OR max_teaching_units BETWEEN 0 AND 60),
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -302,6 +306,23 @@ CREATE TABLE audit_logs (
     new_value   JSONB,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+
+-- ============================================================
+-- FACULTY QUALIFICATIONS  (which courses a faculty can / wants to teach)
+-- ============================================================
+
+CREATE TABLE faculty_qualifications (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    faculty_id  UUID         NOT NULL REFERENCES users(id)   ON DELETE CASCADE,
+    course_id   UUID         NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    preference  INT          NOT NULL DEFAULT 3 CHECK (preference BETWEEN 1 AND 5),
+    notes       TEXT,
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    UNIQUE (faculty_id, course_id)
+);
+CREATE INDEX idx_faculty_qual_faculty ON faculty_qualifications(faculty_id);
+CREATE INDEX idx_faculty_qual_course  ON faculty_qualifications(course_id);
 
 
 -- ============================================================

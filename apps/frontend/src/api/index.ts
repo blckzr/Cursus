@@ -118,6 +118,24 @@ export const downloadTranscript = async () => {
   URL.revokeObjectURL(url);
 };
 
+// ── Faculty qualifications (preferred subjects) ──────────────────────────────
+export interface QualificationItem {
+  id: string; course_id: string; preference: number; notes: string | null;
+  code: string; title: string; units: number; visibility: 'public' | 'restricted';
+}
+export const getQualifications = (facultyId: string) =>
+  api.get(`/qualifications/${facultyId}`).then(r => r.data);
+export const replaceQualifications = (facultyId: string, data: {
+  maxTeachingUnits?: number | null;
+  items: { courseId: string; preference: number; notes?: string }[];
+}) => api.put(`/qualifications/${facultyId}`, data).then(r => r.data);
+export const addQualification = (facultyId: string, data: { courseId: string; preference?: number; notes?: string }) =>
+  api.post(`/qualifications/${facultyId}/items`, data).then(r => r.data);
+export const updateQualification = (facultyId: string, id: string, data: { preference?: number; notes?: string | null }) =>
+  api.patch(`/qualifications/${facultyId}/items/${id}`, data).then(r => r.data);
+export const removeQualification = (facultyId: string, id: string) =>
+  api.delete(`/qualifications/${facultyId}/items/${id}`);
+
 // ── Wishlist (pre-registration) ──────────────────────────────────────────────
 export const getWishlistTerms      = () =>
   api.get('/wishlist/terms').then(r => r.data);
