@@ -118,6 +118,25 @@ export const downloadTranscript = async () => {
   URL.revokeObjectURL(url);
 };
 
+// ── Section auto-assign (admin) ──────────────────────────────────────────────
+export type AutoAssignStrategy = 'balanced' | 'prefer-grouped-days' | 'prefer-mornings';
+export interface AssignmentProposal {
+  sectionId: string; sectionCode: string;
+  courseCode: string; courseTitle: string; units: number;
+  blockLabel: string;
+  facultyId: string | null; facultyName: string | null;
+  dayOfWeek: string | null; startTime: string | null; endTime: string | null;
+  room: string | null;
+  score: number; reason: string;
+}
+export const autoAssignPreview = (params: { termId: string; strategy: AutoAssignStrategy; onlyTba: boolean }) =>
+  api.get('/sections/auto-assign/preview', { params }).then(r => r.data) as Promise<{
+    proposals: AssignmentProposal[];
+    summary: { total: number; filled: number; unfilled: number; facultyUsed: number; avgScore: number };
+  }>;
+export const autoAssignApply = (proposals: AssignmentProposal[]) =>
+  api.post('/sections/auto-assign/apply', { proposals }).then(r => r.data) as Promise<{ applied: number; skipped: number }>;
+
 // ── Faculty qualifications (preferred subjects) ──────────────────────────────
 export interface QualificationItem {
   id: string; course_id: string; preference: number; notes: string | null;

@@ -4,6 +4,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getSections, updateSection,
   getTerms, getPrograms, getBlocks, getUsers, getEnrollments,
+  autoAssignPreview, autoAssignApply,
+  type AutoAssignStrategy,
 } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
@@ -117,6 +119,10 @@ export default function Sections() {
 
   const tbaCount = blockSections.filter((s: any) => !s.faculty_id).length;
 
+  // The auto-assign modal lives on the page header so it's reachable from any
+  // drill level once a term has been picked.
+  const [showAutoAssign, setShowAutoAssign] = useState(false);
+
   // ── Render ────────────────────────────────────────────────────────────
   return (
     <div>
@@ -124,6 +130,17 @@ export default function Sections() {
         eyebrow="Scheduling"
         title="Sections"
         subtitle="Browse by term → program → year → block → courses. Click any card to drill in."
+        action={term && (
+          <button
+            className="btn-primary flex items-center gap-2"
+            onClick={() => setShowAutoAssign(true)}
+            title="Run the algorithm to propose faculty + schedule for every TBA section in this term"
+          >
+            <Icon name="sparkles" size={14} />
+            <span className="hidden sm:inline">Auto-assign sections</span>
+            <span className="sm:hidden">Auto-assign</span>
+          </button>
+        )}
       />
 
       {/* Breadcrumb */}
@@ -132,6 +149,17 @@ export default function Sections() {
         goHome={goHome} goTerm={() => goTerm(termId!)} goProgram={() => goProgram(programId!)}
         goYear={() => goYear(yearLevel!)}
       />
+
+      {showAutoAssign && term && (
+        <AutoAssignModal
+          term={term}
+          onClose={() => setShowAutoAssign(false)}
+          onApplied={() => {
+            qc.invalidateQueries({ queryKey: ['sections'] });
+            setShowAutoAssign(false);
+          }}
+        />
+      )}
 
       {/* Level content */}
       {level === 'terms' && (
@@ -486,6 +514,198 @@ function BlocksView({ blocks, program, yearLevel, sections, loading, onPick }: {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+// ============================================================================
+// Auto-assign modal
+// ============================================================================
+
+const STRATEGY_LABEL: Record<AutoAssignStrategy, { label: string; hint: string }> = {
+  'balanced':            { label: 'Balanced',            hint: 'Even load · honour preferences' },
+  'prefer-grouped-days': { label: 'Prefer MWF / TTh',    hint: 'Group sessions onto grouped day blocks' },
+  'prefer-mornings':     { label: 'Prefer mornings',     hint: 'Favour AM start times over PM' },
+};
+
+function AutoAssignModal({ term, onClose, onApplied }: {
+  term: any;
+  onClose: () => void;
+  onApplied: () => void;
+}) {
+  const toast = useToast();
+  const [strategy, setStrategy] = useState<AutoAssignStrategy>('balanced');
+  const [onlyTba, setOnlyTba] = useState(true);
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof autoAssignPreview>> | null>(null);
+
+  const previewMut = useMutation({
+    mutationFn: () => autoAssignPreview({ termId: term.id, strategy, onlyTba }),
+    onSuccess:  res => setPreview(res),
+    onError:    (e: unknown) => toast.push({ tone: 'error', title: 'Preview failed', message: parseApiError(e).message }),
+  });
+
+  const applyMut = useMutation({
+    mutationFn: () => autoAssignApply(preview!.proposals.filter(p => p.facultyId)),
+    onSuccess:  (res) => {
+      toast.push({
+        tone: 'success',
+        title: 'Auto-assign applied',
+        message: `${res.applied} section${res.applied === 1 ? '' : 's'} updated${res.skipped > 0 ? ` · ${res.skipped} skipped` : ''}.`,
+      });
+      onApplied();
+    },
+    onError: (e: unknown) => toast.push({ tone: 'error', title: 'Apply failed', message: parseApiError(e).message }),
+  });
+
+  return (
+    <Modal
+      title={`Auto-assign sections — ${term.name}`}
+      subtitle="Pick a strategy, preview the proposal, then apply. The algorithm respects qualifications, availability, and load caps."
+      onClose={onClose}
+      size="lg"
+    >
+      <div className="space-y-4">
+        {/* ── Strategy + options ─────────────────────────────────────── */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div>
+            <label className="label">Strategy</label>
+            <div className="space-y-1.5">
+              {(Object.keys(STRATEGY_LABEL) as AutoAssignStrategy[]).map(s => (
+                <label key={s} className={`flex items-start gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
+                  strategy === s ? 'border-olive-300 bg-olive-50' : 'border-beige-200 hover:bg-beige-50'
+                }`}>
+                  <input type="radio" name="strategy" checked={strategy === s}
+                    onChange={() => setStrategy(s)} className="mt-1" />
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-stone-800">{STRATEGY_LABEL[s].label}</div>
+                    <div className="text-[11px] text-stone-500">{STRATEGY_LABEL[s].hint}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Scope</label>
+            <label className={`flex items-start gap-2 px-3 py-2 rounded-lg border cursor-pointer ${
+              onlyTba ? 'border-olive-300 bg-olive-50' : 'border-beige-200 hover:bg-beige-50'
+            }`}>
+              <input type="checkbox" checked={onlyTba} onChange={e => setOnlyTba(e.target.checked)} className="mt-1" />
+              <div>
+                <div className="text-sm font-medium text-stone-800">Only TBA sections</div>
+                <div className="text-[11px] text-stone-500">When checked, sections that already have a faculty are left untouched.</div>
+              </div>
+            </label>
+            <div className="bg-beige-100 rounded-lg px-3 py-2.5 text-xs text-stone-600 mt-3 flex items-start gap-2">
+              <Icon name="info" size={12} className="mt-0.5 text-stone-400 flex-shrink-0" />
+              <span>The algorithm reads faculty qualifications, availability, and the per-faculty load cap. Faculty without availability data are skipped.</span>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Preview action ─────────────────────────────────────────── */}
+        {!preview && (
+          <div className="flex justify-end gap-2 pt-1">
+            <button className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn-primary flex items-center gap-2"
+              onClick={() => previewMut.mutate()} disabled={previewMut.isPending}>
+              {previewMut.isPending ? <><span className="spinner" /> Running…</> : <><Icon name="sparkles" size={14} /> Preview</>}
+            </button>
+          </div>
+        )}
+
+        {/* ── Preview result ────────────────────────────────────────── */}
+        {preview && (
+          <>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <Stat label="Sections" value={preview.summary.total} />
+              <Stat label="Filled"   value={preview.summary.filled}    tone="olive" />
+              <Stat label="Unfilled" value={preview.summary.unfilled}  tone={preview.summary.unfilled > 0 ? 'red' : undefined} />
+              <Stat label="Faculty used" value={preview.summary.facultyUsed} />
+            </div>
+
+            <div className="border border-beige-200 rounded-lg max-h-[400px] overflow-y-auto scrollable">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-beige-50 z-10">
+                  <tr>
+                    <th className="table-th !py-2">Section</th>
+                    <th className="table-th !py-2 hidden sm:table-cell">Faculty</th>
+                    <th className="table-th !py-2 hidden md:table-cell">Schedule</th>
+                    <th className="table-th !py-2 text-right">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {preview.proposals.map(p => (
+                    <tr key={p.sectionId} className={p.facultyId ? '' : 'bg-red-50/40'}>
+                      <td className="table-td !py-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-mono font-semibold text-olive-600">{p.courseCode}</span>
+                          <span className="text-stone-700 truncate">{p.courseTitle}</span>
+                        </div>
+                        <div className="text-[10px] text-stone-400 mt-0.5">
+                          {p.blockLabel} · {p.units}u
+                        </div>
+                      </td>
+                      <td className="table-td !py-2 hidden sm:table-cell text-stone-700">
+                        {p.facultyName ?? <span className="text-stone-300 italic">—</span>}
+                      </td>
+                      <td className="table-td !py-2 hidden md:table-cell text-stone-700 whitespace-nowrap">
+                        {p.dayOfWeek
+                          ? <><span className="font-mono">{p.dayOfWeek}</span> {p.startTime}–{p.endTime}</>
+                          : <span className="text-stone-300 italic">—</span>}
+                      </td>
+                      <td className="table-td !py-2 text-right">
+                        {p.facultyId ? (
+                          <span className="badge badge-completed text-[10px]" title={p.reason}>
+                            <Icon name="check" size={10} /> {p.score}
+                          </span>
+                        ) : (
+                          <span className="badge badge-dropped text-[10px]" title={p.reason}>
+                            <Icon name="alert-triangle" size={10} /> Skipped
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {preview.summary.unfilled > 0 && (
+              <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 flex items-start gap-2">
+                <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+                <span>
+                  {preview.summary.unfilled} section{preview.summary.unfilled === 1 ? '' : 's'} couldn't be filled.
+                  Hover the "Skipped" badge for the reason. Try a different strategy, add more qualifications,
+                  or expand faculty availability.
+                </span>
+              </div>
+            )}
+
+            <div className="flex flex-wrap justify-end gap-2 pt-1">
+              <button className="btn-ghost" onClick={() => setPreview(null)}>Try another</button>
+              <button className="btn-ghost" onClick={onClose}>Cancel</button>
+              <button className="btn-primary flex items-center gap-2"
+                onClick={() => applyMut.mutate()}
+                disabled={applyMut.isPending || preview.summary.filled === 0}>
+                {applyMut.isPending
+                  ? <><span className="spinner" /> Applying…</>
+                  : <><Icon name="check" size={14} /> Apply {preview.summary.filled} assignment{preview.summary.filled === 1 ? '' : 's'}</>}
+              </button>
+            </div>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: number | string; tone?: 'olive' | 'red' }) {
+  const color = tone === 'olive' ? 'text-olive-500' : tone === 'red' ? 'text-red-500' : 'text-stone-800';
+  return (
+    <div className="card text-center !py-3">
+      <div className={`text-2xl font-display tabular font-medium ${color}`}>{value}</div>
+      <div className="text-xs text-stone-500 mt-1">{label}</div>
     </div>
   );
 }
