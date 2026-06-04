@@ -297,3 +297,170 @@ function computeHoursPerWeek(dayOfWeek: string | null, startTime: string | null,
   if (minutes <= 0) return 0;
   return Math.round((days * minutes / 60) * 10) / 10;
 }
+
+// ─── Section fill rates ─────────────────────────────────────────────────────
+
+interface SectionFillRow {
+  sectionId:   string;
+  sectionCode: string;
+  courseCode:  string;
+  courseTitle: string;
+  units:       number;
+  blockLabel:  string;
+  programCode: string;
+  facultyName: string | null;
+  capacity:    number;
+  enrolled:    number;
+  fillPct:     number;                          // enrolled / capacity * 100
+  status:      'over' | 'full' | 'normal' | 'under' | 'empty';
+}
+interface SectionFillResult {
+  term: { id: string; name: string; semester: string } | null;
+  sections: SectionFillRow[];
+  /** Distribution histogram — 5 buckets of 20% width plus a >100% overflow bin. */
+  histogram: { label: string; min: number; max: number; count: number }[];
+  summary: {
+    sectionsTotal:  number;
+    totalCapacity:  number;
+    totalEnrolled:  number;
+    avgFillPct:     number;
+    overCount:      number;
+    fullCount:      number;
+    normalCount:    number;
+    underCount:     number;
+    emptyCount:     number;
+    /** Threshold below which a section is flagged as under-enrolled (50%). */
+    underThreshold: number;
+  };
+}
+
+const UNDER_THRESHOLD = 50;
+const FULL_THRESHOLD  = 90;
+
+/**
+ * Section fill rates for a term. Lets the registrar spot under-enrolled
+ * offerings (candidates for consolidation) and over-cap sections (candidates
+ * for a second section). The histogram surfaces the distribution shape at a
+ * glance — a healthy term should be heavy on the 80-100% bucket; a long tail
+ * on the left signals sections to merge.
+ */
+export async function getSectionFill(opts: { termId?: string }): Promise<SectionFillResult> {
+  // Resolve term, same convention as faculty-load.
+  let term: SectionFillResult['term'] = null;
+  if (opts.termId) {
+    const { rows } = await db.query(
+      `SELECT id, name, semester FROM terms WHERE id = $1`,
+      [opts.termId],
+    );
+    term = rows[0] ?? null;
+    if (!term) throw Object.assign(new Error('Term not found'), { status: 404 });
+  } else {
+    const { rows } = await db.query(
+      `SELECT id, name, semester FROM terms WHERE is_active = TRUE ORDER BY start_date DESC LIMIT 1`,
+    );
+    term = rows[0] ?? null;
+  }
+
+  if (!term) {
+    return {
+      term: null, sections: [], histogram: emptyHistogram(),
+      summary: {
+        sectionsTotal: 0, totalCapacity: 0, totalEnrolled: 0, avgFillPct: 0,
+        overCount: 0, fullCount: 0, normalCount: 0, underCount: 0, emptyCount: 0,
+        underThreshold: UNDER_THRESHOLD,
+      },
+    };
+  }
+
+  // Pull every section in the term + enrolled count via aggregate join.
+  const { rows } = await db.query(
+    `SELECT s.id              AS section_id,
+            s.section_code,
+            s.capacity,
+            c.code             AS course_code,
+            c.title            AS course_title,
+            c.units,
+            p.code             AS program_code,
+            p.code || ' ' || b.year_level || '-' || b.block_number AS block_label,
+            f.full_name        AS faculty_name,
+            COUNT(e.id) FILTER (WHERE e.status = 'enrolled')::int   AS enrolled
+     FROM sections s
+     JOIN courses    c ON c.id = s.course_id
+     JOIN blocks     b ON b.id = s.block_id
+     JOIN programs   p ON p.id = b.program_id
+     LEFT JOIN users f ON f.id = s.faculty_id
+     LEFT JOIN enrollments e ON e.section_id = s.id
+     WHERE s.term_id = $1
+     GROUP BY s.id, c.code, c.title, c.units, p.code, b.year_level, b.block_number, f.full_name`,
+    [term.id],
+  );
+
+  const sections: SectionFillRow[] = rows.map((r: any) => {
+    const capacity = Number(r.capacity) || 0;
+    const enrolled = Number(r.enrolled) || 0;
+    const fillPct  = capacity === 0 ? 0 : Math.round((enrolled / capacity) * 1000) / 10;
+    return {
+      sectionId:   r.section_id,
+      sectionCode: r.section_code,
+      courseCode:  r.course_code,
+      courseTitle: r.course_title,
+      units:       Number(r.units),
+      blockLabel:  r.block_label,
+      programCode: r.program_code,
+      facultyName: r.faculty_name,
+      capacity, enrolled, fillPct,
+      status: statusFor(fillPct, enrolled),
+    };
+  }).sort((a: SectionFillRow, b: SectionFillRow) => b.fillPct - a.fillPct);
+
+  // 5 buckets × 20% + an over-cap overflow.
+  const histogram = emptyHistogram();
+  for (const s of sections) {
+    const bucket = histogram.find(h => s.fillPct >= h.min && s.fillPct < h.max)
+                ?? histogram[histogram.length - 1];     // >100% falls into the overflow
+    bucket.count++;
+  }
+
+  const summary = sections.reduce(
+    (acc, s) => {
+      acc.totalCapacity += s.capacity;
+      acc.totalEnrolled += s.enrolled;
+      if (s.status === 'over')   acc.overCount++;
+      if (s.status === 'full')   acc.fullCount++;
+      if (s.status === 'normal') acc.normalCount++;
+      if (s.status === 'under')  acc.underCount++;
+      if (s.status === 'empty')  acc.emptyCount++;
+      return acc;
+    },
+    {
+      sectionsTotal: sections.length,
+      totalCapacity: 0, totalEnrolled: 0, avgFillPct: 0,
+      overCount: 0, fullCount: 0, normalCount: 0, underCount: 0, emptyCount: 0,
+      underThreshold: UNDER_THRESHOLD,
+    },
+  );
+  summary.avgFillPct = summary.totalCapacity === 0
+    ? 0
+    : Math.round((summary.totalEnrolled / summary.totalCapacity) * 1000) / 10;
+
+  return { term, sections, histogram, summary };
+}
+
+function statusFor(pct: number, enrolled: number): SectionFillRow['status'] {
+  if (enrolled === 0)            return 'empty';
+  if (pct > 100)                 return 'over';
+  if (pct >= FULL_THRESHOLD)     return 'full';
+  if (pct < UNDER_THRESHOLD)     return 'under';
+  return 'normal';
+}
+
+function emptyHistogram() {
+  return [
+    { label: '0–20%',   min:   0, max:  20, count: 0 },
+    { label: '20–40%',  min:  20, max:  40, count: 0 },
+    { label: '40–60%',  min:  40, max:  60, count: 0 },
+    { label: '60–80%',  min:  60, max:  80, count: 0 },
+    { label: '80–100%', min:  80, max: 101, count: 0 },     // inclusive of 100
+    { label: '>100%',   min: 101, max: Infinity, count: 0 },
+  ];
+}

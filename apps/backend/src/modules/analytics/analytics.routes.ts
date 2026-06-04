@@ -47,4 +47,27 @@ router.get('/retention', ctrl.retention);
  */
 router.get('/faculty-load', ctrl.facultyLoad);
 
+/**
+ * @openapi
+ * /admin/analytics/section-fill:
+ *   get:
+ *     tags: [Analytics]
+ *     summary: Per-section fill-rate report for a term
+ *     description: |
+ *       For each section in the term, returns `capacity`, `enrolled`, fill
+ *       percentage, and a status flag (`over | full | normal | under |
+ *       empty`). Also returns a 6-bucket histogram of the distribution and
+ *       a summary block so the UI can render a chart + table without
+ *       additional aggregation.
+ *     parameters:
+ *       - in: query
+ *         name: termId
+ *         description: Optional — defaults to the currently active term.
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200: { description: Per-section rows + histogram + summary }
+ *       404: { description: termId given but no such term exists }
+ */
+router.get('/section-fill', ctrl.sectionFill);
+
 export default router;

@@ -8,3 +8,8 @@ export const facultyLoadQuerySchema = z.object({
   /** Optional — defaults to the currently active term. */
   termId: z.string().uuid().optional(),
 });
+
+export const sectionFillQuerySchema = z.object({
+  /** Optional — defaults to the currently active term. */
+  termId: z.string().uuid().optional(),
+});

@@ -193,6 +193,31 @@ export interface FacultyLoadPayload {
 export const getFacultyLoad = (termId?: string) =>
   api.get<FacultyLoadPayload>('/admin/analytics/faculty-load', { params: { termId } }).then(r => r.data);
 
+export interface SectionFillRow {
+  sectionId: string; sectionCode: string;
+  courseCode: string; courseTitle: string; units: number;
+  blockLabel: string; programCode: string;
+  facultyName: string | null;
+  capacity: number; enrolled: number; fillPct: number;
+  status: 'over' | 'full' | 'normal' | 'under' | 'empty';
+}
+export interface SectionFillHistogramBin {
+  label: string; min: number; max: number; count: number;
+}
+export interface SectionFillPayload {
+  term: { id: string; name: string; semester: string } | null;
+  sections: SectionFillRow[];
+  histogram: SectionFillHistogramBin[];
+  summary: {
+    sectionsTotal: number; totalCapacity: number; totalEnrolled: number;
+    avgFillPct: number;
+    overCount: number; fullCount: number; normalCount: number;
+    underCount: number; emptyCount: number; underThreshold: number;
+  };
+}
+export const getSectionFill = (termId?: string) =>
+  api.get<SectionFillPayload>('/admin/analytics/section-fill', { params: { termId } }).then(r => r.data);
+
 // ── Section auto-assign (admin) ──────────────────────────────────────────────
 export type AutoAssignStrategy = 'balanced' | 'prefer-grouped-days' | 'prefer-mornings';
 export interface AssignmentProposal {

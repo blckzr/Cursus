@@ -2,12 +2,14 @@ import { useState } from 'react';
 import Icon from '../../components/Icon';
 import RetentionReport from './RetentionReport';
 import FacultyLoadReport from './FacultyLoadReport';
+import SectionFillReport from './SectionFillReport';
 
-type Tab = 'retention' | 'faculty-load';
+type Tab = 'retention' | 'faculty-load' | 'section-fill';
 
 const TABS: { key: Tab; label: string; icon: string; description: string }[] = [
   { key: 'retention',    label: 'Cohort retention', icon: 'trending-up', description: 'Entry-year cohorts vs active / graduated / inactive.' },
   { key: 'faculty-load', label: 'Faculty load',     icon: 'user-check',  description: 'Per-faculty units, hours, and overload signal for a term.' },
+  { key: 'section-fill', label: 'Section fill',     icon: 'school',      description: 'Fill-rate distribution per section — spot under-enrolled offerings.' },
 ];
 
 /**
@@ -44,6 +46,7 @@ export default function Analytics() {
 
       {tab === 'retention'    && <RetentionReport />}
       {tab === 'faculty-load' && <FacultyLoadReport />}
+      {tab === 'section-fill' && <SectionFillReport />}
     </div>
   );
 }
