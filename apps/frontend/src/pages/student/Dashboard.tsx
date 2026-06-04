@@ -196,13 +196,16 @@ export default function StudentDashboard() {
         ) : (
           // Mobile keeps Course + Schedule (the "what + when"). Section/Faculty/Status
           // collapse on smaller viewports — Status is always "Enrolled" here anyway.
-          <DataTable headers={[
-            { label: 'Course' },
-            { label: 'Section',  hideBelow: 'md' },
-            { label: 'Faculty',  hideBelow: 'md' },
-            { label: 'Schedule' },
-            { label: 'Status', align: 'right', hideBelow: 'sm' },
-          ]}>
+          <DataTable
+            pageSize={10}
+            headers={[
+              { label: 'Course' },
+              { label: 'Section',  hideBelow: 'md' },
+              { label: 'Faculty',  hideBelow: 'md' },
+              { label: 'Schedule' },
+              { label: 'Status', align: 'right', hideBelow: 'sm' },
+            ]}
+          >
             {activeEnrollments.map((e: any) => (
               <tr key={e.id} className="hover:bg-beige-50 transition-colors">
                 <td className="table-td">

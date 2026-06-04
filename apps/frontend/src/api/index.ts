@@ -14,6 +14,37 @@ export const getUsers     = (role?: string) => api.get('/users', { params: { rol
 export const createUser   = (data: object)  => api.post('/users', data).then(r => r.data);
 export const updateUser   = (id: string, data: object) => api.patch(`/users/${id}`, data).then(r => r.data);
 
+// ── Bulk CSV import ─────────────────────────────────────────────────────────
+export interface BulkRawRow {
+  rowIndex:    number;
+  email:       string;
+  fullName:    string;
+  role:        string;
+  branch?:     string;
+  programCode?: string;
+}
+export interface BulkValidatedRow {
+  rowIndex: number; email: string; fullName: string;
+  role: 'admin' | 'faculty' | 'student';
+  branch: string | null; programId: string | null; programCode: string | null;
+}
+export interface BulkInvalidRow {
+  rowIndex: number; raw: BulkRawRow; reason: string;
+}
+export interface BulkPreviewResult {
+  valid: BulkValidatedRow[]; invalid: BulkInvalidRow[];
+  summary: { total: number; willCreate: number; skipped: number;
+             byRole: Record<'admin' | 'faculty' | 'student', number> };
+}
+export interface BulkApplyResult {
+  created: { rowIndex: number; userCode: string; email: string }[];
+  failed:  { rowIndex: number; email: string; reason: string }[];
+}
+export const bulkImportUsersPreview = (rows: BulkRawRow[]) =>
+  api.post<BulkPreviewResult>('/users/bulk-import/preview', { rows }).then(r => r.data);
+export const bulkImportUsersApply = (rows: BulkRawRow[]) =>
+  api.post<BulkApplyResult>('/users/bulk-import/apply', { rows }).then(r => r.data);
+
 // ── Programs ──────────────────────────────────────────────────────────────────
 export const getPrograms   = ()                        => api.get('/programs').then(r => r.data);
 export const createProgram = (data: object)            => api.post('/programs', data).then(r => r.data);

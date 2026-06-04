@@ -13,6 +13,7 @@ import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
+import BulkUserImportModal from './BulkUserImportModal';
 
 const isActiveVal = (v: unknown) => v === true || v === 'true';
 
@@ -36,6 +37,7 @@ export default function Users() {
   const { data: programs = [] } = useQuery({ queryKey: ['programs'], queryFn: () => getPrograms() });
 
   const [showCreate, setShowCreate] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [editUser, setEditUser]     = useState<Record<string, string> | null>(null);
   // Password isn't on the create form — the backend assigns the default
   // (1.PolytechnicU) and the user changes it on first login.
@@ -118,7 +120,18 @@ export default function Users() {
         eyebrow="People"
         title="Users"
         subtitle="Manage admin, faculty, and student accounts."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New user</button>}
+        action={
+          <>
+            <button className="btn-ghost flex items-center gap-2 border border-khaki-200" onClick={() => setShowImport(true)}>
+              <Icon name="upload" size={14} />
+              <span className="hidden sm:inline">Import CSV</span>
+              <span className="sm:hidden">CSV</span>
+            </button>
+            <button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}>
+              <Icon name="plus" size={14} /> New user
+            </button>
+          </>
+        }
       />
 
       <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
@@ -147,7 +160,7 @@ export default function Users() {
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="users" title="No users match" message="Try a different filter or clear the search." /></div>
       ) : (
-        <DataTable headers={HEADERS}>
+        <DataTable headers={HEADERS} pageSize={10}>
           {filtered.map((u: any) => (
             <tr key={u.id} className="hover:bg-beige-50 transition-colors">
               <td className="table-td">
@@ -196,6 +209,10 @@ export default function Users() {
       )}
 
       {/* Create modal */}
+      {showImport && (
+        <BulkUserImportModal onClose={() => setShowImport(false)} />
+      )}
+
       {showCreate && (
         <Modal title="New user" subtitle="A user code is generated from year, branch, and role." onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">

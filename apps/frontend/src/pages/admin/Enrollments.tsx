@@ -129,8 +129,8 @@ export default function Enrollments() {
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="clipboard-list" title="No enrollments match" message="Try a different filter or enroll a student." /></div>
       ) : (
-        <DataTable headers={HEADERS}>
-          {filtered.slice(0, 100).map((e: any) => (
+        <DataTable headers={HEADERS} pageSize={10}>
+          {filtered.map((e: any) => (
             <tr key={e.id} className="hover:bg-beige-50 transition-colors">
               <td className="table-td">
                 <div className="flex items-center gap-2.5">
@@ -163,10 +163,6 @@ export default function Enrollments() {
             </tr>
           ))}
         </DataTable>
-      )}
-
-      {filtered.length > 100 && (
-        <p className="text-xs text-stone-400 text-center mt-3">Showing 100 of {filtered.length} — refine your filters.</p>
       )}
 
       {showCreate && (

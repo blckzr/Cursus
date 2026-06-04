@@ -87,7 +87,7 @@ export default function Roster() {
             message="When the term is opened, students from this block will appear here." />
         </div>
       ) : (
-        <DataTable headers={HEADERS}>
+        <DataTable headers={HEADERS} pageSize={10}>
           {students.map(s => (
             <tr key={s.id} className="hover:bg-beige-50 transition-colors">
               <td className="table-td">

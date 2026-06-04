@@ -1,6 +1,8 @@
 import { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import { createUserSchema, updateUserSchema } from './users.schema';
 import * as svc from './users.service';
+import * as bulk from './users.bulk.service';
 
 export async function listUsers(req: Request, res: Response, next: NextFunction) {
   try {
@@ -31,5 +33,37 @@ export async function updateUser(req: Request, res: Response, next: NextFunction
     const user = await svc.updateUser(req.params.id, data);
     if (!user) { res.status(404).json({ error: 'User not found' }); return; }
     res.json(user);
+  } catch (e) { next(e); }
+}
+
+// ── Bulk CSV import ─────────────────────────────────────────────────────────
+
+/**
+ * Shared payload shape for both preview and apply. The client parses the CSV
+ * client-side and posts an array of raw rows — every field is a string so we
+ * can echo it back in the preview alongside the rejection reason.
+ */
+const bulkBodySchema = z.object({
+  rows: z.array(z.object({
+    rowIndex:    z.number().int(),
+    email:       z.string(),
+    fullName:    z.string(),
+    role:        z.string(),
+    branch:      z.string().optional(),
+    programCode: z.string().optional(),
+  })).max(1000, 'At most 1,000 rows per import'),
+});
+
+export async function bulkPreview(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { rows } = bulkBodySchema.parse(req.body);
+    res.json(await bulk.previewBulk(rows));
+  } catch (e) { next(e); }
+}
+
+export async function bulkApply(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { rows } = bulkBodySchema.parse(req.body);
+    res.json(await bulk.applyBulk(rows));
   } catch (e) { next(e); }
 }

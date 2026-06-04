@@ -105,7 +105,7 @@ export default function Courses() {
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="book-open" title="No courses match" message="Try a different filter or add a course." /></div>
       ) : (
-        <DataTable headers={HEADERS}>
+        <DataTable headers={HEADERS} pageSize={10}>
           {filtered.map((c: any) => (
             <tr key={c.id} className="hover:bg-beige-50 transition-colors">
               <td className="table-td font-mono font-semibold text-olive-500">{c.code}</td>

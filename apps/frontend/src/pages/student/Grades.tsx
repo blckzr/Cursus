@@ -139,14 +139,17 @@ export default function StudentGrades() {
                     Mobile keeps Course + Grade — the whole point of "my grades".
                     Section / Faculty / Status collapse below md; Units below sm.
                   */}
-                  <DataTable headers={[
-                    { label: 'Course' },
-                    { label: 'Section', hideBelow: 'md' },
-                    { label: 'Units',   align: 'center', hideBelow: 'sm' },
-                    { label: 'Faculty', hideBelow: 'lg' },
-                    { label: 'Status',  hideBelow: 'md' },
-                    { label: 'Grade',   align: 'right' },
-                  ]}>
+                  <DataTable
+                    pageSize={10}
+                    headers={[
+                      { label: 'Course' },
+                      { label: 'Section', hideBelow: 'md' },
+                      { label: 'Units',   align: 'center', hideBelow: 'sm' },
+                      { label: 'Faculty', hideBelow: 'lg' },
+                      { label: 'Status',  hideBelow: 'md' },
+                      { label: 'Grade',   align: 'right' },
+                    ]}
+                  >
                     {g.items.map((e: any) => (
                       <tr key={e.id} className="hover:bg-beige-50 transition-colors">
                         <td className="table-td">

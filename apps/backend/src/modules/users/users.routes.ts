@@ -81,6 +81,65 @@ router.post('/', ctrl.createUser);
 
 /**
  * @openapi
+ * /users/bulk-import/preview:
+ *   post:
+ *     tags: [Users]
+ *     summary: Validate a CSV-parsed batch without writing anything
+ *     description: |
+ *       Client parses the CSV locally and posts raw rows; the server validates
+ *       each (Zod schema, duplicate email check against the DB and within the
+ *       file, program-code lookup) and returns categorised valid/invalid rows.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [rows]
+ *             properties:
+ *               rows:
+ *                 type: array
+ *                 maxItems: 1000
+ *                 items:
+ *                   type: object
+ *                   required: [rowIndex, email, fullName, role]
+ *                   properties:
+ *                     rowIndex:    { type: integer }
+ *                     email:       { type: string }
+ *                     fullName:    { type: string }
+ *                     role:        { type: string, enum: [admin, faculty, student] }
+ *                     branch:      { type: string }
+ *                     programCode: { type: string }
+ *     responses:
+ *       200: { description: Preview result with valid / invalid arrays + summary }
+ */
+router.post('/bulk-import/preview', ctrl.bulkPreview);
+
+/**
+ * @openapi
+ * /users/bulk-import/apply:
+ *   post:
+ *     tags: [Users]
+ *     summary: Create users from a validated batch
+ *     description: |
+ *       Re-runs validation server-side, then creates the valid rows via the
+ *       normal createUser path (default password, sequence-generated code,
+ *       block auto-assignment, active-term enrollment fanout). Per-row
+ *       failures (block-full, etc.) are reported in the response so a partial
+ *       success leaves a clear trail.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/BulkImportBody'
+ *     responses:
+ *       200: { description: Created + failed arrays }
+ */
+router.post('/bulk-import/apply', ctrl.bulkApply);
+
+/**
+ * @openapi
  * /users/{id}:
  *   patch:
  *     tags: [Users]

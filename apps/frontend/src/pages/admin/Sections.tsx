@@ -211,7 +211,7 @@ export default function Sections() {
                 message="Open the term first to generate sections from the curriculum." />
             </div>
           ) : (
-            <DataTable headers={HEADERS}>
+            <DataTable headers={HEADERS} pageSize={10}>
               {filteredSubjects.map((s: any) => {
                 const enrolled = enrolledFor(s.id);
                 const fillPct  = s.capacity ? (enrolled / s.capacity) * 100 : 0;
