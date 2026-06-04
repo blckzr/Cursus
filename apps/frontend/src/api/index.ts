@@ -149,6 +149,24 @@ export const downloadTranscript = async () => {
   URL.revokeObjectURL(url);
 };
 
+// ── Analytics (admin) ────────────────────────────────────────────────────────
+export interface CohortRetentionRow {
+  cohortYear: string;
+  total: number; active: number; graduated: number; inactive: number;
+  retention: number;
+}
+export interface RetentionPayload {
+  cohorts: CohortRetentionRow[];
+  summary: {
+    totalStudents: number; activeStudents: number;
+    graduatedStudents: number; inactiveStudents: number;
+    overallRetention: number; cohortsCovered: number;
+  };
+  program: { id: string; code: string; name: string } | null;
+}
+export const getRetention = (programId?: string) =>
+  api.get<RetentionPayload>('/admin/analytics/retention', { params: { programId } }).then(r => r.data);
+
 // ── Section auto-assign (admin) ──────────────────────────────────────────────
 export type AutoAssignStrategy = 'balanced' | 'prefer-grouped-days' | 'prefer-mornings';
 export interface AssignmentProposal {
