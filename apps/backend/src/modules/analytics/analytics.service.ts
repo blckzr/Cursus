@@ -464,3 +464,196 @@ function emptyHistogram() {
     { label: '>100%',   min: 101, max: Infinity, count: 0 },
   ];
 }
+
+// ─── GWA stats per cohort / per term ────────────────────────────────────────
+
+interface GwaGroupRow {
+  groupKey:   string;          // cohort year ('2024') or term id (uuid)
+  groupLabel: string;          // display label
+  /** Sort key for the X axis. For cohorts: the year. For terms: start_date. */
+  sortKey:    string;
+  studentsCount:  number;
+  avgGwa:         number | null;        // simple mean of student GWAs
+  bestGwa:        number | null;        // min (PH scale: lower is better)
+  worstGwa:       number | null;        // max
+  /** Standing distribution (counts of students). */
+  presidents:     number;               // ≤ 1.25
+  deans:          number;               // ≤ 1.50
+  good:           number;               // ≤ 2.50
+  warning:        number;               // ≤ 3.00
+  failing:        number;               // > 3.00
+}
+interface GwaStatsResult {
+  groupBy: 'cohort' | 'term';
+  program: { id: string; code: string; name: string } | null;
+  groups:  GwaGroupRow[];
+  summary: {
+    studentsTracked:   number;
+    overallAvg:        number | null;
+    bestGroup:         { label: string; avgGwa: number } | null;
+    worstGroup:        { label: string; avgGwa: number } | null;
+    groupCount:        number;
+  };
+}
+
+/**
+ * Average GWA per program × (cohort | term).
+ *
+ * GWA per student is the units-weighted mean of their finalized letter
+ * grades. We treat every row with a non-null letter_grade as finalized — PH
+ * letter grades are numeric strings ('1.00' … '5.00') so the math is direct.
+ *
+ * Per-group "average" is the **simple mean of student GWAs** rather than a
+ * unit-weighted enrollment-level mean. This matches how registrars talk about
+ * cohort strength ("the 2024 batch GWA is 1.85") — each student gets equal
+ * weight even if some carried heavier loads.
+ *
+ * Standing buckets mirror the rest of the app (see Student Dashboard's
+ * `describeGWA` helper).
+ */
+export async function getGwaStats(opts: {
+  programId?: string;
+  groupBy:    'cohort' | 'term';
+}): Promise<GwaStatsResult> {
+  // Resolve program meta for the response header.
+  let program: GwaStatsResult['program'] = null;
+  if (opts.programId) {
+    const { rows } = await db.query(
+      `SELECT id, code, name FROM programs WHERE id = $1`,
+      [opts.programId],
+    );
+    program = rows[0] ?? null;
+  }
+
+  if (opts.groupBy === 'cohort') {
+    // For each (student, cohort year), compute their overall units-weighted
+    // GWA across all finalized enrollments. Then bucket by cohort year and
+    // mean those.
+    const { rows } = await db.query(
+      `WITH per_student AS (
+         SELECT u.id                                          AS student_id,
+                SUBSTRING(u.user_code FROM 1 FOR 4)           AS cohort_year,
+                SUM(e.letter_grade::numeric * COALESCE(c.units, 3))
+                  / NULLIF(SUM(COALESCE(c.units, 3)), 0)      AS gwa
+         FROM users u
+         JOIN enrollments e ON e.student_id = u.id
+         JOIN sections    s ON s.id = e.section_id
+         JOIN courses     c ON c.id = s.course_id
+         WHERE u.role = 'student'
+           AND u.user_code ~ '^[0-9]{4}-'
+           AND e.letter_grade IS NOT NULL
+           AND ($1::uuid IS NULL OR u.program_id = $1)
+         GROUP BY u.id, cohort_year
+       )
+       SELECT cohort_year                                     AS group_key,
+              COUNT(*)::int                                   AS students_count,
+              ROUND(AVG(gwa)::numeric, 3)                     AS avg_gwa,
+              ROUND(MIN(gwa)::numeric, 3)                     AS best_gwa,
+              ROUND(MAX(gwa)::numeric, 3)                     AS worst_gwa,
+              COUNT(*) FILTER (WHERE gwa <= 1.25)::int        AS presidents,
+              COUNT(*) FILTER (WHERE gwa >  1.25 AND gwa <= 1.50)::int AS deans,
+              COUNT(*) FILTER (WHERE gwa >  1.50 AND gwa <= 2.50)::int AS good,
+              COUNT(*) FILTER (WHERE gwa >  2.50 AND gwa <= 3.00)::int AS warning,
+              COUNT(*) FILTER (WHERE gwa >  3.00)::int        AS failing
+       FROM per_student
+       GROUP BY cohort_year
+       ORDER BY cohort_year`,
+      [opts.programId ?? null],
+    );
+    return finalize(rows.map((r: any) => ({
+      groupKey:      r.group_key,
+      groupLabel:    r.group_key,
+      sortKey:       r.group_key,
+      studentsCount: r.students_count,
+      avgGwa:        r.avg_gwa  != null ? Number(r.avg_gwa)  : null,
+      bestGwa:       r.best_gwa != null ? Number(r.best_gwa) : null,
+      worstGwa:      r.worst_gwa!= null ? Number(r.worst_gwa): null,
+      presidents:    r.presidents, deans: r.deans, good: r.good,
+      warning:       r.warning, failing: r.failing,
+    })), 'cohort', program);
+  }
+
+  // groupBy === 'term'
+  // For each (student, term), compute term GWA, then average across students
+  // per term. Terms with no graded enrollments are excluded.
+  const { rows } = await db.query(
+    `WITH per_student_term AS (
+       SELECT t.id   AS term_id,
+              t.name AS term_name,
+              t.start_date,
+              t.semester,
+              u.id   AS student_id,
+              SUM(e.letter_grade::numeric * COALESCE(c.units, 3))
+                / NULLIF(SUM(COALESCE(c.units, 3)), 0) AS gwa
+       FROM enrollments e
+       JOIN sections s ON s.id = e.section_id
+       JOIN terms    t ON t.id = s.term_id
+       JOIN courses  c ON c.id = s.course_id
+       JOIN users    u ON u.id = e.student_id
+       WHERE u.role = 'student'
+         AND e.letter_grade IS NOT NULL
+         AND ($1::uuid IS NULL OR u.program_id = $1)
+       GROUP BY t.id, t.name, t.start_date, t.semester, u.id
+     )
+     SELECT term_id                                          AS group_key,
+            term_name                                        AS group_label,
+            start_date::text                                  AS sort_key,
+            COUNT(*)::int                                    AS students_count,
+            ROUND(AVG(gwa)::numeric, 3)                      AS avg_gwa,
+            ROUND(MIN(gwa)::numeric, 3)                      AS best_gwa,
+            ROUND(MAX(gwa)::numeric, 3)                      AS worst_gwa,
+            COUNT(*) FILTER (WHERE gwa <= 1.25)::int         AS presidents,
+            COUNT(*) FILTER (WHERE gwa >  1.25 AND gwa <= 1.50)::int AS deans,
+            COUNT(*) FILTER (WHERE gwa >  1.50 AND gwa <= 2.50)::int AS good,
+            COUNT(*) FILTER (WHERE gwa >  2.50 AND gwa <= 3.00)::int AS warning,
+            COUNT(*) FILTER (WHERE gwa >  3.00)::int         AS failing
+     FROM per_student_term
+     GROUP BY term_id, term_name, start_date, semester
+     ORDER BY start_date`,
+    [opts.programId ?? null],
+  );
+  return finalize(rows.map((r: any) => ({
+    groupKey:      r.group_key,
+    groupLabel:    r.group_label,
+    sortKey:       r.sort_key,
+    studentsCount: r.students_count,
+    avgGwa:        r.avg_gwa  != null ? Number(r.avg_gwa)  : null,
+    bestGwa:       r.best_gwa != null ? Number(r.best_gwa) : null,
+    worstGwa:      r.worst_gwa!= null ? Number(r.worst_gwa): null,
+    presidents:    r.presidents, deans: r.deans, good: r.good,
+    warning:       r.warning, failing: r.failing,
+  })), 'term', program);
+}
+
+function finalize(
+  groups: GwaGroupRow[],
+  groupBy: 'cohort' | 'term',
+  program: GwaStatsResult['program'],
+): GwaStatsResult {
+  const studentsTracked = groups.reduce((s, g) => s + g.studentsCount, 0);
+  const withGwa = groups.filter(g => g.avgGwa != null);
+  const overallAvg = withGwa.length === 0
+    ? null
+    : Math.round((withGwa.reduce((s, g) => s + g.avgGwa!, 0) / withGwa.length) * 1000) / 1000;
+
+  // PH scale: lower is better, so "best group" = MIN avg.
+  let bestGroup: { label: string; avgGwa: number } | null = null;
+  let worstGroup: { label: string; avgGwa: number } | null = null;
+  for (const g of withGwa) {
+    if (!bestGroup  || g.avgGwa! < bestGroup.avgGwa)  bestGroup  = { label: g.groupLabel, avgGwa: g.avgGwa! };
+    if (!worstGroup || g.avgGwa! > worstGroup.avgGwa) worstGroup = { label: g.groupLabel, avgGwa: g.avgGwa! };
+  }
+
+  return {
+    groupBy,
+    program,
+    groups,
+    summary: {
+      studentsTracked,
+      overallAvg,
+      bestGroup,
+      worstGroup,
+      groupCount: groups.length,
+    },
+  };
+}

@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { retentionQuerySchema, facultyLoadQuerySchema, sectionFillQuerySchema } from './analytics.schema';
+import { retentionQuerySchema, facultyLoadQuerySchema, sectionFillQuerySchema, gwaStatsQuerySchema } from './analytics.schema';
 import * as svc from './analytics.service';
 
 export async function retention(req: Request, res: Response, next: NextFunction) {
@@ -20,5 +20,12 @@ export async function sectionFill(req: Request, res: Response, next: NextFunctio
   try {
     const { termId } = sectionFillQuerySchema.parse(req.query);
     res.json(await svc.getSectionFill({ termId }));
+  } catch (e) { next(e); }
+}
+
+export async function gwaStats(req: Request, res: Response, next: NextFunction) {
+  try {
+    const { programId, groupBy } = gwaStatsQuerySchema.parse(req.query);
+    res.json(await svc.getGwaStats({ programId, groupBy }));
   } catch (e) { next(e); }
 }

@@ -3,13 +3,15 @@ import Icon from '../../components/Icon';
 import RetentionReport from './RetentionReport';
 import FacultyLoadReport from './FacultyLoadReport';
 import SectionFillReport from './SectionFillReport';
+import GwaReport from './GwaReport';
 
-type Tab = 'retention' | 'faculty-load' | 'section-fill';
+type Tab = 'retention' | 'faculty-load' | 'section-fill' | 'gwa';
 
 const TABS: { key: Tab; label: string; icon: string; description: string }[] = [
   { key: 'retention',    label: 'Cohort retention', icon: 'trending-up', description: 'Entry-year cohorts vs active / graduated / inactive.' },
   { key: 'faculty-load', label: 'Faculty load',     icon: 'user-check',  description: 'Per-faculty units, hours, and overload signal for a term.' },
   { key: 'section-fill', label: 'Section fill',     icon: 'school',      description: 'Fill-rate distribution per section — spot under-enrolled offerings.' },
+  { key: 'gwa',          label: 'Average GWA',      icon: 'bar-chart',   description: 'Average general weighted average per cohort or term.' },
 ];
 
 /**
@@ -47,6 +49,7 @@ export default function Analytics() {
       {tab === 'retention'    && <RetentionReport />}
       {tab === 'faculty-load' && <FacultyLoadReport />}
       {tab === 'section-fill' && <SectionFillReport />}
+      {tab === 'gwa'          && <GwaReport />}
     </div>
   );
 }

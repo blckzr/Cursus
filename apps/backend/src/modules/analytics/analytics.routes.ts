@@ -70,4 +70,28 @@ router.get('/faculty-load', ctrl.facultyLoad);
  */
 router.get('/section-fill', ctrl.sectionFill);
 
+/**
+ * @openapi
+ * /admin/analytics/gwa-stats:
+ *   get:
+ *     tags: [Analytics]
+ *     summary: Average GWA per program × cohort or term
+ *     description: |
+ *       PH grade scale: lower is better. For each group we report mean of
+ *       per-student units-weighted GWAs, best/worst student, and a standing
+ *       distribution histogram (President's / Dean's / Good / Warning /
+ *       Failing). Optional `programId` filters; `groupBy=cohort` (default)
+ *       groups by entry year, `groupBy=term` groups by academic term.
+ *     parameters:
+ *       - in: query
+ *         name: programId
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: groupBy
+ *         schema: { type: string, enum: [cohort, term], default: cohort }
+ *     responses:
+ *       200: { description: Per-group rows + summary }
+ */
+router.get('/gwa-stats', ctrl.gwaStats);
+
 export default router;

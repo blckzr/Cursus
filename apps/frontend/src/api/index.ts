@@ -218,6 +218,28 @@ export interface SectionFillPayload {
 export const getSectionFill = (termId?: string) =>
   api.get<SectionFillPayload>('/admin/analytics/section-fill', { params: { termId } }).then(r => r.data);
 
+export type GwaGroupBy = 'cohort' | 'term';
+export interface GwaGroupRow {
+  groupKey: string; groupLabel: string; sortKey: string;
+  studentsCount: number;
+  avgGwa: number | null; bestGwa: number | null; worstGwa: number | null;
+  presidents: number; deans: number; good: number; warning: number; failing: number;
+}
+export interface GwaStatsPayload {
+  groupBy: GwaGroupBy;
+  program: { id: string; code: string; name: string } | null;
+  groups: GwaGroupRow[];
+  summary: {
+    studentsTracked: number;
+    overallAvg: number | null;
+    bestGroup:  { label: string; avgGwa: number } | null;
+    worstGroup: { label: string; avgGwa: number } | null;
+    groupCount: number;
+  };
+}
+export const getGwaStats = (params: { programId?: string; groupBy?: GwaGroupBy }) =>
+  api.get<GwaStatsPayload>('/admin/analytics/gwa-stats', { params }).then(r => r.data);
+
 // ── Section auto-assign (admin) ──────────────────────────────────────────────
 export type AutoAssignStrategy = 'balanced' | 'prefer-grouped-days' | 'prefer-mornings';
 export interface AssignmentProposal {
