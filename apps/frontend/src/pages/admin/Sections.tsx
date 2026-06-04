@@ -19,6 +19,7 @@ import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
+import { csvEscape, downloadCsv, todayStamp } from '../../lib/csv';
 import { DAY_ORDER, DAY_LABEL, parseDays, joinDays } from '../../lib/days';
 import FacultyScheduleGrid from '../../components/FacultyScheduleGrid';
 
@@ -195,10 +196,43 @@ export default function Sections() {
         <>
           <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
             <SearchInput value={query} onChange={setQuery} placeholder="Search course code or title…" className="w-full md:w-80" />
-            <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
               <Chip active={tbaOnly} onClick={() => setTbaOnly(v => !v)}>
                 <Icon name="alert-triangle" size={10} className="text-amber-500" /> TBA only ({tbaCount})
               </Chip>
+              <button
+                className="btn-ghost text-xs flex items-center gap-1.5 border border-khaki-200"
+                onClick={() => {
+                  if (filteredSubjects.length === 0) {
+                    toast.push({ tone: 'info', title: 'Nothing to export' });
+                    return;
+                  }
+                  const header = [
+                    'course_code', 'course_title', 'units', 'section_code',
+                    'faculty_name', 'day_of_week', 'start_time', 'end_time',
+                    'room', 'capacity', 'enrolled',
+                  ];
+                  const rows = filteredSubjects.map((s: any) => [
+                    csvEscape(s.course_code),
+                    csvEscape(s.course_title),
+                    String(s.course_units ?? ''),
+                    csvEscape(s.section_code),
+                    csvEscape(s.faculty_name ?? 'TBA'),
+                    csvEscape(s.day_of_week ?? ''),
+                    String(s.start_time ?? '').slice(0, 5),
+                    String(s.end_time ?? '').slice(0, 5),
+                    csvEscape(s.room ?? ''),
+                    String(s.capacity ?? ''),
+                    String(enrolledFor(s.id)),
+                  ]);
+                  const fname = `sections-${block.program_code ?? ''}${block.year_level ?? ''}-${block.block_number ?? ''}-${todayStamp()}.csv`
+                    .replace(/^sections--/, 'sections-');
+                  downloadCsv([header, ...rows], fname);
+                  toast.push({ tone: 'success', title: `Exported ${filteredSubjects.length} section${filteredSubjects.length === 1 ? '' : 's'}` });
+                }}
+              >
+                <Icon name="download" size={11} /> Export
+              </button>
               <span className="text-xs text-stone-400 md:ml-auto tabular whitespace-nowrap">{filteredSubjects.length} of {blockSections.length}</span>
             </div>
           </div>

@@ -9,6 +9,8 @@ import SearchInput from '../../components/SearchInput';
 import Modal from '../../components/Modal';
 import Avatar from '../../components/Avatar';
 import Icon from '../../components/Icon';
+import { useToast } from '../../components/Toast';
+import { csvEscape, downloadCsv, todayStamp } from '../../lib/csv';
 
 // Mobile keeps Time, Action, Details button. Actor + Entity collapse — they're still
 // visible inside the details modal opened by the chevron button.
@@ -57,12 +59,14 @@ interface Row {
 }
 
 export default function AuditLog() {
+  const toast = useToast();
   const [actor, setActor] = useState('');
   const [action, setAction] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(0);
   const [detail, setDetail] = useState<Row | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Reset to page 0 whenever a filter changes
   const filterKey = `${actor}|${action}|${from}|${to}`;
@@ -92,12 +96,73 @@ export default function AuditLog() {
   const clearFilters = () => { setActor(''); setAction(''); setFrom(''); setTo(''); };
   const hasFilters = !!(actor || action || from || to);
 
+  /**
+   * Audit log is server-paginated, so the export action issues a fresh fetch
+   * with a much bigger limit (the backend caps at 5,000) to grab the full
+   * filtered set in one round-trip.
+   */
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await getAuditLogs({
+        actor:  actor || undefined,
+        action: action || undefined,
+        from:   from ? new Date(from).toISOString() : undefined,
+        to:     to   ? new Date(`${to}T23:59:59`).toISOString() : undefined,
+        limit:  5000,
+        offset: 0,
+      }) as { rows: Row[]; total: number };
+
+      if (res.rows.length === 0) {
+        toast.push({ tone: 'info', title: 'Nothing to export', message: 'Adjust the filters to include some entries.' });
+        return;
+      }
+
+      const header = [
+        'created_at', 'action', 'entity_type', 'entity_id',
+        'actor_name', 'actor_code', 'actor_role',
+        'old_value', 'new_value',
+      ];
+      const rows = res.rows.map(r => [
+        r.created_at ? new Date(r.created_at).toISOString() : '',
+        ACTION_META[r.action]?.label ?? r.action,
+        csvEscape(r.entity_type ?? ''),
+        csvEscape(r.entity_id ?? ''),
+        csvEscape(r.user_full_name ?? ''),
+        csvEscape(r.user_user_code ?? ''),
+        csvEscape(r.user_role ?? ''),
+        csvEscape(r.old_value != null ? JSON.stringify(r.old_value) : ''),
+        csvEscape(r.new_value != null ? JSON.stringify(r.new_value) : ''),
+      ]);
+      downloadCsv([header, ...rows], `audit-log-${todayStamp()}.csv`);
+
+      const note = res.total > res.rows.length
+        ? `Showing ${res.rows.length} of ${res.total} — refine filters to capture the rest.`
+        : undefined;
+      toast.push({ tone: 'success', title: `Exported ${res.rows.length} entr${res.rows.length === 1 ? 'y' : 'ies'}`, message: note });
+    } catch {
+      toast.push({ tone: 'error', title: 'Export failed' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
         eyebrow="Compliance"
         title="Activity log"
         subtitle="Every state-changing action across the system, newest first. Used for audit trails."
+        action={
+          <button
+            className="btn-ghost flex items-center gap-2 border border-khaki-200"
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            <Icon name="download" size={14} />
+            {exporting ? 'Preparing…' : <><span className="hidden sm:inline">Export CSV</span><span className="sm:hidden">Export</span></>}
+          </button>
+        }
       />
 
       <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">

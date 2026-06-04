@@ -13,6 +13,7 @@ import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
+import { csvEscape, downloadCsv, todayStamp } from '../../lib/csv';
 
 // Mobile keeps Student, Status, Action. Section/Course/Term/Final grade collapse below sm/md.
 const HEADERS: DataTableHeader[] = [
@@ -90,6 +91,31 @@ export default function Enrollments() {
     : s === 'dropped' ? <span className="badge badge-dropped">Dropped</span>
     : <span className="badge badge-enrolled">Enrolled</span>;
 
+  const handleExport = () => {
+    if (filtered.length === 0) {
+      toast.push({ tone: 'info', title: 'Nothing to export', message: 'Adjust the filters to include some enrollments.' });
+      return;
+    }
+    const header = [
+      'student_name', 'student_email', 'section_code', 'course_code', 'course_title',
+      'term_name', 'status', 'numeric_grade', 'letter_grade', 'enrolled_at',
+    ];
+    const rows = filtered.map((e: any) => [
+      csvEscape(e.student_name),
+      csvEscape(e.student_email ?? ''),
+      csvEscape(e.section_code),
+      csvEscape(e.course_code ?? ''),
+      csvEscape(e.course_title ?? ''),
+      csvEscape(e.term_name ?? ''),
+      e.status,
+      e.numeric_grade != null ? Number(e.numeric_grade).toFixed(2) : '',
+      csvEscape(e.letter_grade ?? ''),
+      e.enrolled_at ? new Date(e.enrolled_at).toISOString() : '',
+    ]);
+    downloadCsv([header, ...rows], `enrollments-${todayStamp()}.csv`);
+    toast.push({ tone: 'success', title: `Exported ${filtered.length} enrollment${filtered.length === 1 ? '' : 's'}` });
+  };
+
   return (
     <div>
       <PageHeader
@@ -97,11 +123,18 @@ export default function Enrollments() {
         title="Enrollments"
         subtitle="Regular enrollments are auto-created by 'Open term'. Use the action below to enroll irregular students (those without a permanent block) in specific sections."
         action={
-          <button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}>
-            <Icon name="plus" size={14} />
-            <span className="hidden sm:inline">Enroll irregular student</span>
-            <span className="sm:hidden">Enroll</span>
-          </button>
+          <>
+            <button className="btn-ghost flex items-center gap-2 border border-khaki-200" onClick={handleExport}>
+              <Icon name="download" size={14} />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">Export</span>
+            </button>
+            <button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}>
+              <Icon name="plus" size={14} />
+              <span className="hidden sm:inline">Enroll irregular student</span>
+              <span className="sm:hidden">Enroll</span>
+            </button>
+          </>
         }
       />
 

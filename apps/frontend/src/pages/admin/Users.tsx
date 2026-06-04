@@ -13,6 +13,7 @@ import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
+import { csvEscape, downloadCsv, todayStamp } from '../../lib/csv';
 import BulkUserImportModal from './BulkUserImportModal';
 
 const isActiveVal = (v: unknown) => v === true || v === 'true';
@@ -114,6 +115,38 @@ export default function Users() {
     : role === 'faculty' ? <span className="badge badge-faculty">Faculty</span>
     : <span className="badge badge-student">Student</span>;
 
+  /**
+   * Export whatever's currently visible (after search + filters). Header
+   * order matches the bulk-import format — the first five columns can be
+   * edited and re-imported without any massaging.
+   */
+  const handleExport = () => {
+    if (filtered.length === 0) {
+      toast.push({ tone: 'info', title: 'Nothing to export', message: 'Adjust the filters to include some users.' });
+      return;
+    }
+    const header = [
+      'email', 'full_name', 'role', 'branch', 'program_code',
+      'user_code', 'block_label', 'year_level', 'status', 'created_at',
+    ];
+    const statusOf = (u: any) =>
+      u.graduated_at ? 'graduated' : (isActiveVal(u.is_active) ? 'active' : 'inactive');
+    const rows = filtered.map((u: any) => [
+      csvEscape(u.email),
+      csvEscape(u.full_name),
+      u.role,
+      csvEscape(u.branch ?? ''),
+      csvEscape(u.program_code ?? ''),
+      csvEscape(u.user_code ?? ''),
+      csvEscape(u.block_label ?? ''),
+      String(u.year_level ?? ''),
+      statusOf(u),
+      u.created_at ? new Date(u.created_at).toISOString() : '',
+    ]);
+    downloadCsv([header, ...rows], `users-${todayStamp()}.csv`);
+    toast.push({ tone: 'success', title: `Exported ${filtered.length} user${filtered.length === 1 ? '' : 's'}` });
+  };
+
   return (
     <div>
       <PageHeader
@@ -122,10 +155,19 @@ export default function Users() {
         subtitle="Manage admin, faculty, and student accounts."
         action={
           <>
+            <button
+              className="btn-ghost flex items-center gap-2 border border-khaki-200"
+              onClick={handleExport}
+              title="Download a CSV of the rows currently visible (after search + filters)"
+            >
+              <Icon name="download" size={14} />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">Export</span>
+            </button>
             <button className="btn-ghost flex items-center gap-2 border border-khaki-200" onClick={() => setShowImport(true)}>
               <Icon name="upload" size={14} />
               <span className="hidden sm:inline">Import CSV</span>
-              <span className="sm:hidden">CSV</span>
+              <span className="sm:hidden">Import</span>
             </button>
             <button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}>
               <Icon name="plus" size={14} /> New user

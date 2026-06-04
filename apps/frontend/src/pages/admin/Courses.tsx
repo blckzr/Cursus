@@ -12,6 +12,7 @@ import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
+import { csvEscape, downloadCsv, todayStamp } from '../../lib/csv';
 
 // Mobile keeps Code, Title, Units. Visibility / Programs / Sections collapse below sm/md.
 const HEADERS: DataTableHeader[] = [
@@ -73,13 +74,45 @@ export default function Courses() {
     programIds: f.programIds.includes(id) ? f.programIds.filter(x => x !== id) : [...f.programIds, id],
   }));
 
+  /** Export the filtered course list. Reuses the same column shape regardless of the visibility filter. */
+  const handleExport = () => {
+    if (filtered.length === 0) {
+      toast.push({ tone: 'info', title: 'Nothing to export', message: 'Adjust the filters to include some courses.' });
+      return;
+    }
+    const header = ['code', 'title', 'units', 'visibility', 'programs', 'sections'];
+    const rows = filtered.map((c: any) => [
+      csvEscape(c.code),
+      csvEscape(c.title),
+      String(c.units),
+      c.visibility,
+      csvEscape(c.visibility === 'public'
+        ? 'ALL'
+        : (c.programs ?? []).map((p: { code: string }) => p.code).join(';')),
+      String(sectionCountFor(c.code)),
+    ]);
+    downloadCsv([header, ...rows], `courses-${todayStamp()}.csv`);
+    toast.push({ tone: 'success', title: `Exported ${filtered.length} course${filtered.length === 1 ? '' : 's'}` });
+  };
+
   return (
     <div>
       <PageHeader
         eyebrow="Catalog"
         title="Courses"
         subtitle="Master list of courses. Public courses are available to every program; restricted ones are linked to specific programs."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New course</button>}
+        action={
+          <>
+            <button className="btn-ghost flex items-center gap-2 border border-khaki-200" onClick={handleExport}>
+              <Icon name="download" size={14} />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">Export</span>
+            </button>
+            <button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}>
+              <Icon name="plus" size={14} /> New course
+            </button>
+          </>
+        }
       />
 
       <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
