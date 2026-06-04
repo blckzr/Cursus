@@ -167,6 +167,32 @@ export interface RetentionPayload {
 export const getRetention = (programId?: string) =>
   api.get<RetentionPayload>('/admin/analytics/retention', { params: { programId } }).then(r => r.data);
 
+export interface FacultyLoadSection {
+  sectionId: string; sectionCode: string;
+  courseCode: string; courseTitle: string; units: number;
+  dayOfWeek: string | null; startTime: string | null; endTime: string | null;
+  room: string | null;
+  hoursPerWeek: number;
+}
+export interface FacultyLoadRow {
+  facultyId: string; fullName: string; userCode: string | null; email: string;
+  maxTeachingUnits: number | null;
+  sectionCount: number; totalUnits: number; hoursPerWeek: number;
+  utilization: number;
+  status: 'overload' | 'normal' | 'underload' | 'idle';
+  sections: FacultyLoadSection[];
+}
+export interface FacultyLoadPayload {
+  term: { id: string; name: string; semester: string } | null;
+  faculty: FacultyLoadRow[];
+  summary: {
+    facultyTotal: number; overloadedCount: number; underloadedCount: number; idleCount: number;
+    totalUnits: number; totalHours: number; avgUnits: number; overloadThreshold: number;
+  };
+}
+export const getFacultyLoad = (termId?: string) =>
+  api.get<FacultyLoadPayload>('/admin/analytics/faculty-load', { params: { termId } }).then(r => r.data);
+
 // ── Section auto-assign (admin) ──────────────────────────────────────────────
 export type AutoAssignStrategy = 'balanced' | 'prefer-grouped-days' | 'prefer-mornings';
 export interface AssignmentProposal {

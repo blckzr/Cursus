@@ -25,4 +25,26 @@ router.use(authenticate, authorize('admin'));
  */
 router.get('/retention', ctrl.retention);
 
+/**
+ * @openapi
+ * /admin/analytics/faculty-load:
+ *   get:
+ *     tags: [Analytics]
+ *     summary: Per-faculty teaching-load report for a term
+ *     description: |
+ *       Per active-faculty row: section count, total units, hours/week,
+ *       utilization against `max_teaching_units` (or the 24-unit default),
+ *       and a status flag (`overload | normal | underload | idle`). LEFT
+ *       JOINs sections so idle faculty surface in the report.
+ *     parameters:
+ *       - in: query
+ *         name: termId
+ *         description: Optional — defaults to the currently active term.
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200: { description: Per-faculty rows + roll-up summary }
+ *       404: { description: termId given but no such term exists }
+ */
+router.get('/faculty-load', ctrl.facultyLoad);
+
 export default router;
