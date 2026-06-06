@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getStudentGrades, downloadTranscript } from '../../api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getStudentGrades, downloadTranscript, createAppeal, listMyAppeals, type AppealRow } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
@@ -8,7 +8,9 @@ import DataTable from '../../components/DataTable';
 import Chip from '../../components/Chip';
 import Icon from '../../components/Icon';
 import Skeleton from '../../components/Skeleton';
+import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
+import { parseApiError } from '../../lib/apiError';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 
@@ -36,12 +38,37 @@ function termGWA(items: any[]): number | null {
 export default function StudentGrades() {
   const { user } = useAuth();
   const toast = useToast();
+  const qc = useQueryClient();
   const { data: grades = [], isLoading } = useQuery({
     queryKey: ['student-grades', user?.id],
     queryFn: () => getStudentGrades(user!.id),
     enabled: !!user,
   });
+  // Pull existing appeals so we can mark already-appealed grades inline.
+  const { data: appeals = [] } = useQuery<AppealRow[]>({
+    queryKey: ['my-appeals'],
+    queryFn:  listMyAppeals,
+  });
+  const appealByEnrollment = useMemo(() => {
+    const m = new Map<string, AppealRow>();
+    for (const a of appeals) m.set(a.enrollment_id, a);
+    return m;
+  }, [appeals]);
+
   const [termFilter, setTermFilter] = useState('all');
+  const [appealTarget, setAppealTarget] = useState<any | null>(null);
+  const [appealReason, setAppealReason] = useState('');
+  const [appealErr,    setAppealErr]    = useState('');
+
+  const appealMut = useMutation({
+    mutationFn: () => createAppeal({ enrollmentId: appealTarget!.id, reason: appealReason }),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: ['my-appeals'] });
+      setAppealTarget(null); setAppealReason(''); setAppealErr('');
+      toast.push({ tone: 'success', title: 'Appeal filed', message: 'Your faculty has been notified.' });
+    },
+    onError:    (e: unknown) => setAppealErr(parseApiError(e).message),
+  });
 
   const handleDownload = async () => {
     try {
@@ -51,6 +78,14 @@ export default function StudentGrades() {
       toast.push({ tone: 'error', title: 'Download failed' });
     }
   };
+
+  // Appeals are allowed within 14 days of finalize. We compute eligibility
+  // client-side so the button can disable; the backend re-checks on submit.
+  const APPEAL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+  const canAppeal = (e: any) =>
+    e.letter_grade != null && e.finalized_at != null
+    && Date.now() - new Date(e.finalized_at).getTime() <= APPEAL_WINDOW_MS
+    && !appealByEnrollment.has(e.id);
 
   const grouped = useMemo(() => {
     const byTerm: Record<string, { term: any; items: any[] }> = {};
@@ -166,10 +201,25 @@ export default function StudentGrades() {
                         </td>
                         <td className="table-td text-right">
                           {e.letter_grade ? (
-                            <div className="leading-tight">
-                              <span className="font-display text-lg font-medium text-olive-600 tabular">{e.letter_grade}</span>
-                              {e.numeric_grade != null && (
-                                <span className="text-stone-400 text-[11px] ml-1 tabular hidden sm:inline">({Number(e.numeric_grade).toFixed(2)})</span>
+                            <div className="leading-tight flex items-center justify-end gap-2">
+                              <div>
+                                <span className="font-display text-lg font-medium text-olive-600 tabular">{e.letter_grade}</span>
+                                {e.numeric_grade != null && (
+                                  <span className="text-stone-400 text-[11px] ml-1 tabular hidden sm:inline">({Number(e.numeric_grade).toFixed(2)})</span>
+                                )}
+                              </div>
+                              {appealByEnrollment.has(e.id) ? (
+                                <span title="Appeal filed" className="badge badge-amber text-[10px]">
+                                  <Icon name="alert-triangle" size={10} /> Appealed
+                                </span>
+                              ) : canAppeal(e) && (
+                                <button
+                                  className="btn-icon !w-7 !h-7 hover:!text-olive-600 border border-transparent hover:border-khaki-200"
+                                  title="File a grade appeal"
+                                  onClick={() => { setAppealErr(''); setAppealReason(''); setAppealTarget(e); }}
+                                >
+                                  <Icon name="message" size={12} />
+                                </button>
                               )}
                             </div>
                           ) : (
@@ -199,6 +249,71 @@ export default function StudentGrades() {
             </div>
           </details>
         </>
+      )}
+
+      {/* ── Appeal modal ────────────────────────────────────────────── */}
+      {appealTarget && (
+        <Modal
+          title="File a grade appeal"
+          subtitle={`${appealTarget.course_code} · ${appealTarget.course_title}`}
+          onClose={() => setAppealTarget(null)}
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-beige-50 rounded-lg px-3 py-2">
+                <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Current grade</div>
+                <div className="mt-0.5 flex items-baseline gap-2">
+                  <span className="font-display text-xl font-medium text-stone-800 tabular">{appealTarget.letter_grade}</span>
+                  {appealTarget.numeric_grade != null && (
+                    <span className="text-xs text-stone-400 tabular">({Number(appealTarget.numeric_grade).toFixed(2)})</span>
+                  )}
+                </div>
+              </div>
+              <div className="bg-beige-50 rounded-lg px-3 py-2">
+                <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Faculty</div>
+                <div className="mt-0.5 text-sm font-medium text-stone-800">{appealTarget.faculty_name ?? '—'}</div>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Reason for appeal</label>
+              <textarea
+                className="input min-h-[120px]"
+                value={appealReason}
+                onChange={e => setAppealReason(e.target.value)}
+                placeholder="Explain in your own words why you believe the grade should be reviewed. Include any specific assessments or events the faculty should reconsider."
+                autoFocus
+              />
+              <p className="text-[11px] text-stone-400 mt-1">{appealReason.length} / 2000 characters · at least 20 required</p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 flex items-start gap-2">
+              <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+              <span>
+                You can only file one appeal per grade. The faculty for this section will be notified and asked to respond.
+                Track progress on the <strong>My Appeals</strong> page.
+              </span>
+            </div>
+
+            {appealErr && (
+              <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-start gap-2">
+                <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" /> {appealErr}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button className="btn-ghost" onClick={() => setAppealTarget(null)}>Cancel</button>
+              <button
+                className="btn-primary"
+                onClick={() => { setAppealErr(''); appealMut.mutate(); }}
+                disabled={appealMut.isPending || appealReason.trim().length < 20}
+              >
+                {appealMut.isPending ? 'Filing…' : 'File appeal'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

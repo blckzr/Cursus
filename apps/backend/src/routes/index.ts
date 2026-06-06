@@ -16,6 +16,7 @@ import notificationsRouter from '../modules/notifications/notifications.routes';
 import wishlistRouter from '../modules/wishlist/wishlist.routes';
 import qualificationsRouter from '../modules/qualifications/qualifications.routes';
 import analyticsRouter from '../modules/analytics/analytics.routes';
+import appealsRouter from '../modules/appeals/appeals.routes';
 
 const router = Router();
 
@@ -159,6 +160,7 @@ router.use('/notifications', notificationsRouter);
 router.use('/wishlist',       wishlistRouter);
 router.use('/qualifications',     qualificationsRouter);
 router.use('/admin/analytics',    analyticsRouter);
+router.use('/appeals',            appealsRouter);
 router.use('/', curriculumRouter);
 router.use('/', gradebookRouter);
 

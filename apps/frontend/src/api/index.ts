@@ -306,6 +306,48 @@ export const removeFromWishlist    = (id: string) =>
 export const getWishlistDemand     = (termId: string) =>
   api.get('/wishlist/demand', { params: { termId } }).then(r => r.data);
 
+// ── Grade appeals ───────────────────────────────────────────────────────────
+export type AppealStatus = 'pending' | 'faculty_review' | 'dean_review' | 'resolved' | 'withdrawn';
+export type AppealOutcome = 'grade_changed' | 'denied' | 'withdrawn';
+export interface AppealRow {
+  id: string; enrollment_id: string; student_id: string;
+  reason: string; status: AppealStatus;
+  faculty_note: string | null; dean_note: string | null;
+  outcome: AppealOutcome | null;
+  resolved_grade: string | null; resolved_numeric: string | null;
+  created_at: string; resolved_at: string | null;
+  student_name: string; student_code: string | null;
+  current_numeric: string | null; current_letter: string | null;
+  finalized_at: string;
+  section_id: string; section_code: string; faculty_id: string | null;
+  course_code: string; course_title: string; units: number;
+  term_id: string; term_name: string;
+  faculty_name: string | null;
+}
+export const listMyAppeals      = () => api.get<AppealRow[]>('/appeals/me').then(r => r.data);
+export const createAppeal       = (data: { enrollmentId: string; reason: string }) =>
+  api.post<AppealRow>('/appeals/me', data).then(r => r.data);
+export const withdrawAppeal     = (id: string) =>
+  api.post<AppealRow>(`/appeals/me/${id}/withdraw`).then(r => r.data);
+
+export const listFacultyAppeals = (status?: AppealStatus) =>
+  api.get<AppealRow[]>('/appeals/faculty', { params: { status } }).then(r => r.data);
+export const acceptAppeal       = (id: string, facultyNote?: string) =>
+  api.post<AppealRow>(`/appeals/faculty/${id}/accept`, { facultyNote }).then(r => r.data);
+export const resolveAppealFaculty = (id: string, data: {
+  outcome: 'grade_changed' | 'denied'; facultyNote: string;
+  resolvedGrade?: string; resolvedNumeric?: number;
+}) => api.post<AppealRow>(`/appeals/faculty/${id}/resolve`, data).then(r => r.data);
+export const escalateAppeal     = (id: string, facultyNote: string) =>
+  api.post<AppealRow>(`/appeals/faculty/${id}/escalate`, { facultyNote }).then(r => r.data);
+
+export const listAdminAppeals   = (status?: AppealStatus) =>
+  api.get<AppealRow[]>('/appeals/admin', { params: { status } }).then(r => r.data);
+export const resolveAppealDean  = (id: string, data: {
+  outcome: 'grade_changed' | 'denied'; deanNote: string;
+  resolvedGrade?: string; resolvedNumeric?: number;
+}) => api.post<AppealRow>(`/appeals/admin/${id}/resolve`, data).then(r => r.data);
+
 // ── TBA section auto-pass (admin, term close) ────────────────────────────────
 export interface TbaAutoPassPreview {
   term: { id: string; name: string };

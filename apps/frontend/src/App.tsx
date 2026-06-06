@@ -1,6 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText, FileBadge, Star, TrendingUp } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText, FileBadge, Star, TrendingUp, MessageSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
@@ -16,18 +16,21 @@ import Blocks from './pages/admin/Blocks';
 import Enrollments from './pages/admin/Enrollments';
 import AuditLog from './pages/admin/AuditLog';
 import Analytics from './pages/admin/Analytics';
+import AdminAppeals from './pages/admin/Appeals';
 import FacultyDashboard from './pages/faculty/Dashboard';
 import FacultySections from './pages/faculty/Sections';
 import FacultyAvailability from './pages/faculty/Availability';
 import Gradebook from './pages/faculty/Gradebook';
 import Roster from './pages/faculty/Roster';
 import FacultySubjects from './pages/faculty/Subjects';
+import FacultyAppeals from './pages/faculty/Appeals';
 import StudentDashboard from './pages/student/Dashboard';
 import StudentGrades from './pages/student/Grades';
 import StudentSchedule from './pages/student/Schedule';
 import StudentCurriculum from './pages/student/Curriculum';
 import StudentCor from './pages/student/COR';
 import StudentWishlist from './pages/student/Wishlist';
+import StudentAppeals from './pages/student/Appeals';
 import Account from './pages/Account';
 
 const qc = new QueryClient({
@@ -52,26 +55,29 @@ const adminNav = [
   { label: 'Terms',       to: '/admin/terms',       icon: Calendar      },
   { label: 'Sections',    to: '/admin/sections',    icon: School        },
   { label: 'Enrollments', to: '/admin/enrollments', icon: ClipboardList },
+  { label: 'Appeals',     to: '/admin/appeals',     icon: MessageSquare },
   { label: 'Analytics',   to: '/admin/analytics',   icon: TrendingUp    },
   { label: 'Activity log',to: '/admin/audit-log',   icon: FileText      },
   { label: 'Account',     to: '/admin/account',     icon: Settings      },
 ];
 
 const facultyNav = [
-  { label: 'Overview',      to: '/faculty',              icon: Home       },
-  { label: 'My Sections',   to: '/faculty/sections',     icon: LayoutGrid },
-  { label: 'My Subjects',   to: '/faculty/subjects',     icon: BookOpen   },
-  { label: 'Availability',  to: '/faculty/availability', icon: Clock      },
-  { label: 'Account',       to: '/faculty/account',      icon: Settings   },
+  { label: 'Overview',      to: '/faculty',              icon: Home          },
+  { label: 'My Sections',   to: '/faculty/sections',     icon: LayoutGrid    },
+  { label: 'My Subjects',   to: '/faculty/subjects',     icon: BookOpen      },
+  { label: 'Availability',  to: '/faculty/availability', icon: Clock         },
+  { label: 'Appeals',       to: '/faculty/appeals',      icon: MessageSquare },
+  { label: 'Account',       to: '/faculty/account',      icon: Settings      },
 ];
 const studentNav = [
-  { label: 'Overview',   to: '/student',            icon: Home       },
-  { label: 'Curriculum', to: '/student/curriculum', icon: ListTree   },
-  { label: 'My grades',  to: '/student/grades',     icon: BarChart2  },
-  { label: 'Schedule',   to: '/student/schedule',   icon: Calendar   },
-  { label: 'Wishlist',   to: '/student/wishlist',   icon: Star       },
-  { label: 'COR',        to: '/student/cor',        icon: FileBadge  },
-  { label: 'Account',    to: '/student/account',    icon: Settings   },
+  { label: 'Overview',   to: '/student',            icon: Home          },
+  { label: 'Curriculum', to: '/student/curriculum', icon: ListTree      },
+  { label: 'My grades',  to: '/student/grades',     icon: BarChart2     },
+  { label: 'Schedule',   to: '/student/schedule',   icon: Calendar      },
+  { label: 'Wishlist',   to: '/student/wishlist',   icon: Star          },
+  { label: 'COR',        to: '/student/cor',        icon: FileBadge     },
+  { label: 'Appeals',    to: '/student/appeals',    icon: MessageSquare },
+  { label: 'Account',    to: '/student/account',    icon: Settings      },
 ];
 
 function Guard({ role }: { role: 'admin' | 'faculty' | 'student' }) {
@@ -108,6 +114,7 @@ export default function App() {
               <Route path="terms"       element={<Terms />} />
               <Route path="sections"    element={<Sections />} />
               <Route path="enrollments" element={<Enrollments />} />
+              <Route path="appeals"     element={<AdminAppeals />} />
               <Route path="analytics"   element={<Analytics />} />
               <Route path="audit-log"   element={<AuditLog />} />
               <Route path="account"     element={<Account />} />
@@ -121,6 +128,7 @@ export default function App() {
               <Route path="sections/:id/roster" element={<Roster />} />
               <Route path="subjects"     element={<FacultySubjects />} />
               <Route path="availability" element={<FacultyAvailability />} />
+              <Route path="appeals"      element={<FacultyAppeals />} />
               <Route path="account"      element={<Account />} />
             </Route>
 
@@ -132,6 +140,7 @@ export default function App() {
               <Route path="schedule"   element={<StudentSchedule />} />
               <Route path="wishlist"   element={<StudentWishlist />} />
               <Route path="cor"        element={<StudentCor />} />
+              <Route path="appeals"    element={<StudentAppeals />} />
               <Route path="account"    element={<Account />} />
             </Route>
           </Routes>

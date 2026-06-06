@@ -314,6 +314,30 @@ CREATE TABLE audit_logs (
 
 
 -- ============================================================
+-- GRADE APPEALS  (FUTURE_FEATURES 4.2 — student → faculty → dean state machine)
+-- ============================================================
+
+CREATE TABLE grade_appeals (
+    id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    enrollment_id   UUID         NOT NULL REFERENCES enrollments(id) ON DELETE CASCADE,
+    student_id      UUID         NOT NULL REFERENCES users(id),
+    reason          TEXT         NOT NULL,
+    status          TEXT         NOT NULL DEFAULT 'pending'
+                    CHECK (status IN ('pending','faculty_review','dean_review','resolved','withdrawn')),
+    faculty_note    TEXT,
+    dean_note       TEXT,
+    outcome         TEXT         CHECK (outcome IS NULL OR outcome IN ('grade_changed','denied','withdrawn')),
+    resolved_grade  TEXT,
+    resolved_numeric NUMERIC(5,2) CHECK (resolved_numeric IS NULL OR (resolved_numeric >= 0 AND resolved_numeric <= 100)),
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    resolved_at     TIMESTAMPTZ,
+    UNIQUE (enrollment_id)
+);
+CREATE INDEX idx_appeals_student ON grade_appeals(student_id, created_at DESC);
+CREATE INDEX idx_appeals_status  ON grade_appeals(status);
+
+
+-- ============================================================
 -- FACULTY QUALIFICATIONS  (which courses a faculty can / wants to teach)
 -- ============================================================
 
