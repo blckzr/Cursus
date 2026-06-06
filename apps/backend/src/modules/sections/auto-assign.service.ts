@@ -60,9 +60,6 @@ export interface AutoAssignOptions {
 
 // ─── Tunables ────────────────────────────────────────────────────────────────
 
-/** Candidate session lengths in minutes. The algorithm tries each. */
-const SESSION_LENGTHS_MIN = [90, 60, 120, 180];
-
 /**
  * Day-pattern templates. Mapped per units to a list of (#sessions, day-pattern)
  * pairs the algorithm will try. PH standard: 3-unit lecture = MWF 1h each OR
@@ -160,7 +157,7 @@ function clashesWithLocked(
 export async function runAutoAssign(opts: AutoAssignOptions): Promise<AutoAssignResult> {
   // ── 1. Load sections that need work ────────────────────────────────────
   const { rows: sectionRows } = await db.query(
-    `SELECT s.id, s.section_code, s.faculty_id,
+    `SELECT s.id, s.section_code, s.faculty_id, s.block_id,
             s.day_of_week, s.start_time::text AS start_time, s.end_time::text AS end_time, s.room,
             c.id AS course_id, c.code AS course_code, c.title AS course_title, c.units,
             p.code || ' ' || b.year_level || '-' || b.block_number AS block_label
@@ -234,9 +231,16 @@ export async function runAutoAssign(opts: AutoAssignOptions): Promise<AutoAssign
     if (m) m.availability.push(a);
   }
 
-  // Seed `locked` + `unitsTaken` from existing assignments in this term.
-  // (For sections we're keeping as-is, we still need to block their slot so we
-  // don't double-book the faculty.)
+  // Per-block schedule tracking. The original algorithm only avoided faculty
+  // double-bookings — but a single block can't physically attend two classes
+  // at once either, even if they're taught by different faculty. We track an
+  // OccupiedSlot[] per block_id and reject any candidate that would overlap
+  // an already-locked slot in the section's own block.
+  const blockLocked = new Map<string, OccupiedSlot[]>();
+
+  // Seed `locked` (per faculty), `unitsTaken`, and `blockLocked` from existing
+  // assignments in this term. (For sections we're keeping as-is, we still need
+  // to reserve their slot so we don't double-book the faculty OR the block.)
   for (const s of sectionRows) {
     if (s.faculty_id && s.day_of_week && s.start_time && s.end_time) {
       const m = faculty.get(s.faculty_id);
@@ -248,6 +252,15 @@ export async function runAutoAssign(opts: AutoAssignOptions): Promise<AutoAssign
         });
         m.unitsTaken += Number(s.units || 0);
       }
+    }
+    if (s.block_id && s.day_of_week && s.start_time && s.end_time) {
+      const list = blockLocked.get(s.block_id) ?? [];
+      list.push({
+        dayOfWeek: s.day_of_week,
+        startTime: String(s.start_time).slice(0, 5),
+        endTime:   String(s.end_time).slice(0, 5),
+      });
+      blockLocked.set(s.block_id, list);
     }
   }
 
@@ -266,6 +279,7 @@ export async function runAutoAssign(opts: AutoAssignOptions): Promise<AutoAssign
     const out: Candidate[] = [];
     const units = Number(section.units);
     const patterns = patternsFor(units);
+    const ownBlockLocks = blockLocked.get(section.block_id) ?? [];
 
     for (const fac of faculty.values()) {
       const pref = fac.qualByCourse.get(section.course_id);
@@ -274,32 +288,34 @@ export async function runAutoAssign(opts: AutoAssignOptions): Promise<AutoAssign
       if (fac.availability.filter(a => a.kind === 'teaching').length === 0) continue;
 
       for (const pat of patterns) {
+        // One session length per pattern — units / sessions, rounded to a
+        // human-readable 15-min boundary. Generating multiple lengths per
+        // pattern (e.g. 60 *and* 90 for a 3-unit MWF course) just floods
+        // the pool with near-duplicates.
         const sessionMinutes = Math.round((units * 60) / pat.sessions);
-        // Round to nearest 15 to keep human-readable times.
-        const roundedMinutes = Math.max(60, Math.round(sessionMinutes / 15) * 15);
-        const lengths = roundedMinutes === sessionMinutes
-          ? [roundedMinutes]
-          : [roundedMinutes, ...SESSION_LENGTHS_MIN.filter(l => l !== roundedMinutes)];
+        const len = Math.max(60, Math.round(sessionMinutes / 15) * 15);
 
-        for (const len of lengths) {
-          for (const start of START_TIMES) {
-            const end = toHHMM(toMin(start) + len);
-            if (toMin(end) > toMin('21:00')) continue;
-            if (!windowFitsAvailability(fac.availability, pat.days, start, end)) continue;
-            if (clashesWithLocked(fac.locked, pat.days, start, end)) continue;
-            out.push({
-              facultyId:   fac.id,
-              facultyName: fac.name,
-              dayOfWeek:   pat.days,
-              startTime:   start,
-              endTime:     end,
-              preference:  pref,
-              facultyMeta: fac,
-            });
-            // One length is enough per (faculty, pattern, start) — we don't want
-            // to flood the pool with near-identical options.
-            break;
-          }
+        // CRITICAL: enumerate every valid start time, not just the first.
+        // The greedy loop re-checks block conflicts per iteration, so it needs
+        // alternative start times to pick from when an earlier section in the
+        // block has already locked one. Without this, a block can only fit
+        // one section before every subsequent section's "candidates" become
+        // empty after live filtering.
+        for (const start of START_TIMES) {
+          const end = toHHMM(toMin(start) + len);
+          if (toMin(end) > toMin('21:00')) continue;
+          if (!windowFitsAvailability(fac.availability, pat.days, start, end)) continue;
+          if (clashesWithLocked(fac.locked, pat.days, start, end)) continue;
+          if (clashesWithLocked(ownBlockLocks, pat.days, start, end)) continue;
+          out.push({
+            facultyId:   fac.id,
+            facultyName: fac.name,
+            dayOfWeek:   pat.days,
+            startTime:   start,
+            endTime:     end,
+            preference:  pref,
+            facultyMeta: fac,
+          });
         }
       }
     }
@@ -348,10 +364,13 @@ export async function runAutoAssign(opts: AutoAssignOptions): Promise<AutoAssign
   const proposals: AssignmentProposal[] = [];
 
   for (const { section, candidates } of withCandidates) {
-    // Re-filter `locked` per-iteration since other proposals may have
-    // claimed slots since this candidate list was built.
+    // Re-filter per-iteration since other proposals may have claimed slots
+    // since this candidate list was built — both for the faculty AND for the
+    // section's own block.
+    const ownBlockLocks = blockLocked.get(section.block_id) ?? [];
     const live = candidates
       .filter(c => !clashesWithLocked(c.facultyMeta.locked, c.dayOfWeek, c.startTime, c.endTime))
+      .filter(c => !clashesWithLocked(ownBlockLocks,        c.dayOfWeek, c.startTime, c.endTime))
       .filter(c => c.facultyMeta.maxUnits == null || c.facultyMeta.unitsTaken + Number(section.units) <= c.facultyMeta.maxUnits);
 
     if (live.length === 0) {
@@ -371,7 +390,7 @@ export async function runAutoAssign(opts: AutoAssignOptions): Promise<AutoAssign
         score:       0,
         reason:      candidates.length === 0
           ? 'No qualified faculty (or none have availability matching this section).'
-          : 'All compatible faculty would clash with their other assignments.',
+          : 'All compatible faculty would clash with the faculty\'s or block\'s other assignments.',
       });
       continue;
     }
@@ -380,13 +399,23 @@ export async function runAutoAssign(opts: AutoAssignOptions): Promise<AutoAssign
     scored.sort((a, b) => b.s - a.s);
     const winner = scored[0];
 
-    // Lock this slot in the winner's state.
+    // Lock this slot in the winner's faculty state.
     winner.c.facultyMeta.locked.push({
       dayOfWeek: winner.c.dayOfWeek,
       startTime: winner.c.startTime,
       endTime:   winner.c.endTime,
     });
     winner.c.facultyMeta.unitsTaken += Number(section.units);
+
+    // …and in the block's state so subsequent sections in this same block
+    // can't pick an overlapping window.
+    const blockList = blockLocked.get(section.block_id) ?? [];
+    blockList.push({
+      dayOfWeek: winner.c.dayOfWeek,
+      startTime: winner.c.startTime,
+      endTime:   winner.c.endTime,
+    });
+    blockLocked.set(section.block_id, blockList);
 
     proposals.push({
       sectionId:   section.id,
