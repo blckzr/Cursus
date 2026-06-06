@@ -9,6 +9,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [userCode, setUserCode] = useState('');
   const [password, setPassword] = useState('');
+  const [revealed, setRevealed] = useState(false);
   const [error, setError]       = useState('');
   const [loading, setLoading]   = useState(false);
 
@@ -99,14 +100,26 @@ export default function Login() {
             </div>
             <div>
               <label className="label">Password</label>
-              <input
-                type="password"
-                className="input"
-                value={password}
-                onChange={e => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
+              <div className="relative">
+                <input
+                  type={revealed ? 'text' : 'password'}
+                  className="input pr-10"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  placeholder="••••••••"
+                  required
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  onClick={() => setRevealed(v => !v)}
+                  aria-label={revealed ? 'Hide password' : 'Show password'}
+                  title={revealed ? 'Hide password' : 'Show password'}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 w-7 h-7 rounded-md flex items-center justify-center text-stone-400 hover:text-olive-600 hover:bg-beige-100 transition-colors"
+                >
+                  <Icon name={revealed ? 'eye-off' : 'eye'} size={15} />
+                </button>
+              </div>
             </div>
 
             {error && (

@@ -9,7 +9,7 @@ import {
   Info, TrendingUp, TrendingDown, Award, Pencil, Trash2, Copy, Download, Upload,
   Inbox, Star, MapPin, Building2, Hash, Command, Sparkles, User, UserCheck,
   Flame, RefreshCw, Send, MessageSquare, Shield, PanelLeft, MoreHorizontal, Sun,
-  Boxes, type LucideIcon,
+  Boxes, Eye, EyeOff, type LucideIcon,
 } from 'lucide-react';
 
 const MAP: Record<string, LucideIcon> = {
@@ -26,7 +26,7 @@ const MAP: Record<string, LucideIcon> = {
   hash: Hash, command: Command, sparkles: Sparkles, user: User,
   'user-check': UserCheck, flame: Flame, refresh: RefreshCw, send: Send,
   message: MessageSquare, shield: Shield, panel: PanelLeft, more: MoreHorizontal,
-  sun: Sun, boxes: Boxes,
+  sun: Sun, boxes: Boxes, eye: Eye, 'eye-off': EyeOff,
 };
 
 interface Props {
