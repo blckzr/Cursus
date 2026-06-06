@@ -54,8 +54,9 @@ BEGIN
   -- ============================================================
   -- 2. PROGRAMS — just BSCS for now
   -- ============================================================
-  INSERT INTO programs (id, code, name, total_units, year_levels, blocks_per_year, block_capacity)
-  VALUES (bscs_id, 'BSCS', 'Bachelor of Science in Computer Science', 187, 4, 2, 50);
+  -- total_units is derived on read; the stored value is a no-op cache (defaults to 0).
+  INSERT INTO programs (id, code, name, year_levels, blocks_per_year, block_capacity)
+  VALUES (bscs_id, 'BSCS', 'Bachelor of Science in Computer Science', 4, 2, 50);
 
   -- ============================================================
   -- 3. BLOCKS — 4 years × 2 blocks/year (BSCS 1-1 … BSCS 4-2)

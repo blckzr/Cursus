@@ -1,16 +1,18 @@
 # Future Features
 
-A detailed backlog of features that fit the SIS's current shape (PH
-higher-ed context, block-based cohorts, PH grade scale, role-based access).
-Each entry documents the **problem**, the **data-model changes**, the
-**backend surface**, the **frontend surface**, **edge cases** to plan for, an
-**effort breakdown**, the **dependencies** it relies on, and the
-**open questions** that would need a decision before building.
+A backlog of features for the SIS (PH higher-ed context, block-based cohorts,
+PH grade scale, role-based access). Updated as features ship — each entry
+is marked **✅ Shipped**, **🟡 Partial**, or left plain (= not yet built).
 
-This is a living discovery document, not a commitment. Items are not
-strictly ranked, but a "recommended next phase" pairing appears at the bottom.
+Shipped entries keep a one-line note pointing to where the code lives. Unbuilt
+entries keep the full spec (problem, data model, backend, frontend, edge
+cases, effort, dependencies, open questions) so anyone can pick them up cold.
 
 **Effort tags:** `S` = ≤ 1 day · `M` = 1–3 days · `L` = 1+ weeks.
+
+For the full list of what's *already* in the codebase, see
+[`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md). This file is the **forward**
+view.
 
 ---
 
@@ -23,62 +25,28 @@ strictly ranked, but a "recommended next phase" pairing appears at the bottom.
 5. [Analytics & dashboards](#5-analytics--dashboards)
 6. [Security & polish](#6-security--polish)
 7. [Long-tail (skip unless asked)](#7-long-tail--skip-unless-asked)
-8. [Recommended next phase](#8-recommended-next-phase)
+8. [New ideas surfaced during build](#8-new-ideas-surfaced-during-build)
+9. [Recommended next phase](#9-recommended-next-phase)
 
 ---
 
 ## 1. Student-facing services
 
-### 1.1 Certificate of Enrollment (COE) PDF — `S`
+### 1.1 ✅ Certificate of Registration (COR) PDF — `S` — SHIPPED
 
-**Problem.** PH students are constantly asked for a current-term enrollment
-certificate by employers, scholarship boards, and government offices. They
-currently have to visit the registrar's window. Self-service would shave
-hundreds of staff-hours per term.
-
-**Data model.** No new tables. A `coe_serial_seq` sequence per academic year
-gives each issued COE a unique number (`COE-2026-00001`) for traceability.
-
-**Backend.**
-- `GET /api/students/me/coe` (auth: student) — generates a PDF on demand.
-- New service `students.coe.ts` pulls: student profile, program, block,
-  active term, enrolled section list (course code, title, units, schedule).
-- PDF rendering via `pdfkit` or `puppeteer` — `pdfkit` is lighter, no
-  headless browser. Use a single layout template with school logo header,
-  registrar signature block (image asset), and a QR code linking to a
-  verification URL.
-- Audit log: insert `ISSUE_COE` row so the registrar can prove who pulled
-  what and when.
-
-**Frontend.** A button on the Student Dashboard ("Download COE") and on
-`/student/account`. Single-click download; toast on failure.
-
-**Edge cases.**
-- Student has no active enrollment → return 409 with a helpful message
-  ("Wait until the registrar opens the term").
-- Student is on leave / dropped — block issuance.
-- Multiple terms active (rare but possible during overlap) — let the user
-  pick which term.
-
-**Effort breakdown.** 2 h schema/serial + 4 h PDF template + 2 h backend
-service & route + 1 h frontend button + 1 h audit/edge cases = ~1 day.
-
-**Dependencies.** None — uses existing enrollment data.
-
-**Open questions.**
-- Do we want a verification page (`/verify/coe/:serial`) that the QR code
-  links to? Recommended for credibility but adds ~3 h of build.
-- Who signs digitally? A scanned signature image kept in `public/` is the
-  pragmatic start.
-
----
+Built. Lives at `/student/cor` with PDF download. Renderer in
+`apps/backend/src/lib/pdf/cor.ts`. The original spec called this "Certificate
+of Enrollment" — we built it as **Certificate of Registration** at the
+user's request, with landscape A4 layout including school header,
+student info card, full subjects table, and registrar signature line.
 
 ### 1.2 Form 137 / 138 / TOR templates — `M`
 
 **Problem.** Formal academic record exports (Form 137 = secondary
 permanent record, Form 138 = report card, TOR = official transcript) are
 the canonical PH school documents. We already compute every number; this
-is mostly a templating exercise.
+is mostly a templating exercise. CSV transcript export is in place but
+the formal PDF templates aren't.
 
 **Data model.** No new tables. A `transcript_serial_seq` sequence for TOR
 copies. Optionally a `tor_release` table tracking who requested and when
@@ -90,7 +58,8 @@ copies. Optionally a `tor_release` table tracking who requested and when
 - `GET /api/students/:id/form138.pdf` (auth: admin or faculty for own
   sections).
 - One shared layout component, three flavors. The PDF generator should be
-  factored as `lib/pdf/transcripts.ts` with helpers per form type.
+  factored as `lib/pdf/transcripts.ts` with helpers per form type. The
+  existing `lib/pdf/cor.ts` lays the foundation — copy its structure.
 
 **Frontend.**
 - Student `/student/account`: "Download TOR" button (subject to clearance,
@@ -110,8 +79,7 @@ copies. Optionally a `tor_release` table tracking who requested and when
 **Effort breakdown.** 4 h shared PDF layout + 4 h per form template × 3 +
 2 h auth/edge cases + 2 h frontend = ~2.5 days.
 
-**Dependencies.** Item 1.1 (COE) lays the PDF foundation — strongly
-recommend building COE first.
+**Dependencies.** COR (1.1, shipped) — the PDF infra is already there.
 
 **Open questions.**
 - Does the registrar require physical wet-signature on TOR? If yes,
@@ -119,97 +87,30 @@ recommend building COE first.
   on admin-pulled.
 - Need school logo, registrar signature image, dry-seal scan.
 
----
+### 1.3 ✅ Class schedule `.ics` export — `S` — SHIPPED
 
-### 1.3 Class schedule .ics export — `S`
+Built. "Add to calendar" button on `/student/schedule`. Renderer in
+`apps/backend/src/lib/ics/schedule.ts`. One VEVENT per (section × meeting
+day) with WEEKLY RRULE, anchored to `Asia/Manila`. Stable UIDs so
+re-imports update events in place.
 
-**Problem.** Students want their class schedule in Google Calendar /
-Outlook. We have the data; pushing it as an `.ics` file is trivial.
+**Still deferred (optional):** subscription URL with short-lived
+per-student JWT so calendars auto-refresh after schedule changes. Estimated
+1 h. Useful when sections get reassigned mid-term.
 
-**Data model.** None.
+### 1.4 ✅ Pre-registration / wish-list — `M` — SHIPPED
 
-**Backend.**
-- `GET /api/students/me/schedule.ics` (auth: student).
-- Builds an iCalendar file: one VEVENT per (section × day) with a
-  WEEKLY recurrence rule bounded by the term's `end_date`.
-- Library: `ics` npm package (~10 kB) or hand-roll — the format is plain
-  text, the spec fits on one page.
+Built. Student page `/student/wishlist` lets students browse curriculum
+courses and add them with priority 1-5. Admin sees per-course demand
+counts via the **See wishlist demand** modal on each term card in
+`/admin/terms`. Locks automatically once the registrar opens the target
+term.
 
-**Frontend.** "Add to calendar" button on `/student/schedule` next to the
-existing grid. Optional: also surface as a long-lived subscription URL
-(`/api/students/me/schedule.ics?token=…`) so calendars auto-refresh after
-schedule changes. The token is a separate short-lived JWT scoped only to
-this endpoint.
-
-**Edge cases.**
-- Sections with no day/time set yet (TBA) → skip silently.
-- Holidays — we don't have a holidays table, so events still appear on
-  Christmas etc. Either accept it (most apps do) or maintain a
-  `term_holidays` table later.
-- Timezone — emit `TZID=Asia/Manila` explicitly.
-
-**Effort breakdown.** 2 h backend + 1 h frontend + 1 h subscription
-token + 1 h edge cases = ~5 h.
-
-**Dependencies.** None.
-
-**Open questions.**
-- Subscription URL or just a one-shot download? Subscription is much
-  better UX but requires a separate token system.
-
----
-
-### 1.4 Pre-registration / wish-list — `M`
-
-**Problem.** Before the registrar formally "opens" a term, students
-should be able to mark which courses they intend to take. The admin can
-then see demand per course and provision sections accordingly.
-
-**Data model.**
-```sql
-CREATE TABLE wishlist_entries (
-  id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  student_id  UUID        NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  term_id     UUID        NOT NULL REFERENCES terms(id) ON DELETE CASCADE,
-  course_id   UUID        NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
-  priority    INT         NOT NULL DEFAULT 1,  -- 1 = must have, 5 = nice to have
-  notes       TEXT,
-  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (student_id, term_id, course_id)
-);
-```
-
-**Backend.**
-- `GET /api/students/me/wishlist?termId=…`
-- `POST /api/students/me/wishlist` — body: `{ termId, courseId, priority, notes }`
-- `DELETE /api/students/me/wishlist/:id`
-- Admin aggregate: `GET /api/admin/wishlist-demand?termId=…` → per-course
-  counts grouped by program and year level.
-
-**Frontend.**
-- New student page `/student/wishlist` — course catalog filtered to their
-  program with toggle "add / remove from wishlist". Sort by year level,
-  prereqs satisfied first.
-- Admin Curriculum builder gains a "Demand" tab showing the aggregate.
-
-**Edge cases.**
-- Locked window: wishlist is read-only once the registrar opens the term.
-- Course already taken / passed → hide from picker.
-- Course locked by unmet prereq → show but mark.
-- Block-mandated courses don't need to be wishlisted — pre-fill them.
-
-**Effort breakdown.** 3 h migration + schema + 4 h backend + 6 h
-frontend + 2 h aggregate view = ~2 days.
-
-**Dependencies.** Course visibility / program restriction (already
-implemented).
-
-**Open questions.**
-- Hard cap per student (e.g. 10 entries)?
-- Does the wishlist auto-convert to enrollments when the term opens?
-  Recommended: no, registrar still confirms; it's an advisory signal only.
-
----
+**Companion feature shipped:** **Self-enlistment / confirm enrollment**.
+When admin opens a term, students get `status='pending'` enrollments
+(not `'enrolled'`). They must explicitly confirm via the COR page banner
+before sections appear in their schedule. This replaces the simpler
+"auto-enroll" pattern.
 
 ### 1.5 Clearance tracker — `M`
 
@@ -241,19 +142,18 @@ CREATE TABLE clearance_records (
 ```
 
 **Backend.**
-- `GET /api/students/me/clearance?termId=…` — student view, full status.
-- `GET /api/admin/clearance/:departmentId` — staff view filtered by their
-  department; needs a new role `clearance_officer` or department-scoped
-  permission.
-- `PATCH /api/admin/clearance/:recordId` — flip status, append reason.
+- `GET /api/students/me/clearance?termId=…` — student view.
+- `GET /api/admin/clearance/:departmentId` — staff view; needs a new role
+  `clearance_officer` or department-scoped permission.
+- `PATCH /api/admin/clearance/:recordId` — flip status.
 - Auto-create pending records for every active student × active
   department when a term opens (extend `openTerm`).
 
 **Frontend.**
-- Student: dedicated `/student/clearance` page or a card on Account.
+- Student: `/student/clearance` page (or a card on Account).
 - Admin: a department-scoped page listing students with their status.
-- TOR / transcript download endpoints check clearance status; block with
-  a clear message if not cleared.
+- **Critical:** TOR / transcript download endpoints (item 1.2) check
+  clearance status; block with a clear message if not cleared.
 
 **Edge cases.**
 - Departments can be added/disabled mid-term.
@@ -261,11 +161,10 @@ CREATE TABLE clearance_records (
 - Graduated students need a final clearance round.
 
 **Effort breakdown.** 4 h schema + 6 h backend + 6 h frontend + 4 h
-permissions / role glue = ~3 days.
+permissions/role glue = ~3 days.
 
-**Dependencies.** A new role or permission model — currently we have a
-flat `admin/faculty/student` enum. Adding `clearance_officer` means
-updating `users.role` enum and `authorize()` middleware everywhere.
+**Dependencies.** New role or permission model (currently flat
+`admin/faculty/student`).
 
 **Open questions.**
 - Department-scoped officers vs. one super-admin who handles all
@@ -307,13 +206,13 @@ CREATE TABLE attendance_records (
 ```
 
 **Backend.**
-- `GET /api/sections/:id/attendance` — returns sessions + records for the
-  faculty owner.
-- `POST /api/sections/:id/attendance/sessions` — create a session for a
-  date (default: today).
+- `GET /api/sections/:id/attendance` — sessions + records for the faculty
+  owner.
+- `POST /api/sections/:id/attendance/sessions` — create session for a date
+  (default: today).
 - `PUT /api/sections/:id/attendance/sessions/:sid/records` — bulk upsert
   (same pattern as `bulkSaveScores`).
-- `GET /api/students/me/attendance` — student view, summary + per-session.
+- `GET /api/students/me/attendance` — student view.
 
 **Frontend.**
 - New tab on the gradebook page: "Attendance" sibling to "Scores".
@@ -325,22 +224,17 @@ CREATE TABLE attendance_records (
 - Sessions on days the section doesn't meet (per `day_of_week`) should
   warn but not block.
 - Editing past sessions allowed but flagged in audit log.
-- Bulk-add session button: "fill out missing sessions through today".
-- Faculty changes mid-term → session ownership stays with the section,
-  not the faculty.
+- "Fill missing sessions through today" button.
 
-**Effort breakdown.** 4 h schema + 6 h backend + 8 h frontend grid + 3 h
+**Effort breakdown.** 4 h schema + 6 h backend + 8 h frontend + 3 h
 student view + 3 h audit/edges = ~3 days.
 
 **Dependencies.** Existing gradebook / roster patterns.
 
 **Open questions.**
-- Excused absence flow — does the student request and the faculty
-  approve, or just a faculty-flipped flag?
-- Should attendance affect grades automatically (e.g. 3+ absences = 0.25
-  deduction)? Probably not in v1.
-
----
+- Excused absence flow — student requests + faculty approves, or just a
+  faculty flag?
+- Should attendance auto-affect grades (e.g. 3 absences = 0.25 deduction)?
 
 ### 2.2 Section announcements — `S`
 
@@ -364,16 +258,14 @@ CREATE INDEX idx_announcements_section ON section_announcements(section_id, crea
 - `GET /api/sections/:id/announcements`
 - `POST /api/sections/:id/announcements` (faculty only)
 - `DELETE /api/sections/:id/announcements/:aid` (author only)
-- After inserting an announcement, fanout via the existing
-  `notifications.service` (`kind: 'announcement'`) to all enrolled
-  students, link to `/student/sections/:id` (new page) or `/student/grades`.
+- Fan out via `notifications.service` (`kind: 'announcement'`) to all
+  enrolled students.
 
 **Frontend.**
 - New tab on the gradebook page: "Announcements" with a compose box and a
   reverse-chronological list.
 - Student dashboard gains a small "Latest announcements" card.
-- Bell-icon dropdown already handles the notification kind; just add a
-  visual treatment for `announcement` in `NotificationBell.tsx`.
+- `NotificationBell.tsx` already handles any new kind; add a visual treatment.
 
 **Edge cases.**
 - Author leaves the section (faculty reassignment) — keep the
@@ -383,14 +275,12 @@ CREATE INDEX idx_announcements_section ON section_announcements(section_id, crea
 **Effort breakdown.** 2 h schema + 3 h backend + 4 h frontend + 1 h
 notification glue = ~1.5 days.
 
-**Dependencies.** Notifications module (Phase 7, already shipped).
+**Dependencies.** Notifications module (shipped).
 
 **Open questions.**
 - Markdown or plain text? Markdown is cheap with `marked` but expands
   XSS attack surface — `DOMPurify` mitigates.
 - Allow attachments (PDFs)? Out of scope for v1.
-
----
 
 ### 2.3 Grade template copy — `S`
 
@@ -398,37 +288,22 @@ notification glue = ~1.5 days.
 assessments per section. Copy-from-existing would save them an hour per
 section.
 
-**Data model.** None — reuses existing categories + assessments tables.
+**Backend.** `POST /api/sections/:id/copy-template` body
+`{ sourceSectionId: UUID }`. Copies categories + assessments. Scores are
+NOT copied. Restrict: source must be a section the faculty taught (or
+admin override).
 
-**Backend.**
-- `POST /api/sections/:id/copy-template`
-  body: `{ sourceSectionId: UUID }`
-- Copies categories (name, weight, display_order), then assessments
-  under each (name, max_score, display_order). Scores are NOT copied.
-- Restrict: source must be a section the same faculty taught (or admin
-  override).
-
-**Frontend.**
-- On the gradebook page when no categories exist yet: a
-  "Copy from another section" link beside "Add category".
-- Modal: list of the faculty's past sections, grouped by term;
-  click to copy.
+**Frontend.** On the gradebook page when no categories exist yet: a
+"Copy from another section" link beside "Add category". Modal lists the
+faculty's past sections grouped by term.
 
 **Edge cases.**
 - Target section already has categories → confirm overwrite or merge.
-- Faculty mid-transfer (lost ownership of source section) — admin needs
-  to copy on their behalf.
+- Faculty mid-transfer (lost ownership of source) — admin override.
 
-**Effort breakdown.** 3 h backend + 3 h frontend modal + 1 h overwrite
-prompt = ~1 day.
+**Effort breakdown.** ~1 day.
 
 **Dependencies.** Gradebook module.
-
-**Open questions.**
-- Copy scores too, to scaffold a "re-grade everyone on a curve" workflow?
-  Probably not.
-
----
 
 ### 2.4 Office-hour booking — `M`
 
@@ -454,140 +329,83 @@ CREATE INDEX idx_bookings_faculty_date ON office_hour_bookings(faculty_id, slot_
 ```
 
 **Backend.**
-- `GET /api/faculty/:id/office-hours?weekStart=…` — returns available
-  slots (intersect `faculty_availability` of kind `office_hour` with
-  existing bookings).
+- `GET /api/faculty/:id/office-hours?weekStart=…` — available slots.
 - `POST /api/office-hour-bookings`
-- `PATCH /api/office-hour-bookings/:id` (faculty: mark attended/no_show;
-  student: cancel).
-- Fire a notification to faculty on booking, to student on
-  cancellation/no_show.
+- `PATCH /api/office-hour-bookings/:id` (cancel / mark attended).
+- Notification on booking + cancellation.
 
 **Frontend.**
-- Student: new `/student/office-hours` page → pick a faculty (any who
-  teaches them?) → see week grid → click a free slot → modal to add topic.
+- Student: `/student/office-hours` page with weekly slot picker.
 - Faculty: `/faculty/office-hours` showing upcoming bookings list.
 
 **Edge cases.**
-- Faculty changes availability mid-week — existing bookings should
-  stay; just no new ones in the removed window.
-- Student double-booking themselves (two faculty same slot) — prevent
-  via index `UNIQUE (student_id, slot_date, start_time)`.
+- Faculty changes availability mid-week — existing bookings stay.
+- Student double-booking themselves — `UNIQUE (student_id, slot_date, start_time)`.
 - Cancellation deadline (e.g. 2 hours before).
 
-**Effort breakdown.** 4 h schema + 6 h backend + 8 h frontend slot picker
-+ 3 h notifications = ~3 days.
+**Effort breakdown.** ~3 days.
 
-**Dependencies.** Faculty availability table.
+**Dependencies.** Faculty availability (shipped).
 
 **Open questions.**
-- Can students book any faculty, or only their own teachers? Affects
-  load on senior faculty.
+- Can students book any faculty, or only their own teachers?
 - Slot granularity (15 / 30 / 60 min)?
-
----
 
 ### 2.5 Bulk score import for a category — `S`
 
-**Problem.** The current CSV importer handles one assessment at a time.
-Multi-column CSV (one per assessment in a category) would be faster.
+**Problem.** The current CSV importer handles one assessment at a time
+(already shipped). Multi-column CSV (one per assessment in a category)
+would be faster.
 
-**Data model.** None.
+**Backend.** Extend `bulkSaveScores` callers — endpoint handles N
+records; only frontend parsing changes.
 
-**Backend.**
-- Extend `bulkSaveScores` callers — the existing endpoint already
-  handles N records; this is purely a frontend parsing change.
-
-**Frontend.** Update `ImportScoresModal` in `Gradebook.tsx`:
-- Accept a CSV with header row: `user_code, Quiz 1, Quiz 2, Quiz 3`.
-- Auto-match column names to assessments in the selected category by
-  case-insensitive comparison; surface unmatched columns to the user.
-- Preview table now spans multiple score columns.
+**Frontend.** Update `ImportScoresModal` in `Gradebook.tsx` to accept a
+CSV with header row `user_code, Quiz 1, Quiz 2, Quiz 3`. Auto-match
+column names to assessments in the selected category.
 
 **Edge cases.**
-- Column names with typos → fuzzy-match suggestion ("Did you mean Quiz 1?").
-- Missing values per cell — leave score `null`.
+- Column-name typos → fuzzy-match suggestion.
 - Per-cell validation (above max) → block per-cell.
 
-**Effort breakdown.** 4 h parsing + UI rework + 2 h fuzzy matching +
-2 h tests = ~1 day.
+**Effort breakdown.** ~1 day.
 
 **Dependencies.** Gradebook CSV import (already shipped).
-
-**Open questions.** None.
 
 ---
 
 ## 3. Admin operations
 
-### 3.1 Bulk CSV user import — `M`
+### 3.1 ✅ Bulk CSV user import — `M` — SHIPPED
 
-**Problem.** Onboarding 200 freshmen one-by-one is painful. We export
-CSVs everywhere; symmetric import is the natural pair.
+Built. **Import CSV** button on `/admin/users`. Two-stage flow: client
+parses CSV → posts to `/users/bulk-import/preview` → server validates
+(Zod + DB dupe checks + program lookup) → admin reviews preview table
+with ✓/✗ status → posts to `/users/bulk-import/apply`. Per-row failures
+reported; partial success supported.
 
-**Data model.** None — uses existing `users` flow.
-
-**Backend.**
-- `POST /api/users/bulk-import` — multipart/form-data, CSV file.
-- Server parses with `csv-parse`, validates each row with Zod, returns:
-  ```json
-  {
-    "valid":   [...],
-    "invalid": [{ rowIndex, reason, raw }, ...],
-    "summary": { total, willCreate }
-  }
-  ```
-- Two-step UX: client uploads → server returns preview; client confirms →
-  server actually creates. Allows the user to fix problems before
-  committing.
-- Wrap the create batch in a transaction so partial failures roll back.
-
-**Frontend.**
-- `/admin/users` gains an "Import CSV" button next to "New user".
-- Modal flow: file picker → preview table with row-level
-  ✓/✗ status → "Import N valid rows" button.
-
-**Edge cases.**
-- Duplicate emails in the file or vs. existing users.
-- Required columns: `email, full_name, role`. Optional: `branch, program_code`.
-- Block capacity: importing 60 freshmen when blocks only hold 50 needs
-  multi-block fanout — reuse `pickRandomBlock`.
-- Default password applied (per shipped feature).
-
-**Effort breakdown.** 4 h parsing/validation + 6 h preview UI + 4 h
-transaction + edge cases + 2 h tests = ~2 days.
-
-**Dependencies.** Default-password feature (shipped).
-
-**Open questions.**
-- Should the import generate a downloadable "credentials" CSV (codes +
-  default password) for offline distribution?
-
----
+**Companion: CSV export shipped on every admin table** (Users, Courses,
+Enrollments, Sections, Audit log) via shared `lib/csv.ts` helper.
 
 ### 3.2 Bulk enrollment via CSV — `S`
 
 **Problem.** Same shape as 3.1 but for the irregular-student enrollment
 flow. Useful for transferees and re-takers.
 
-**Data model.** None.
-
 **Backend.** `POST /api/enrollments/bulk-import` — rows of
 `user_code, section_code`. Returns the same preview/confirm shape as 3.1.
 
 **Frontend.** New button on `/admin/enrollments` mirroring the user
-import flow.
+import flow. Reuse `BulkUserImportModal` as a template.
 
 **Edge cases.**
-- Section is full / closed.
+- Section full / closed.
 - Student already enrolled.
-- Section term inactive.
+- Section's term inactive.
 
-**Effort breakdown.** 1 day, reusing parse/validate scaffolding from 3.1.
+**Effort breakdown.** 1 day (reusing parse/validate scaffolding from 3.1).
 
-**Dependencies.** 3.1 strongly preferred (shared component).
-
----
+**Dependencies.** 3.1 (shipped).
 
 ### 3.3 Room as entity — `M`
 
@@ -608,7 +426,6 @@ CREATE TABLE rooms (
 );
 
 ALTER TABLE sections ADD COLUMN room_id UUID REFERENCES rooms(id);
--- Keep `room` text for one term as a migration aid, then drop.
 ```
 
 **Migration plan.** Backfill: extract distinct `sections.room` strings,
@@ -617,76 +434,40 @@ column after a sanity check.
 
 **Backend.**
 - CRUD for rooms (`/api/rooms`).
-- `updateSection` adds a conflict check: another section in the same
-  term with the same `room_id` and overlapping schedule → reject.
+- `updateSection` adds a room-conflict check.
+- **Important:** Extend the auto-assigner (3.4, shipped) to track room
+  schedules too — currently it only tracks faculty and block conflicts.
 
 **Frontend.**
-- New admin page `/admin/rooms` — list / create / edit / archive.
-- Section edit modal: dropdown of rooms with capacity hint, replacing
-  the free-text input.
-- Optional: room-centric calendar view (item 3.4-ish — see "auto-assign").
+- Admin `/admin/rooms` — list / create / edit / archive.
+- Section edit modal: dropdown of rooms with capacity hint.
+- Optional: room-centric calendar view.
 
 **Edge cases.**
-- Free-text rooms can't be cleanly migrated when they're typos ("rm 201"
-  vs "Room 201"). Migration assistant: present unique strings to the
-  admin and let them merge.
+- Free-text rooms can't be cleanly migrated when they're typos — present
+  unique strings to the admin and let them merge.
 - Capacity warnings when section capacity > room capacity.
 
-**Effort breakdown.** 3 h schema + migration + 4 h backend conflict
-check + 6 h CRUD UI + 3 h section edit rework = ~2 days.
+**Effort breakdown.** ~2 days.
 
-**Dependencies.** None.
+**Dependencies.** None blocking; auto-assigner will need a small extension.
 
----
+### 3.4 ✅ Auto-assign faculty + schedule — `L` — SHIPPED
 
-### 3.4 Auto-assign faculty + schedule — `L`
+Built. **Auto-assign sections** button on `/admin/sections`. Greedy
+solver in `apps/backend/src/modules/sections/auto-assign.service.ts`
+with constraint-tightness ordering. Hard constraints: qualification,
+availability, faculty conflict, **block conflict** (added later when we
+found students were being scheduled into overlapping classes), load cap.
+Soft constraints by strategy: balanced / prefer-grouped-days /
+prefer-mornings.
 
-**Problem.** After "Open Term", admin manually picks faculty + time for
-each TBA section. With dozens of sections this is hours of work and
-error-prone.
+**Companion shipped:** `/faculty/subjects` page lets faculty self-declare
+which courses they can teach (preference 1-5) + their max teaching units
+cap. Required infrastructure for the auto-assigner.
 
-**Data model.** None.
-
-**Algorithm.** Constraint satisfaction:
-- Hard constraints: faculty `availability` of kind `teaching`, no
-  schedule overlap, room availability (post-3.3).
-- Soft constraints: faculty department/specialty match (would need a
-  `faculty_specialties` table), faculty load balance (units per week),
-  preference for grouped days (MWF over TThS).
-- Approach: greedy heuristic that orders sections by constraint
-  tightness (fewest possible faculty first), assigns, backtracks on
-  conflict. CSP libraries exist (`csps` npm) but a hand-rolled greedy is
-  usually enough for ~100 sections.
-
-**Backend.**
-- `POST /api/sections/auto-assign?termId=…&dryRun=true` — returns a
-  proposed assignment without applying.
-- `POST /api/sections/auto-assign?termId=…&dryRun=false&strategy=…` —
-  applies.
-- A `strategy` enum (`balanced`, `prefer-grouped-days`, `prefer-mornings`).
-
-**Frontend.**
-- Admin Sections page: new "Auto-assign" button at the term level.
-- Modal: strategy selector → run dry-run → preview diff (rows: section,
-  current state, proposed state) → "Apply" button.
-
-**Edge cases.**
-- Infeasible: not enough faculty hours for the section load. Report
-  unfilled sections with reason.
-- Existing assignments — option to lock them and only fill TBA.
-- Audit logging — one row per section that changed.
-
-**Effort breakdown.** 1 d algorithm prototype + 1 d backend service +
-1 d preview UI + 1 d edge cases + 1 d audit/permissions = ~5 days.
-
-**Dependencies.** Item 3.3 (rooms) strongly preferred.
-
-**Open questions.**
-- Faculty specialties data model — even a free-text `faculty.expertise`
-  jsonb column buys a lot for v1.
-- Lock recently-changed sections so the algorithm doesn't churn them.
-
----
+**Still TODO once 3.3 lands:** add `room_id` to the constraint set so
+the assigner doesn't double-book rooms.
 
 ### 3.5 Audit-log actor timeline — `S`
 
@@ -694,28 +475,20 @@ error-prone.
 Today the audit log filters by action/entity/date but not by actor in a
 focused timeline view.
 
-**Data model.** None — `audit_logs.user_id` already exists.
+**Backend.** `GET /api/audit-logs/users/:id?from=&to=&limit=` — flat list
+filtered to one actor, newest first.
 
-**Backend.**
-- `GET /api/audit-logs/users/:id?from=…&to=…&limit=…` — flat list
-  filtered to one actor, newest first.
-
-**Frontend.**
-- On the admin Users table, add a "View activity" row action that opens
-  a side panel with a timeline.
-- On the Audit Log page, an actor's name in any row links to the
-  timeline.
+**Frontend.** On the admin Users table, add a "View activity" row action
+that opens a side panel with a timeline. On the Audit Log page, an
+actor's name in any row links to the timeline.
 
 **Edge cases.**
-- System actions (`user_id IS NULL`) — exclude from any user-scoped view.
-- High-volume actors (faculty entering scores) — paginate.
+- System actions (`user_id IS NULL`) — exclude from user-scoped view.
+- High-volume actors — paginate.
 
-**Effort breakdown.** 2 h backend + 4 h frontend timeline component +
-1 h linking = ~1 day.
+**Effort breakdown.** ~1 day.
 
-**Dependencies.** Audit log module (already shipped).
-
----
+**Dependencies.** Audit log module (shipped).
 
 ### 3.6 Past-term archive — `M`
 
@@ -727,37 +500,27 @@ thousands of rows of stale data weighing down every query.
 CREATE TABLE enrollments_archive ( LIKE enrollments INCLUDING ALL );
 CREATE TABLE sections_archive    ( LIKE sections    INCLUDING ALL );
 CREATE TABLE scores_archive      ( LIKE scores      INCLUDING ALL );
--- Plus indexes on (student_id, term_id) for transcript queries.
 ```
 
 **Backend.**
 - `POST /api/admin/archive-term/:termId` — move rows for one term into
-  `*_archive` tables in a transaction. Updates a `terms.archived_at`
-  timestamp.
-- Transcript / TOR endpoints UNION the live + archive tables (use a
-  view: `CREATE VIEW enrollments_all AS SELECT … FROM enrollments UNION
-  ALL SELECT … FROM enrollments_archive`).
-- Default list endpoints filter `archived_at IS NULL` on the terms join.
+  `*_archive` tables in a transaction. Updates a `terms.archived_at` ts.
+- Transcript / TOR endpoints UNION live + archive (use a view).
+- Default list endpoints filter `archived_at IS NULL`.
 
 **Frontend.**
-- Admin Terms page: "Archive" action on terms whose `end_date` < 1 year
-  ago.
-- A confirmation modal showing row counts that will move.
+- Admin Terms page: "Archive" action on terms whose `end_date` is > 1
+  year ago.
+- Confirmation modal showing row counts that will move.
 
 **Edge cases.**
-- Active grade appeals on archived terms — leave appeal rows live but
-  reference archived enrollment.
+- Active grade appeals on archived terms — keep appeal rows live.
 - Restore action — possible but rare; ship as admin-only one-off SQL.
 
-**Effort breakdown.** 4 h schema + 6 h backend movement logic + 4 h
-view-based reads + 3 h UI = ~2 days.
+**Effort breakdown.** ~2 days.
 
-**Dependencies.** None, but should land *before* the system has years
-of accumulated data.
-
-**Open questions.**
-- Archive students who haven't enrolled in 2+ years too? Or keep their
-  records live? Probably keep — students may come back.
+**Dependencies.** None, but should land *before* the system has years of
+accumulated data.
 
 ---
 
@@ -777,34 +540,24 @@ ALTER TABLE enrollments ADD COLUMN inc_completed_at TIMESTAMPTZ;
 
 **Backend.**
 - `finalizeGrades` accepts `letterGrade: 'INC'` for individual students.
-  Sets `inc_deadline = finalized_at + interval '1 year'` and leaves
-  `numeric_grade NULL`.
-- New `POST /api/enrollments/:id/complete-inc` (faculty owner) →
-  promotes to a real grade.
-- Cron-style daily job (call from a scheduled HTTP endpoint, or simple
-  SQL on read): any `inc_deadline < now()` and `inc_completed_at IS
-  NULL` → flip `letter_grade = '5.00'`, fire a notification.
+- New `POST /api/enrollments/:id/complete-inc` (faculty owner).
+- Query-time check (or daily cron via `pg_cron`): any
+  `inc_deadline < now()` and `inc_completed_at IS NULL` → flip to
+  `letter_grade = '5.00'`.
 
 **Frontend.**
-- Gradebook finalize modal: gain a per-student "Mark INC" toggle.
+- Gradebook finalize modal: per-student "Mark INC" toggle.
 - Student grades page: INC rows show countdown.
 - Faculty section view: "INC tracker" widget listing pending INCs.
 
 **Edge cases.**
-- Faculty changes section after issuing INC → ownership of the
-  completion action passes to the new faculty.
+- Faculty changes section after issuing INC → completion ownership
+  passes to new faculty.
 - Multiple INCs per student across terms — independent timers.
 
-**Effort breakdown.** 3 h schema + 6 h backend (incl. deadline job) +
-6 h frontend = ~2 days.
+**Effort breakdown.** ~2 days.
 
-**Dependencies.** Notifications.
-
-**Open questions.**
-- Daily job how — `pg_cron`, Render's cron, or a query-time check that
-  flips on read? Query-time is the simplest, runs on every grades-read.
-
----
+**Dependencies.** Notifications (shipped).
 
 ### 4.2 Grade appeals — `M`
 
@@ -822,35 +575,29 @@ CREATE TABLE grade_appeals (
                 CHECK (status IN ('pending','faculty_review','dean_review','resolved','withdrawn')),
   faculty_note  TEXT,
   dean_note     TEXT,
-  outcome       TEXT,                       -- 'grade_changed','denied','withdrawn'
-  resolved_grade TEXT,                      -- new letter grade if changed
+  outcome       TEXT,
+  resolved_grade TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at   TIMESTAMPTZ
 );
 ```
 
-**Backend.** Routes per role to advance the workflow + notification
-fanout at each state change. State machine:
-`pending → faculty_review → dean_review → resolved | withdrawn`.
+**Backend.** State machine `pending → faculty_review → dean_review →
+resolved | withdrawn`. Routes per role to advance.
 
-**Frontend.** Three role-scoped views with a Kanban-ish status display.
+**Frontend.** Three role-scoped views with Kanban-ish status display.
 
 **Edge cases.**
-- Time-bounded: appeals only allowed within 14 days of finalize.
-- Grade change rewrites `enrollments.letter_grade` and the GWA recompute
-  cascades.
-- Audit log every state change with the actor.
+- Time-bounded: appeals only within 14 days of finalize.
+- Grade change rewrites `enrollments.letter_grade` and GWA recomputes.
+- Audit log every state change.
 
-**Effort breakdown.** 4 h schema + 8 h backend state machine + 12 h
-3-role UI + 4 h notifications/audit = ~3 days.
+**Effort breakdown.** ~3 days.
 
 **Dependencies.** Notifications.
 
 **Open questions.**
-- Need a `dean` role? Currently we only have `admin`. Could either add a
-  role or have admins act as dean.
-
----
+- Need a `dean` role? Currently we only have `admin`.
 
 ### 4.3 Honor roll / Dean's List auto-compute — `S`
 
@@ -864,40 +611,34 @@ CREATE TABLE term_honors (
   student_id  UUID        NOT NULL REFERENCES users(id),
   term_id     UUID        NOT NULL REFERENCES terms(id),
   gwa         NUMERIC(4,2) NOT NULL,
-  category    TEXT        NOT NULL,         -- 'presidents','deans','honors'
+  category    TEXT        NOT NULL,    -- 'presidents','deans','honors'
   computed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   UNIQUE (student_id, term_id)
 );
 ```
 
-**Backend.**
-- `POST /api/admin/term/:id/compute-honors` — runs the aggregation:
-  for every student with all term enrollments finalized and a min unit
-  load (e.g. 15), compute GWA → bucket → insert.
-- Make `finalizeGrades` opportunistically re-run this for that student
-  to keep the table fresh.
+**Backend.** `POST /api/admin/term/:id/compute-honors` runs the
+aggregation; opportunistically re-run inside `finalizeGrades` to keep
+fresh.
 
 **Frontend.**
-- Admin: term page → "Compute honors" button + a table per category.
-- Student dashboard: "President's List" / "Dean's List" badge near GWA.
-- Public page (optional): `/honors/:termId` for celebration.
+- Admin: term page → "Compute honors" button + table per category.
+- Student dashboard: badge near GWA.
+- Public `/honors/:termId` page (optional).
 
 **Edge cases.**
 - Failing one subject disqualifies regardless of GWA.
 - Underloaded (< 15 units) → not eligible.
-- INC → not yet eligible (skip until completed).
+- INC → not yet eligible.
 
-**Effort breakdown.** 2 h schema + 3 h backend aggregation + 3 h
-frontend = ~1 day.
+**Effort breakdown.** ~1 day.
 
 **Dependencies.** Finalize-grades flow.
-
----
 
 ### 4.4 Add/drop window enforcement — `S`
 
 **Problem.** Enrollments are mutable forever. We need a window after
-which a section change requires a formal "withdraw" entry.
+which a section change requires a formal "withdraw".
 
 **Data model.**
 ```sql
@@ -908,49 +649,37 @@ ALTER TABLE terms
 
 **Backend.** Update `createEnrollment` / `updateEnrollment`:
 - Before `add_drop_deadline`: any change allowed.
-- Between add/drop and withdraw: only `dropped` → record as `withdraw`
-  status (new enrollment_status?) or annotate.
+- Between add/drop and withdraw: only `dropped`, marked as withdrawn.
 - After withdraw deadline: reject changes (admin override possible).
 
 **Frontend.** Admin Term form: two new date pickers. Enrollments page:
-status pills show "Withdrawn" vs "Dropped".
+status pills distinguish "Withdrawn" vs "Dropped".
 
-**Edge cases.**
-- Force-enroll by admin always allowed but audit-logged with `force=true`.
-
-**Effort breakdown.** 1 h schema + 4 h backend logic + 2 h UI = ~1 day.
-
-**Dependencies.** None.
+**Effort breakdown.** ~1 day.
 
 **Open questions.**
 - Add a new `withdrawn` value to `enroll_status` enum, or piggyback on
   `dropped`? Cleaner to add it.
 
----
-
 ### 4.5 Prerequisite enforcement at enrollment — `S`
 
-**Problem.** `course_prerequisites` exists in schema but the enrollment
-endpoint doesn't check it.
+**Problem.** `course_prerequisites` exists in schema but
+`createEnrollment` doesn't check it.
 
 **Backend.** Inside `createEnrollment`:
 - Resolve the section → course → prereq course IDs.
-- Check the student has a passing (`letter_grade <= 3.00`) prior
-  enrollment for each prereq course.
-- Reject with 409 + actionable message ("Missing CS101").
+- Check the student has a passing prior enrollment for each prereq.
+- Reject with 409 + actionable message.
 
 **Frontend.** Admin Enrollments modal surfaces the error. Curriculum
-visualization (item under student curriculum) already shows the locked
-state, so this is mostly enforcement parity.
+visualization already shows lock state.
 
 **Edge cases.**
-- Admin override (current term equivalent, transfer credit) — flag as
-  `prerequisite_override` in audit log.
-- Multiple equivalent prereqs (`CS101a OR CS101b`) — current schema
-  only models AND; future-proof by treating empty prereq list = unlocked
-  and a `prereq_group` column for OR semantics.
+- Admin override (transfer credit) — flag as `prerequisite_override`.
+- Multiple equivalent prereqs (`CS101a OR CS101b`) — current schema only
+  models AND.
 
-**Effort breakdown.** 4 h backend + 2 h tests + 1 h UI surfacing = ~1 day.
+**Effort breakdown.** ~1 day.
 
 **Dependencies.** Existing prereq table.
 
@@ -958,103 +687,40 @@ state, so this is mostly enforcement parity.
 
 ## 5. Analytics & dashboards
 
-### 5.1 Cohort retention chart — `M`
+### 5.1 ✅ Cohort retention chart — `M` — SHIPPED
 
-**Problem.** "Of 60 freshmen in BSCS 2022, how many are still active?"
-is the question that funds school decisions.
+Built. `/admin/analytics` → **Cohort retention** tab. Custom SVG stacked
+bar chart, optional program filter, sortable detail table. Bucketed by
+the first 4 chars of `user_code`. Per cohort: active / graduated /
+inactive / retention %.
 
-**Backend.** `GET /api/admin/analytics/retention?programId=…&startYear=…`
-returns rows per cohort year with counts for `active`, `graduated`,
-`dropped`, `transferred`.
+### 5.2 ✅ Faculty teaching-load report — `S` — SHIPPED
 
-**Frontend.** Admin dashboard adds a "Retention" tab with stacked-area
-chart (recharts or @visx). Filters per program / start year.
+Built. **Faculty load** tab. Term selector, status filter chips
+(Overloaded / Normal / Light / Idle), sortable utility bar, click-row
+expand to see each faculty's section list.
 
-**Edge cases.**
-- Students who transferred in (no original cohort year) — separate bucket.
-- Year-leveled-up students count under their original cohort.
+### 5.3 ✅ Section fill rates — `S` — SHIPPED
 
-**Effort breakdown.** 6 h queries + 8 h chart UI + 2 h filters = ~2 days.
+Built. **Section fill** tab. Distribution histogram (6 bins) + per-section
+sortable table with status badges (over / full / normal / under / empty).
 
----
+### 5.4 ✅ Average GWA per program / cohort — `S` — SHIPPED
 
-### 5.2 Faculty teaching-load report — `S`
-
-**Problem.** Easy way to spot overloaded faculty per term.
-
-**Backend.** `GET /api/admin/faculty-load?termId=…` returns rows per
-faculty: total units, hours/week, number of sections, with a flag if >
-threshold (e.g. 24 units).
-
-**Frontend.** New tab on admin Dashboard, table with sortable columns.
-
-**Effort breakdown.** 3 h query + 4 h UI = ~1 day.
-
----
-
-### 5.3 Section fill rates — `S`
-
-**Problem.** Spot under-enrolled offerings to consolidate or open more
-to spread demand.
-
-**Backend.** `GET /api/admin/section-fill?termId=…` returns
-`section_code, enrolled, capacity, pct` rows.
-
-**Frontend.** Admin Sections page gains a "Fill rates" chip filter or
-sortable column. Optional histogram on the dashboard.
-
-**Effort breakdown.** ~5 h.
-
----
-
-### 5.4 Average GWA per program / cohort — `S`
-
-**Problem.** Trend signal for program quality / cohort strength.
-
-**Backend.** `GET /api/admin/gwa-stats?programId=…&groupBy=cohort|term`.
-
-**Frontend.** Dashboard widget — small multiples per program.
-
-**Effort breakdown.** ~5 h.
+Built. **Average GWA** tab. Inverted-Y line chart (so "up" reads as
+"better" despite 1.00 being best). Group-by toggle (Cohort / Term).
+Distribution column with President's / Dean's / Good / Warning / Failing
+buckets.
 
 ---
 
 ## 6. Security & polish
 
-### 6.1 Force password change on first login — `S`
+### 6.1 ✅ Force password change on first login — `S` — SHIPPED
 
-**Problem.** Default password `1.PolytechnicU` is fine *if* users
-change it. They rarely will unless forced.
-
-**Data model.**
-```sql
-ALTER TABLE users ADD COLUMN password_must_change BOOLEAN NOT NULL DEFAULT false;
-```
-
-Set `true` on user creation and reset to `false` after a successful
-password change.
-
-**Backend.**
-- `createUser` sets `password_must_change = true`.
-- `changePassword` clears it.
-- `GET /api/auth/me` exposes the flag.
-
-**Frontend.**
-- A guard: if `me.password_must_change`, redirect to `/account` (or a
-  dedicated `/account/change-password`) and disable other routes via a
-  banner overlay.
-- Banner copy: "Welcome — please change your default password to
-  continue."
-
-**Edge cases.**
-- Admin resetting another user's password should also set
-  `password_must_change = true`.
-
-**Effort breakdown.** 1 h schema + 2 h backend + 3 h guard/UI = ~1 day.
-
-**Dependencies.** Default password (shipped).
-
----
+Built. `users.password_must_change` column + `PasswordChangeGate` in
+`AppLayout.tsx`. Pins routing to `/<role>/account` and shows an amber
+banner until the user changes their default password.
 
 ### 6.2 Login history / device list — `M`
 
@@ -1076,20 +742,11 @@ CREATE INDEX idx_login_events_user_time ON login_events(user_id, created_at DESC
 ```
 
 **Backend.** `auth.login` inserts on every attempt (success + fail).
-`GET /api/auth/me/logins?limit=50` returns recent events for the caller.
+`GET /api/auth/me/logins?limit=50` returns recent events.
 
-**Frontend.** Account page gains a "Recent logins" table with IP,
-location guess (geoip-lite or skip), device hint (parse UA briefly).
+**Frontend.** Account page gains a "Recent logins" table.
 
-**Edge cases.**
-- Brute-force detection — after 5 failures from same IP in 10 min,
-  rate-limit. Out of scope for v1, but the data unlocks it.
-- IP behind proxy — store `X-Forwarded-For` first IP.
-
-**Effort breakdown.** 2 h schema + 3 h backend + 4 h frontend + 2 h
-rate-limit hook = ~1.5 days.
-
----
+**Effort breakdown.** ~1.5 days.
 
 ### 6.3 2FA (TOTP) — `M`
 
@@ -1099,7 +756,7 @@ rate-limit hook = ~1.5 days.
 **Data model.**
 ```sql
 ALTER TABLE users
-  ADD COLUMN totp_secret TEXT,         -- base32-encoded
+  ADD COLUMN totp_secret TEXT,
   ADD COLUMN totp_enabled BOOLEAN NOT NULL DEFAULT false;
 
 CREATE TABLE totp_recovery_codes (
@@ -1110,137 +767,347 @@ CREATE TABLE totp_recovery_codes (
 );
 ```
 
-**Backend.** `speakeasy` npm lib for TOTP. Flow:
-- `POST /api/auth/2fa/setup` → generates a secret + 8 recovery codes,
-  returns provisioning URI for QR.
-- `POST /api/auth/2fa/verify` body `{ code }` → marks `totp_enabled =
-  true`, returns recovery codes (last time they're shown).
-- Login: if `totp_enabled`, after password OK, return a short-lived
-  pre-auth token; client posts `{ preAuthToken, code }` to
-  `/api/auth/2fa/login` for the real JWT.
-- `POST /api/auth/2fa/disable` (requires current TOTP).
+**Backend.** `speakeasy` npm. Flow: setup → verify → recovery codes →
+login becomes two-step.
 
-**Frontend.** Account page → security section with enrollment flow,
-QR code (qrcode.js), recovery codes display. Login screen gains a
-second step.
+**Frontend.** Account page security section + login flow extension.
 
-**Edge cases.**
-- Lost device → admin can disable on someone else's account, audited.
-- Time drift — `speakeasy` allows ±1 step (30 s window).
+**Effort breakdown.** ~2.5 days.
 
-**Effort breakdown.** 6 h backend + 8 h UI (setup + login + recovery) +
-3 h audit/edge cases = ~2.5 days.
-
-**Dependencies.** None.
-
-**Open questions.**
-- Mandatory for admins, optional for everyone else?
-
----
+**Open questions.** Mandatory for admins, optional for everyone else?
 
 ### 6.4 Global command palette (Cmd+K) — `M`
 
 **Problem.** Admins navigate the app many times a day; a typeahead jump
 is a big productivity win.
 
-**Data model.** None.
-
 **Backend.** `GET /api/search?q=…&types=users,sections,courses` —
-unified search across the three entities, returns 10 best matches.
+unified search.
 
-**Frontend.**
-- New `CommandPalette.tsx` component triggered on Cmd/Ctrl+K, ⌘
-  shortcut.
-- Two modes: navigation (start with `>`) showing app routes, and search
-  (no prefix) hitting the API.
-- Debounce queries 200 ms.
+**Frontend.** `CommandPalette.tsx` component triggered on Cmd/Ctrl+K.
+Navigation mode (start with `>`) and search mode.
 
-**Edge cases.**
-- Permissions — students should only search their own data; the API
-  filters by role.
-- Empty state should show recent actions.
-
-**Effort breakdown.** 1 day search API + 1 day UI = ~2 days.
-
----
+**Effort breakdown.** ~2 days.
 
 ### 6.5 Dark mode — `S`
 
-**Problem.** Eye-strain at night, preference accessibility.
+**Problem.** Eye-strain at night, accessibility.
 
-**Backend.** None.
-
-**Frontend.**
-- Tailwind `darkMode: 'class'` in config.
-- Add dark variants to every color used. The beige/olive palette
-  inverts cleanly to slate/olive-bright.
-- A toggle in the topbar that writes to `localStorage` and applies
-  `class="dark"` on `<html>`.
-
-**Edge cases.**
-- Print stylesheet should force light.
-- Charts (item 5) need explicit dark palette.
+**Frontend.** Tailwind `darkMode: 'class'`, add dark variants, topbar
+toggle writes to `localStorage`. The beige/olive palette inverts cleanly
+to slate/olive-bright.
 
 **Effort breakdown.** ~6 h.
 
----
-
 ### 6.6 Code-split the bundle — `S`
 
-**Problem.** Vite warns at ~520 kB initial bundle. First-paint suffers
+**Problem.** Vite warns at ~620 KB initial bundle. First-paint suffers
 on mobile data.
 
-**Backend.** None.
+**Frontend.** `React.lazy(() => import(…))` per top-level route in
+`App.tsx`. Suspense boundary around `<Outlet />` with a skeleton.
 
-**Frontend.**
-- `React.lazy(() => import(…))` on every top-level route in `App.tsx`.
-- Suspense boundary around `<Outlet />` with a skeleton.
-- Move `react-query` devtools (if added later) to dev-only build.
-
-**Effort breakdown.** 2 h lazy + 1 h Suspense polish + 1 h test = ~4 h.
-
-**Dependencies.** None.
+**Effort breakdown.** ~4 h.
 
 ---
 
 ## 7. Long-tail — skip unless asked
 
-These either don't fit the SIS domain or carry a large hidden cost.
-
 - **Tuition / fees module** — separate accounting domain. Real-money
-  flows demand audit hardness (double-entry, reconciliation, refunds)
-  far beyond the rest of the app.
-- **Direct messaging between users** — moderation burden, low SIS
-  value. Use chat tools already in the school's stack.
-- **Mobile app (RN / native)** — the responsive web already covers
-  mobile. Native only matters for push notifications + offline, neither
-  of which is critical here.
-- **Real-time presence ("who's online")** — fun, low value. Use sparingly.
-- **AI-graded essays** — interesting but a separate product surface
-  with its own ethical considerations.
+  flows demand audit hardness far beyond the rest of the app.
+- **Direct messaging between users** — moderation burden, low SIS value.
+  Use school's existing chat tools.
+- **Mobile app (RN / native)** — responsive web already covers mobile.
+- **Real-time presence ("who's online")** — fun, low value.
+- **AI-graded essays** — separate product surface with ethical concerns.
 
 ---
 
-## 8. Recommended next phase
+## 8. New ideas surfaced during build
 
-A coherent **"Phase 9: post-grade flow"** pairing three small features
-that strengthen all three role surfaces:
+Items the team identified mid-development that weren't in the original
+backlog. Mix of small UX polish and bigger workflow features.
 
-1. **Force password change on first login** (6.1) — closes the loop on
-   the default-password feature already shipped.
-2. **Section announcements** (2.2) — gives faculty a one-to-many
-   channel, reuses notifications module.
-3. **Certificate of Enrollment PDF** (1.1) — student self-service for
-   the most-requested document and lays the PDF foundation for Form
-   137 / 138 / TOR later.
+### 8.1 ✅ Self-enlistment / confirm enrollment — `M` — SHIPPED
 
-**Combined effort:** ~3 days. Each piece is independently shippable, so
-slice as preferred.
+Built as a richer version of the wishlist concept. `enroll_status`
+gained a `pending` value; Open Term creates pending rows; students
+confirm via the COR page banner. Filters across the app already required
+`status = 'enrolled'`, so unconfirmed rows are invisible by design.
 
-**Why this set together:**
-- They cover all three roles (admin sets up forced password reset,
-  faculty posts announcements, students download COE).
-- They share zero risky changes — no schema migrations beyond two
-  optional new tables, no breaking auth changes.
-- They open future doors: PDF infra unlocks Form 137 / 138 / TOR;
-  announcements pattern unlocks broader broadcast features.
+### 8.2 ✅ TBA auto-pass at term close — `S` — SHIPPED
+
+Policy enforcement: when a section had no faculty assigned at term close
+(registrar's failure), every still-enrolled student gets `1.00`
+automatically. Per-enrollment `AUTO_PASS_TBA` audit row + student
+notification. Triggered from the Terms page on each inactive term card.
+
+### 8.3 ✅ Eye-icon password reveal toggle — `S` — SHIPPED
+
+Reveal/hide button inside every password field (Login + Account →
+change password + forced password change). Built into the shared
+`InputField` component so any future password field gets it for free.
+
+### 8.4 ✅ Block-conflict-aware auto-assign — `S` — SHIPPED
+
+Enhancement of 3.4. Original algorithm only tracked faculty schedules,
+which caused two sections in the same block to be scheduled at the same
+time (different faculty, no faculty conflict). Now tracks
+`Map<block_id, OccupiedSlot[]>` alongside the faculty map. Also fixed
+the candidate generator to enumerate every valid start time (not just
+the first), giving the algorithm fallbacks when 07:00 is locked.
+
+### 8.5 Forgot-password flow — `S`
+
+**Problem.** Currently a user who forgets their password has to ask an
+admin to reset it via `/admin/users` (the admin enters a new password →
+`password_must_change=true`). For a school with hundreds of accounts
+that's manageable; for a real rollout it's a registrar bottleneck.
+
+**Backend.** `POST /api/auth/forgot-password` with `{ userCode }`.
+Without email integration (deferred), the admin gets an in-app
+notification listing pending reset requests. They click "approve" →
+password gets reset to the default + flagged for change.
+
+**Frontend.** "Forgot password?" link on the login page → modal with
+user-code field → confirmation toast.
+
+**Effort breakdown.** ~1 day if admin-mediated. ~3 days if email-based
+(needs item 8.6 first).
+
+### 8.6 Email integration (Resend / SMTP) — `M`
+
+**Problem.** Several features depend on outbound email: forgot password,
+auto-share credentials on user creation, notification digests.
+Implementation was started and abandoned earlier; bring it back when
+ready.
+
+**Backend.** `apps/backend/src/lib/mailer.ts` was the old location.
+Pattern: fail-soft (no API key → log + skip), Resend SDK,
+`sendEmail({ to, subject, html, text })`. Tied to the user-creation
+flow first; later expanded to forgot-password and grade-finalize digest.
+
+**Effort breakdown.** ~1 day for the mailer + welcome-email; ~1 day more
+to wire into forgot-password.
+
+**Open questions.**
+- Provider choice (Resend / SendGrid / Brevo)?
+- From-domain — verify a school domain or use the test sender?
+
+### 8.7 Notification preferences — `S`
+
+**Problem.** A noisy bell with no controls trains users to ignore it.
+Per-kind opt-out lets users keep the signal high.
+
+**Data model.**
+```sql
+CREATE TABLE notification_preferences (
+  user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  kind    TEXT NOT NULL,
+  muted   BOOLEAN NOT NULL DEFAULT false,
+  PRIMARY KEY (user_id, kind)
+);
+```
+
+**Backend.** `GET/PUT /api/notifications/preferences`. `createMany` in
+`notifications.service.ts` filters out muted kinds at fan-out time.
+
+**Frontend.** Account page → "Notifications" section with per-kind
+toggles.
+
+**Effort breakdown.** ~6 h.
+
+### 8.8 Student / faculty photo upload — `S`
+
+**Problem.** The `Avatar` component falls back to colored initials. A
+real photo on the COR / roster / dashboard makes the app feel less
+sterile.
+
+**Data model.** New `users.photo_url` column. Storage in Supabase
+Storage bucket.
+
+**Backend.** `POST /api/auth/me/photo` (multipart). Validate image (size,
+format), upload to Supabase Storage, save URL.
+
+**Frontend.** Account page → "Upload photo" with preview. `Avatar`
+component renders `<img>` if URL present, fallback initials otherwise.
+
+**Effort breakdown.** ~1 day.
+
+### 8.9 Subscription URL for schedule .ics — `S`
+
+**Problem.** The shipped 1.3 is a one-shot download. Calendars don't
+auto-refresh when the schedule changes. A subscription URL with a
+long-lived per-student JWT scoped only to the ICS endpoint would let
+Google/Apple Calendar poll for updates.
+
+**Backend.** `POST /api/students/me/schedule-token` returns a JWT with a
+new claim (`scope: 'ics-export'`) and a long TTL. New unauthenticated
+endpoint `GET /schedule/:token.ics` validates the token and emits the
+same payload as the existing one-shot route.
+
+**Frontend.** Schedule page → "Get subscription URL" → modal with the
+generated URL + step-by-step "Add to Google Calendar" / "Add to Apple
+Calendar" instructions.
+
+**Effort breakdown.** ~1 h backend + 2 h UI + 1 h instructions = ~4 h.
+
+### 8.10 CHED reporting templates — `M`
+
+**Problem.** PH schools must submit periodic reports to CHED (the
+Commission on Higher Education). Common: faculty workload report,
+enrollment statistics, graduation profile. We have all the data; this
+is a Word / PDF / Excel templating exercise.
+
+**Backend.** New `apps/backend/src/lib/reports/` with one renderer per
+CHED form. Likely XLSX (using `xlsx` npm) since CHED traditionally
+accepts spreadsheets.
+
+**Frontend.** Admin → new "Compliance" sidebar entry → list of available
+reports.
+
+**Effort breakdown.** ~3 days per form. Start with the most-requested.
+
+**Open questions.**
+- Which exact CHED forms? (CHED has dozens; the registrar would specify.)
+- How often are they submitted?
+
+### 8.11 Course substitution / equivalence mapping — `M`
+
+**Problem.** Transferees take courses with different codes at other
+schools; the registrar needs a way to map "this UM course is equivalent
+to that other-school course" so the student gets credit.
+
+**Data model.**
+```sql
+CREATE TABLE course_equivalences (
+  id              UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+  internal_code   TEXT        NOT NULL,        -- our course code (e.g. 'COMP002')
+  external_code   TEXT        NOT NULL,        -- e.g. 'IT 101 (PLM)'
+  external_school TEXT,
+  notes           TEXT,
+  approved_by     UUID        REFERENCES users(id),
+  approved_at     TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+```
+
+**Backend.** CRUD endpoints. Used by curriculum-progress to mark a
+course "completed" via equivalence when checking prereqs.
+
+**Frontend.** Admin → Curriculum page → per-course "Manage equivalences"
+modal.
+
+**Effort breakdown.** ~2 days.
+
+### 8.12 Multi-program institution — `M`
+
+**Problem.** Currently the seed has only BSCS. A real institution has
+BSCS + BSIT + BSCpE + business + nursing programs. The schema already
+supports it; the practical work is making the UI not assume "BSCS"
+everywhere (the Curriculum page has a program selector, but other pages
+don't show multi-program filters).
+
+**Backend.** Mostly no change — queries already accept program filters.
+
+**Frontend.**
+- Admin Dashboard widgets gain a program-filter row.
+- Sections drill-down already supports program selection.
+- Analytics tabs already have program filters.
+- Mostly polish: make sure no hardcoded "BSCS" references exist.
+
+**Effort breakdown.** ~2 days, mostly testing.
+
+**Dependencies.** Probably want to seed a second program (`BSIT`?) to
+exercise the multi-program flow.
+
+### 8.13 Faculty announcements at the institution level — `S`
+
+**Problem.** "All classes suspended Friday" needs to go to every
+student + faculty. Section announcements (2.2) only fan out to enrolled
+students.
+
+**Data model.** Like section announcements but with `audience` enum
+(`all_students`, `all_faculty`, `everyone`, `program:<id>`).
+
+**Backend.** New `institution_announcements` table + fanout into
+notifications.
+
+**Frontend.** Admin Dashboard → "Post announcement" action. Sticky
+banner on relevant pages.
+
+**Effort breakdown.** ~1 day.
+
+**Dependencies.** Section announcements (2.2) lays the pattern.
+
+### 8.14 Refresh-the-test-DB button — `S` (admin tool)
+
+**Problem.** When testing, you often want to wipe enrollments / scores
+but keep users + programs + curriculum. Doing it via SQL is fine for
+devs; bake it into the UI for QA testers.
+
+**Backend.** `POST /api/admin/test-utils/reset-term-data` (only
+available when `NODE_ENV !== 'production'`). Deletes scores, then
+enrollments, then sections for a chosen term.
+
+**Frontend.** Hidden under a feature flag — admin "Maintenance" tab.
+
+**Effort breakdown.** ~4 h.
+
+**Open questions.**
+- Should this be permanently disabled in production builds?
+
+---
+
+## 9. Recommended next phase
+
+Items 5.1–5.4 (analytics), 6.1 (forced password change), 1.1 (COR), 1.3
+(.ics), 1.4 (wishlist), 3.1 (CSV import), 3.4 (auto-assign) are
+**all shipped**. The most impactful remaining bundles:
+
+### Phase A — Academic compliance polish (~3 days)
+
+Three small features that close common compliance gaps:
+
+1. **4.5 Prerequisite enforcement at enrollment** — schema is ready;
+   `createEnrollment` just needs to check it.
+2. **4.4 Add/drop window enforcement** — two date columns + reject
+   updates after deadline.
+3. **3.6 Past-term archive** — important to ship before two academic
+   years of data accumulate.
+
+Together: PH-aligned, no schema rewrites, all `S/M` effort.
+
+### Phase B — Faculty productivity (~5 days)
+
+Three features that make the gradebook + section a happier place to
+work:
+
+1. **2.2 Section announcements** — fan-out via existing notifications.
+2. **2.3 Grade template copy** — one new endpoint, one button on the
+   gradebook empty state.
+3. **2.1 Attendance module** — bigger commitment but the missing piece
+   between roster and gradebook.
+
+### Phase C — Admin operations (~4 days)
+
+1. **3.3 Room as entity** — promotes `sections.room` from text to FK,
+   plus the auto-assigner gains a room-conflict check.
+2. **3.2 Bulk enrollment via CSV** — reuses the 3.1 scaffolding.
+3. **3.5 Audit-log actor timeline** — one new endpoint, side-panel UI.
+
+### Phase D — Security & polish (~3 days)
+
+1. **6.6 Code-split the bundle** — quick win, helps mobile loads.
+2. **6.5 Dark mode** — appreciated by everyone.
+3. **8.7 Notification preferences** — keeps the bell signal high.
+
+If you can only pick one phase: **Phase A** has the highest "this is
+required for an actual school to use the system" weight. Phase B has the
+highest "faculty will love you" weight.
+
+---
+
+*Last updated to reflect the current state of shipped features as of
+the project overview at `PROJECT_OVERVIEW.md`. When items here ship,
+mark them ✅ and add a one-line "where it lives" note rather than
+deleting the entry — keeps a trail of what got built when.*

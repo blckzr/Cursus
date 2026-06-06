@@ -45,7 +45,9 @@ CREATE TABLE programs (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     code            TEXT NOT NULL UNIQUE,        -- e.g. 'BSCS'
     name            TEXT NOT NULL,
-    total_units     INT  NOT NULL CHECK (total_units > 0),
+    -- Derived field — the API computes the live total from curriculum_courses
+    -- on every read. The stored value is a no-op cache that defaults to 0.
+    total_units     INT  NOT NULL DEFAULT 0 CHECK (total_units >= 0),
     year_levels     INT  NOT NULL DEFAULT 4  CHECK (year_levels BETWEEN 1 AND 8),
     blocks_per_year INT  NOT NULL DEFAULT 3  CHECK (blocks_per_year > 0),
     block_capacity  INT  NOT NULL DEFAULT 50 CHECK (block_capacity > 0)
