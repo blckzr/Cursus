@@ -306,6 +306,24 @@ export const removeFromWishlist    = (id: string) =>
 export const getWishlistDemand     = (termId: string) =>
   api.get('/wishlist/demand', { params: { termId } }).then(r => r.data);
 
+// ── TBA section auto-pass (admin, term close) ────────────────────────────────
+export interface TbaAutoPassPreview {
+  term: { id: string; name: string };
+  sections: {
+    section_id: string;
+    section_code: string;
+    course_code: string;
+    course_title: string;
+    block_label: string;
+    students: number;
+  }[];
+  summary: { sectionsAffected: number; studentsAffected: number };
+}
+export const previewTbaAutoPass = (termId: string) =>
+  api.get<TbaAutoPassPreview>(`/terms/${termId}/tba-auto-pass-preview`).then(r => r.data);
+export const autoPassTbaSections = (termId: string) =>
+  api.post<{ sectionsProcessed: number; studentsPromoted: number }>(`/terms/${termId}/tba-auto-pass`).then(r => r.data);
+
 // ── Enrollment confirmation (self-enlistment) ────────────────────────────────
 export interface PendingEnrollmentSubject {
   enrollment_id: string;

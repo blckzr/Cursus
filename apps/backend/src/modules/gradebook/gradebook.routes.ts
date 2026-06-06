@@ -504,6 +504,43 @@ router.post('/students/me/confirm-enrollment',  authenticate, authorize('student
 
 /**
  * @openapi
+ * /terms/{id}/tba-auto-pass-preview:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Preview which TBA sections + students would be auto-passed
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200: { description: Sections array + summary counts }
+ *       404: { description: Term not found }
+ *
+ * /terms/{id}/tba-auto-pass:
+ *   post:
+ *     tags: [Gradebook]
+ *     summary: Auto-pass every TBA-section student in a term as 1.00
+ *     description: |
+ *       Policy enforcement for term close — when the registrar never
+ *       staffed a section, students aren't penalised. Sets numeric_grade=100,
+ *       letter_grade='1.00', status='completed' for every still-enrolled
+ *       student in every section where faculty_id IS NULL. Per-enrollment
+ *       audit log + per-student notification.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200: { description: '{ sectionsProcessed, studentsPromoted }' }
+ *       404: { description: Term not found }
+ */
+router.get ('/terms/:id/tba-auto-pass-preview', authenticate, authorize('admin'), ctrl.previewTbaAutoPass);
+router.post('/terms/:id/tba-auto-pass',         authenticate, authorize('admin'), ctrl.autoPassTbaSections);
+
+/**
+ * @openapi
  * /students/me/schedule.ics:
  *   get:
  *     tags: [Gradebook]

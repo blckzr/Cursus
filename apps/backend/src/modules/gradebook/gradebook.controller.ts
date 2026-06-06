@@ -140,6 +140,41 @@ export async function downloadCor(req: Request, res: Response, next: NextFunctio
 }
 
 /**
+ * GET /terms/:id/tba-auto-pass-preview (admin) — counts the sections/students
+ * that would be affected if the auto-pass action ran now.
+ */
+export async function previewTbaAutoPass(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.previewTbaAutoPass(req.params.id));
+  } catch (e: unknown) {
+    if (e instanceof Error && 'status' in e) {
+      const err = e as Error & { status: number };
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    next(e);
+  }
+}
+
+/**
+ * POST /terms/:id/tba-auto-pass (admin) — give every still-enrolled student
+ * in every TBA section a 1.00 final grade. Reason recorded per enrollment in
+ * the audit log; notifications fan out to students.
+ */
+export async function autoPassTbaSections(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.autoPassTbaSections(req.params.id, req.user!.sub));
+  } catch (e: unknown) {
+    if (e instanceof Error && 'status' in e) {
+      const err = e as Error & { status: number };
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    next(e);
+  }
+}
+
+/**
  * GET /students/me/pending-enrollment — returns the pending sections so the
  * COR page can render the "confirm enrollment" banner + modal. 204 when
  * there's nothing to confirm.

@@ -1,6 +1,11 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTerms, createTerm, updateTerm, openTerm, getSections, getEnrollments, getPrograms, getBlocks, getWishlistDemand } from '../../api';
+import {
+  getTerms, createTerm, updateTerm, openTerm,
+  getSections, getEnrollments, getPrograms, getBlocks, getWishlistDemand,
+  previewTbaAutoPass, autoPassTbaSections,
+  type TbaAutoPassPreview,
+} from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
@@ -26,6 +31,7 @@ export default function Terms() {
   const [editTerm, setEditTerm] = useState<Record<string, string> | null>(null);
   const [openWizardTerm, setOpenWizardTerm] = useState<Record<string, any> | null>(null);
   const [demandTerm, setDemandTerm] = useState<Record<string, any> | null>(null);
+  const [tbaTerm,    setTbaTerm]    = useState<Record<string, any> | null>(null);
   const [form, setForm] = useState({ name: '', semester: '1', startDate: '', endDate: '', isActive: 'false' });
   const [editActive, setEditActive] = useState('false');
   const [err, setErr] = useState('');
@@ -120,13 +126,23 @@ export default function Terms() {
                   </button>
                 )}
                 {!active && (
-                  <button
-                    className="btn-ghost w-full mt-3 flex items-center justify-center gap-2 border border-khaki-200"
-                    onClick={() => setDemandTerm(t)}
-                  >
-                    <Icon name="star" size={14} />
-                    See wishlist demand
-                  </button>
+                  <>
+                    <button
+                      className="btn-ghost w-full mt-3 flex items-center justify-center gap-2 border border-khaki-200"
+                      onClick={() => setDemandTerm(t)}
+                    >
+                      <Icon name="star" size={14} />
+                      See wishlist demand
+                    </button>
+                    <button
+                      className="btn-ghost w-full mt-2 flex items-center justify-center gap-2 border border-amber-200 text-amber-700 hover:bg-amber-50"
+                      onClick={() => setTbaTerm(t)}
+                      title="If any sections still have no faculty assigned, auto-pass the enrolled students (1.00)."
+                    >
+                      <Icon name="award" size={14} />
+                      Auto-pass TBA sections
+                    </button>
+                  </>
                 )}
               </div>
             );
@@ -194,6 +210,18 @@ export default function Terms() {
 
       {demandTerm && (
         <DemandModal term={demandTerm} onClose={() => setDemandTerm(null)} />
+      )}
+
+      {tbaTerm && (
+        <TbaAutoPassModal
+          term={tbaTerm}
+          onClose={() => setTbaTerm(null)}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ['enrollments'] });
+            qc.invalidateQueries({ queryKey: ['sections'] });
+            setTbaTerm(null);
+          }}
+        />
       )}
     </div>
   );
@@ -439,5 +467,123 @@ function FragmentRow({ row, expanded, onToggle }: { row: DemandRow; expanded: bo
         </tr>
       )}
     </>
+  );
+}
+
+// ============================================================================
+// TBA section auto-pass modal
+// ============================================================================
+
+function TbaAutoPassModal({ term, onClose, onDone }: {
+  term: any; onClose: () => void; onDone: () => void;
+}) {
+  const toast = useToast();
+  const { data, isLoading } = useQuery<TbaAutoPassPreview>({
+    queryKey: ['tba-auto-pass-preview', term.id],
+    queryFn:  () => previewTbaAutoPass(term.id),
+  });
+
+  const mut = useMutation({
+    mutationFn: () => autoPassTbaSections(term.id),
+    onSuccess:  res => {
+      toast.push({
+        tone:    res.sectionsProcessed === 0 ? 'info' : 'success',
+        title:   res.sectionsProcessed === 0
+          ? 'Nothing to auto-pass'
+          : `${res.studentsPromoted} student${res.studentsPromoted === 1 ? '' : 's'} promoted`,
+        message: res.sectionsProcessed > 0
+          ? `${res.sectionsProcessed} section${res.sectionsProcessed === 1 ? '' : 's'} closed at 1.00.`
+          : undefined,
+      });
+      onDone();
+    },
+    onError: (e: unknown) => toast.push({
+      tone: 'error', title: 'Auto-pass failed', message: parseApiError(e).message,
+    }),
+  });
+
+  return (
+    <Modal
+      title={`Auto-pass TBA sections — ${term.name}`}
+      subtitle="Sections that never had a faculty assigned. Confirming will give each enrolled student a 1.00 final grade and close the section."
+      onClose={onClose}
+      size="lg"
+    >
+      {isLoading ? (
+        <Skeleton className="h-64 rounded-lg" />
+      ) : !data || data.sections.length === 0 ? (
+        <div className="space-y-4">
+          <EmptyState
+            icon="check"
+            title="Nothing to do"
+            message="Every section in this term has a faculty assigned (or no enrolled students)."
+          />
+          <div className="flex justify-end">
+            <button className="btn-primary" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-amber-600">{data.summary.sectionsAffected}</div>
+              <div className="text-xs text-stone-500 mt-1">TBA sections</div>
+            </div>
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-olive-500">{data.summary.studentsAffected}</div>
+              <div className="text-xs text-stone-500 mt-1">Students → 1.00</div>
+            </div>
+          </div>
+
+          <div className="border border-beige-200 rounded-lg max-h-72 overflow-y-auto scrollable">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-beige-50 z-10">
+                <tr>
+                  <th className="table-th !py-2">Section</th>
+                  <th className="table-th !py-2">Course</th>
+                  <th className="table-th !py-2 text-center" style={{ width: 80 }}>Students</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.sections.map(s => (
+                  <tr key={s.section_id}>
+                    <td className="table-td !py-1.5">
+                      <span className="font-mono font-semibold text-olive-600">{s.section_code}</span>
+                      <div className="text-[10px] text-stone-400">{s.block_label}</div>
+                    </td>
+                    <td className="table-td !py-1.5">
+                      <span className="font-mono text-stone-500 mr-2">{s.course_code}</span>
+                      <span className="text-stone-700">{s.course_title}</span>
+                    </td>
+                    <td className="table-td !py-1.5 text-center tabular font-semibold">{s.students}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 flex items-start gap-2">
+            <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+            <div>
+              <div className="font-semibold mb-1">This action can't be undone from the UI.</div>
+              Every still-enrolled student in the sections above will be marked <span className="font-mono font-semibold">1.00</span>, status <span className="font-mono font-semibold">completed</span>, with the reason audit-logged. A "Final grade posted" notification is sent to each student.
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button
+              className="btn-primary flex items-center gap-2"
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending}
+            >
+              {mut.isPending
+                ? <><span className="spinner" /> Processing…</>
+                : <><Icon name="award" size={14} /> Auto-pass {data.summary.studentsAffected} student{data.summary.studentsAffected === 1 ? '' : 's'}</>}
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }

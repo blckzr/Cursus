@@ -336,6 +336,135 @@ export async function exportRosterCsv(sectionId: string) {
 }
 
 
+// ─── Auto-pass TBA sections at term close ───────────────────────────────────
+
+/**
+ * Returns a preview of what `autoPassTbaSections` would do — every section in
+ * the term that still has no faculty assigned plus a count of the active
+ * (status='enrolled') students attached. Used by the admin Terms page to
+ * decide whether to run the action.
+ */
+export async function previewTbaAutoPass(termId: string) {
+  const { rows: term } = await db.query(`SELECT id, name FROM terms WHERE id = $1`, [termId]);
+  if (!term[0]) throw Object.assign(new Error('Term not found'), { status: 404 });
+
+  const { rows: sections } = await db.query(
+    `SELECT s.id           AS section_id,
+            s.section_code,
+            c.code          AS course_code,
+            c.title         AS course_title,
+            p.code || ' ' || b.year_level || '-' || b.block_number AS block_label,
+            COUNT(e.id) FILTER (WHERE e.status = 'enrolled')::int AS students
+     FROM sections s
+     JOIN courses  c ON c.id = s.course_id
+     JOIN blocks   b ON b.id = s.block_id
+     JOIN programs p ON p.id = b.program_id
+     LEFT JOIN enrollments e ON e.section_id = s.id
+     WHERE s.term_id = $1 AND s.faculty_id IS NULL
+     GROUP BY s.id, c.code, c.title, p.code, b.year_level, b.block_number
+     HAVING COUNT(e.id) FILTER (WHERE e.status = 'enrolled') > 0
+     ORDER BY p.code, b.year_level, b.block_number, c.code`,
+    [termId],
+  );
+
+  const totalStudents = sections.reduce((s: number, r: { students: number }) => s + Number(r.students), 0);
+  return {
+    term:     { id: term[0].id, name: term[0].name },
+    sections,
+    summary:  {
+      sectionsAffected: sections.length,
+      studentsAffected: totalStudents,
+    },
+  };
+}
+
+/**
+ * Auto-pass every still-enrolled student in every TBA section of `termId`.
+ *
+ * Policy: when the registrar never staffed a section by term close, students
+ * shouldn't be penalised — they receive the highest PH grade (1.00 / 100) and
+ * status = completed.
+ *
+ * Runs inside a single transaction so a partial failure doesn't leave the
+ * gradebook half-updated. Per-enrollment audit logs (`AUTO_PASS_TBA`) record
+ * the section context for traceability, and each student gets an in-app
+ * notification.
+ */
+export async function autoPassTbaSections(termId: string, adminId: string) {
+  const preview = await previewTbaAutoPass(termId);
+  if (preview.sections.length === 0) {
+    return { sectionsProcessed: 0, studentsPromoted: 0 };
+  }
+  const termName = preview.term.name;
+
+  const client = await db.connect();
+  try {
+    await client.query('BEGIN');
+
+    let studentsPromoted = 0;
+    const notifications: { userId: string; kind: string; title: string; body: string; link: string; data: Record<string, unknown> }[] = [];
+
+    for (const section of preview.sections as {
+      section_id: string; section_code: string; course_code: string; course_title: string;
+    }[]) {
+      const { rows: updated } = await client.query(
+        `UPDATE enrollments
+         SET numeric_grade = 100,
+             letter_grade  = '1.00',
+             status        = 'completed',
+             finalized_at  = now(),
+             finalized_by  = $1
+         WHERE section_id = $2 AND status = 'enrolled'
+         RETURNING id, student_id`,
+        [adminId, section.section_id],
+      );
+      studentsPromoted += updated.length;
+
+      for (const u of updated as { id: string; student_id: string }[]) {
+        // Per-enrollment audit row — same shape as a normal FINALIZE_GRADE but
+        // with the TBA reason inlined so compliance can spot them later.
+        await client.query(
+          `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_value)
+           VALUES ($1, 'AUTO_PASS_TBA', 'enrollments', $2, $3)`,
+          [
+            adminId,
+            u.id,
+            JSON.stringify({
+              termId,
+              termName,
+              sectionId:    section.section_id,
+              sectionCode:  section.section_code,
+              courseCode:   section.course_code,
+              reason:       'Section had no faculty assigned at term close',
+              numericGrade: 100,
+              letterGrade:  '1.00',
+            }),
+          ],
+        );
+
+        notifications.push({
+          userId: u.student_id,
+          kind:   'grade_finalized',
+          title:  'Final grade posted',
+          body:   `${section.course_title} (${section.section_code}) — automatic 1.00 (section had no assigned faculty).`,
+          link:   '/student/grades',
+          data:   { sectionId: section.section_id, enrollmentId: u.id, letterGrade: '1.00', auto: true },
+        });
+      }
+    }
+
+    await createNotifications(notifications, client);
+
+    await client.query('COMMIT');
+    return { sectionsProcessed: preview.sections.length, studentsPromoted };
+  } catch (e) {
+    await client.query('ROLLBACK');
+    throw e;
+  } finally {
+    client.release();
+  }
+}
+
 // ─── Pending enrollment (self-enlistment) ───────────────────────────────────
 
 /**
