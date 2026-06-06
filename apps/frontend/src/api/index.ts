@@ -123,6 +123,19 @@ export const downloadRosterCsv = async (sectionId: string) => {
   URL.revokeObjectURL(url);
 };
 
+// ── Class schedule iCalendar export ─────────────────────────────────────────
+export const downloadScheduleIcs = async () => {
+  const res = await api.get('/students/me/schedule.ics', { responseType: 'blob' });
+  const cd  = (res.headers['content-disposition'] as string | undefined) ?? '';
+  const m   = cd.match(/filename="?([^";]+)"?/);
+  const filename = m ? m[1] : 'schedule.ics';
+  const url = URL.createObjectURL(res.data as Blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  URL.revokeObjectURL(url);
+};
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 export const getNotifications      = (params?: { limit?: number; unreadOnly?: boolean }) =>
   api.get('/notifications', { params }).then(r => r.data);

@@ -473,6 +473,28 @@ router.get('/students/me/cor.pdf', authenticate, authorize('student'), ctrl.down
 
 /**
  * @openapi
+ * /students/me/schedule.ics:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Download the active-term class schedule as an iCalendar feed
+ *     description: |
+ *       One VEVENT per (section × meeting day), bounded by the term's
+ *       end_date via WEEKLY RRULE. Anchored in Asia/Manila. Google Calendar,
+ *       Apple Calendar, and Outlook import this format natively.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: iCalendar file
+ *         content:
+ *           text/calendar:
+ *             schema: { type: string }
+ *       404: { description: No active schedule }
+ */
+router.get('/students/me/schedule.ics', authenticate, authorize('student'), ctrl.downloadScheduleIcs);
+
+/**
+ * @openapi
  * /sections/{id}/roster:
  *   get:
  *     tags: [Gradebook]

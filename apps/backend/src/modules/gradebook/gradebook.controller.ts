@@ -6,6 +6,7 @@ import {
 } from './gradebook.schema';
 import * as svc from './gradebook.service';
 import { renderCorPdf } from '../../lib/pdf/cor';
+import { buildScheduleIcs } from '../../lib/ics/schedule';
 
 export async function getGradebook(req: Request, res: Response, next: NextFunction) {
   try {
@@ -135,6 +136,48 @@ export async function downloadCor(req: Request, res: Response, next: NextFunctio
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', `attachment; filename="COR-${code}.pdf"`);
     res.send(pdf);
+  } catch (e) { next(e); }
+}
+
+/**
+ * GET /students/me/schedule.ics — returns the student's active-term schedule
+ * as an iCalendar feed (RFC 5545). Google Calendar, Apple Calendar, and
+ * Outlook all consume this format directly on import.
+ */
+export async function downloadScheduleIcs(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getActiveSchedule(req.user!.sub);
+    if (!data) {
+      res.status(404).json({ error: 'No active schedule. Wait until the registrar opens the term.' });
+      return;
+    }
+    const ics = buildScheduleIcs({
+      studentCode: data.student.code,
+      studentName: data.student.fullName,
+      termName:    data.term.name,
+      termStart:   new Date(data.term.startDate),
+      termEnd:     new Date(data.term.endDate),
+      enrollments: data.enrollments.map((e: {
+        enrollment_id: string; section_code: string;
+        day_of_week: string | null; start_time: string | null; end_time: string | null;
+        room: string | null;
+        course_code: string; course_title: string; faculty_name: string | null;
+      }) => ({
+        enrollmentId: e.enrollment_id,
+        courseCode:   e.course_code,
+        courseTitle:  e.course_title,
+        sectionCode:  e.section_code,
+        dayOfWeek:    e.day_of_week,
+        startTime:    e.start_time,
+        endTime:      e.end_time,
+        room:         e.room,
+        facultyName:  e.faculty_name,
+      })),
+    });
+    const code = data.student.code ?? 'student';
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="schedule-${code}.ics"`);
+    res.send(ics);
   } catch (e) { next(e); }
 }
 

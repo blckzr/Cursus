@@ -1,10 +1,12 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getStudentGrades } from '../../api';
+import { getStudentGrades, downloadScheduleIcs } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
 import Skeleton from '../../components/Skeleton';
+import Icon from '../../components/Icon';
+import { useToast } from '../../components/Toast';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 
@@ -35,6 +37,8 @@ const PX_PER_MIN = 1.2;
 
 export default function StudentSchedule() {
   const { user } = useAuth();
+  const toast = useToast();
+  const [downloading, setDownloading] = useState(false);
   const { data: grades = [], isLoading } = useQuery({
     queryKey: ['student-grades', user?.id],
     queryFn: () => getStudentGrades(user!.id),
@@ -47,6 +51,22 @@ export default function StudentSchedule() {
   );
   const term: any = active[0];
 
+  const handleAddToCalendar = async () => {
+    setDownloading(true);
+    try {
+      await downloadScheduleIcs();
+      toast.push({
+        tone: 'success',
+        title: 'Schedule downloaded',
+        message: 'Open the .ics file with Google Calendar, Apple Calendar, or Outlook to import.',
+      });
+    } catch {
+      toast.push({ tone: 'error', title: 'Download failed', message: 'Try again in a moment.' });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   const timeSlots: string[] = [];
   for (let h = 7; h <= 17; h++) timeSlots.push(`${String(h).padStart(2, '0')}:00`);
 
@@ -56,6 +76,19 @@ export default function StudentSchedule() {
         eyebrow="This week"
         title="Weekly schedule"
         subtitle={`${active.length} section${active.length === 1 ? '' : 's'} · ${term?.term_name || 'No active term'}`}
+        action={active.length > 0 && (
+          <button
+            onClick={handleAddToCalendar}
+            disabled={downloading}
+            className="btn-secondary flex items-center gap-2"
+            title="Download an .ics file you can import into Google Calendar, Apple Calendar, or Outlook"
+          >
+            <Icon name="calendar" size={14} />
+            {downloading
+              ? 'Preparing…'
+              : <><span className="hidden sm:inline">Add to calendar</span><span className="sm:hidden">Calendar</span></>}
+          </button>
+        )}
       />
 
       {isLoading ? (

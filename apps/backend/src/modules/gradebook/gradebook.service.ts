@@ -336,6 +336,59 @@ export async function exportRosterCsv(sectionId: string) {
 }
 
 
+// ─── Active-term schedule (powers .ics export) ───────────────────────────────
+
+/**
+ * Returns the calling student's currently-enrolled sections in the active
+ * term, with each section's schedule info needed to render an iCalendar
+ * feed. Returns `null` if there is no active term or no enrolled sections.
+ */
+export async function getActiveSchedule(studentId: string) {
+  const { rows: u } = await db.query(
+    `SELECT id, user_code, full_name FROM users WHERE id = $1 AND role = 'student'`,
+    [studentId],
+  );
+  if (!u[0]) throw Object.assign(new Error('Student not found'), { status: 404 });
+
+  const { rows: enrolls } = await db.query(
+    `SELECT e.id AS enrollment_id,
+            s.section_code,
+            s.day_of_week,
+            s.start_time::text AS start_time,
+            s.end_time::text   AS end_time,
+            s.room,
+            c.code  AS course_code,
+            c.title AS course_title,
+            t.id AS term_id, t.name AS term_name,
+            t.start_date, t.end_date,
+            f.full_name AS faculty_name
+     FROM enrollments e
+     JOIN sections s ON s.id = e.section_id
+     JOIN courses  c ON c.id = s.course_id
+     JOIN terms    t ON t.id = s.term_id
+     LEFT JOIN users f ON f.id = s.faculty_id
+     WHERE e.student_id = $1
+       AND e.status     = 'enrolled'
+       AND t.is_active  = TRUE
+     ORDER BY s.day_of_week NULLS LAST, s.start_time NULLS LAST, c.code`,
+    [studentId],
+  );
+
+  if (enrolls.length === 0) return null;
+  const first = enrolls[0];
+
+  return {
+    student: { code: u[0].user_code, fullName: u[0].full_name },
+    term: {
+      id:        first.term_id,
+      name:      first.term_name,
+      startDate: first.start_date,
+      endDate:   first.end_date,
+    },
+    enrollments: enrolls,
+  };
+}
+
 // ─── Certificate of Registration (COR) ───────────────────────────────────────
 
 /**
