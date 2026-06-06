@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
 import { NavLink, Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { type LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Icon from '../components/Icon';
 import Avatar from '../components/Avatar';
+import Skeleton from '../components/Skeleton';
 import NotificationBell from '../components/NotificationBell';
 
 export interface NavItem {
@@ -209,11 +210,40 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
         <div className="flex-1 overflow-y-auto scrollable">
           <PasswordChangeGate>
             <div className="px-3 py-4 sm:px-4 sm:py-5 md:p-7 max-w-[1200px] mx-auto">
-              <Outlet />
+              {/*
+                Suspense fallback for route-level code splitting. Each top-level
+                route is a separate JS chunk (see App.tsx) so the user only
+                downloads what they actually click. While a chunk is loading
+                this skeleton stands in for the page layout.
+              */}
+              <Suspense fallback={<PageSkeleton />}>
+                <Outlet />
+              </Suspense>
             </div>
           </PasswordChangeGate>
         </div>
       </main>
+    </div>
+  );
+}
+
+// ─── Page-level loading skeleton ─────────────────────────────────────────────
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse">
+      {/* Eyebrow + title + subtitle (matches PageHeader's vertical rhythm) */}
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-8 w-2/3" />
+      <Skeleton className="h-3 w-1/2" />
+      {/* Stat tiles row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+        {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
+      </div>
+      {/* Filter/toolbar row */}
+      <Skeleton className="h-12 mt-3" />
+      {/* Main content block (table / chart / grid) */}
+      <Skeleton className="h-[55vh] mt-3" />
     </div>
   );
 }

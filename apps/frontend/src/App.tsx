@@ -1,37 +1,44 @@
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText, FileBadge, Star, TrendingUp, MessageSquare } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
+// Login + shell stay eager: they're on the critical path for the very first
+// paint and small enough that splitting them just costs a round trip.
 import Login from './pages/Login';
-import AdminDashboard from './pages/admin/Dashboard';
-import Users from './pages/admin/Users';
-import Programs from './pages/admin/Programs';
-import Courses from './pages/admin/Courses';
-import Curriculum from './pages/admin/Curriculum';
-import Terms from './pages/admin/Terms';
-import Sections from './pages/admin/Sections';
-import Blocks from './pages/admin/Blocks';
-import Enrollments from './pages/admin/Enrollments';
-import AuditLog from './pages/admin/AuditLog';
-import Analytics from './pages/admin/Analytics';
-import AdminAppeals from './pages/admin/Appeals';
-import FacultyDashboard from './pages/faculty/Dashboard';
-import FacultySections from './pages/faculty/Sections';
-import FacultyAvailability from './pages/faculty/Availability';
-import Gradebook from './pages/faculty/Gradebook';
-import Roster from './pages/faculty/Roster';
-import FacultySubjects from './pages/faculty/Subjects';
-import FacultyAppeals from './pages/faculty/Appeals';
-import StudentDashboard from './pages/student/Dashboard';
-import StudentGrades from './pages/student/Grades';
-import StudentSchedule from './pages/student/Schedule';
-import StudentCurriculum from './pages/student/Curriculum';
-import StudentCor from './pages/student/COR';
-import StudentWishlist from './pages/student/Wishlist';
-import StudentAppeals from './pages/student/Appeals';
-import Account from './pages/Account';
+// Every other route is its own chunk via React.lazy. Vite emits a separate
+// JS file per `import('...')` call; the initial bundle drops because users
+// only download the page they navigate to. The shell (sidebar, topbar,
+// notifications) loads with the first chunk and stays in cache.
+const AdminDashboard      = lazy(() => import('./pages/admin/Dashboard'));
+const Users               = lazy(() => import('./pages/admin/Users'));
+const Programs            = lazy(() => import('./pages/admin/Programs'));
+const Courses             = lazy(() => import('./pages/admin/Courses'));
+const Curriculum          = lazy(() => import('./pages/admin/Curriculum'));
+const Terms               = lazy(() => import('./pages/admin/Terms'));
+const Sections            = lazy(() => import('./pages/admin/Sections'));
+const Blocks              = lazy(() => import('./pages/admin/Blocks'));
+const Enrollments         = lazy(() => import('./pages/admin/Enrollments'));
+const AuditLog            = lazy(() => import('./pages/admin/AuditLog'));
+const Analytics           = lazy(() => import('./pages/admin/Analytics'));
+const AdminAppeals        = lazy(() => import('./pages/admin/Appeals'));
+const FacultyDashboard    = lazy(() => import('./pages/faculty/Dashboard'));
+const FacultySections     = lazy(() => import('./pages/faculty/Sections'));
+const FacultyAvailability = lazy(() => import('./pages/faculty/Availability'));
+const Gradebook           = lazy(() => import('./pages/faculty/Gradebook'));
+const Roster              = lazy(() => import('./pages/faculty/Roster'));
+const FacultySubjects     = lazy(() => import('./pages/faculty/Subjects'));
+const FacultyAppeals      = lazy(() => import('./pages/faculty/Appeals'));
+const StudentDashboard    = lazy(() => import('./pages/student/Dashboard'));
+const StudentGrades       = lazy(() => import('./pages/student/Grades'));
+const StudentSchedule     = lazy(() => import('./pages/student/Schedule'));
+const StudentCurriculum   = lazy(() => import('./pages/student/Curriculum'));
+const StudentCor          = lazy(() => import('./pages/student/COR'));
+const StudentWishlist     = lazy(() => import('./pages/student/Wishlist'));
+const StudentAppeals      = lazy(() => import('./pages/student/Appeals'));
+const Account             = lazy(() => import('./pages/Account'));
 
 const qc = new QueryClient({
   defaultOptions: {
