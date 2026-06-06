@@ -473,6 +473,37 @@ router.get('/students/me/cor.pdf', authenticate, authorize('student'), ctrl.down
 
 /**
  * @openapi
+ * /students/me/pending-enrollment:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Sections waiting for the student's enrollment confirmation
+ *     description: |
+ *       Returns the pending sections in the active term so the COR page can
+ *       render a "Confirm enrollment" prompt. 204 when there's nothing to
+ *       confirm.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Pending enrollment payload }
+ *       204: { description: No pending sections }
+ *
+ * /students/me/confirm-enrollment:
+ *   post:
+ *     tags: [Gradebook]
+ *     summary: Confirm pending enrollment for the active term
+ *     description: |
+ *       Flips every pending enrollment for the calling student in the active
+ *       term to `enrolled`. Audit-logged as CONFIRM_ENROLLMENT. Returns the
+ *       number of rows updated.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Confirmed count }
+ *       409: { description: No active term to confirm against }
+ */
+router.get ('/students/me/pending-enrollment',  authenticate, authorize('student'), ctrl.getPendingEnrollment);
+router.post('/students/me/confirm-enrollment',  authenticate, authorize('student'), ctrl.confirmEnrollment);
+
+/**
+ * @openapi
  * /students/me/schedule.ics:
  *   get:
  *     tags: [Gradebook]

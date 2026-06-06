@@ -306,6 +306,31 @@ export const removeFromWishlist    = (id: string) =>
 export const getWishlistDemand     = (termId: string) =>
   api.get('/wishlist/demand', { params: { termId } }).then(r => r.data);
 
+// ── Enrollment confirmation (self-enlistment) ────────────────────────────────
+export interface PendingEnrollmentSubject {
+  enrollment_id: string;
+  course_code:   string; course_title: string; units: number;
+  section_code:  string;
+  day_of_week:   string | null; start_time: string | null; end_time: string | null;
+  room:          string | null;
+  faculty_name:  string | null;
+}
+export interface PendingEnrollmentPayload {
+  student: { code: string | null; fullName: string };
+  term: {
+    id: string; name: string; semester: string;
+    startDate: string; endDate: string;
+  };
+  subjects:   PendingEnrollmentSubject[];
+  totalUnits: number;
+}
+/** Returns null when the backend responds 204 (nothing pending). */
+export const getPendingEnrollment = (): Promise<PendingEnrollmentPayload | null> =>
+  api.get('/students/me/pending-enrollment').then(r => r.status === 204 ? null : r.data);
+
+export const confirmEnrollment = () =>
+  api.post<{ confirmed: number; termName: string | null }>('/students/me/confirm-enrollment').then(r => r.data);
+
 // ── Certificate of Registration ──────────────────────────────────────────────
 export const getCor = () => api.get('/students/me/cor').then(r => r.data);
 

@@ -22,7 +22,7 @@
 -- ============================================================
 
 CREATE TYPE user_role         AS ENUM ('admin', 'faculty', 'student');
-CREATE TYPE enroll_status     AS ENUM ('enrolled', 'dropped', 'completed');
+CREATE TYPE enroll_status     AS ENUM ('pending', 'enrolled', 'dropped', 'completed');
 CREATE TYPE semester_type     AS ENUM ('1', '2', 'summer');
 CREATE TYPE course_visibility AS ENUM ('public', 'restricted');
 CREATE TYPE availability_kind AS ENUM ('teaching', 'office_hour');

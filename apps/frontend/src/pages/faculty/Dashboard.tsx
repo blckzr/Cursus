@@ -47,14 +47,19 @@ export default function FacultyDashboard() {
   const totalStudents = gradebookQueries.reduce(
     (sum, q: any) => sum + ((q.data?.students?.length) || 0), 0,
   );
-  const allGrades = gradebookQueries.flatMap(
-    (q: any) => (q.data?.students || []).map((s: any) => s.computedGrade).filter((g: any) => g != null),
+  // computedGrade comes back as a NUMERIC string from Postgres — Number()
+  // each one before doing arithmetic, otherwise + becomes concat → NaN.
+  const allGrades: number[] = gradebookQueries.flatMap(
+    (q: any) => (q.data?.students || [])
+      .map((s: any) => s.computedGrade)
+      .filter((g: any) => g != null)
+      .map((g: any) => Number(g)),
   );
   const overallAvg = allGrades.length
     ? allGrades.reduce((a, b) => a + b, 0) / allGrades.length
     : null;
   const totalAtRisk = gradebookQueries.reduce(
-    (sum, q: any) => sum + ((q.data?.students || []).filter((s: any) => s.computedGrade != null && s.computedGrade < 75).length || 0), 0,
+    (sum, q: any) => sum + ((q.data?.students || []).filter((s: any) => s.computedGrade != null && Number(s.computedGrade) < 75).length || 0), 0,
   );
 
   const tCode = todayCode();
@@ -68,8 +73,9 @@ export default function FacultyDashboard() {
     gradebookQueries.forEach((q: any, i) => {
       const section = mySections[i];
       (q.data?.students || []).forEach((st: any) => {
-        if (st.computedGrade != null && st.computedGrade < 75) {
-          out.push({ student: st, section, grade: st.computedGrade });
+        const g = st.computedGrade != null ? Number(st.computedGrade) : null;
+        if (g != null && g < 75) {
+          out.push({ student: st, section, grade: g });
         }
       });
     });

@@ -336,6 +336,100 @@ export async function exportRosterCsv(sectionId: string) {
 }
 
 
+// ─── Pending enrollment (self-enlistment) ───────────────────────────────────
+
+/**
+ * Returns the student's pending sections in the active term so the COR page
+ * can render a "confirm enrollment" prompt. Returns `null` if there's nothing
+ * pending.
+ */
+export async function getPendingEnrollment(studentId: string) {
+  const { rows: u } = await db.query(
+    `SELECT id, user_code, full_name FROM users WHERE id = $1 AND role = 'student'`,
+    [studentId],
+  );
+  if (!u[0]) throw Object.assign(new Error('Student not found'), { status: 404 });
+
+  const { rows: pending } = await db.query(
+    `SELECT e.id AS enrollment_id,
+            s.section_code,
+            s.day_of_week, s.start_time::text AS start_time, s.end_time::text AS end_time,
+            s.room,
+            c.code  AS course_code, c.title AS course_title, c.units,
+            t.id AS term_id, t.name AS term_name, t.semester AS term_semester,
+            t.start_date, t.end_date,
+            f.full_name AS faculty_name
+     FROM enrollments e
+     JOIN sections s ON s.id = e.section_id
+     JOIN courses  c ON c.id = s.course_id
+     JOIN terms    t ON t.id = s.term_id
+     LEFT JOIN users f ON f.id = s.faculty_id
+     WHERE e.student_id = $1
+       AND e.status     = 'pending'
+       AND t.is_active  = TRUE
+     ORDER BY s.day_of_week NULLS LAST, s.start_time NULLS LAST, c.code`,
+    [studentId],
+  );
+
+  if (pending.length === 0) return null;
+  const first = pending[0];
+  const totalUnits = pending.reduce((s: number, r: { units: number }) => s + Number(r.units || 0), 0);
+
+  return {
+    student: { code: u[0].user_code, fullName: u[0].full_name },
+    term: {
+      id:        first.term_id,
+      name:      first.term_name,
+      semester:  first.term_semester,
+      startDate: first.start_date,
+      endDate:   first.end_date,
+    },
+    subjects:   pending,
+    totalUnits,
+  };
+}
+
+/**
+ * Flip every pending enrollment for the student in the active term to
+ * `enrolled`. Returns the number of rows updated.
+ *
+ * This is the explicit "I'm attending this semester" handshake. Once
+ * confirmed, the student appears on faculty rosters / gradebooks and their
+ * schedule + COR populate.
+ */
+export async function confirmEnrollment(studentId: string): Promise<{ confirmed: number; termName: string | null }> {
+  // Find the active term and resolve its name for the audit log + return value.
+  const { rows: t } = await db.query(
+    `SELECT id, name FROM terms WHERE is_active = TRUE ORDER BY start_date DESC LIMIT 1`,
+  );
+  if (!t[0]) {
+    throw Object.assign(new Error('No active term to confirm enrollment for.'), { status: 409 });
+  }
+  const termId   = t[0].id as string;
+  const termName = t[0].name as string;
+
+  const { rowCount } = await db.query(
+    `UPDATE enrollments e
+     SET status = 'enrolled'
+     FROM sections s
+     WHERE e.section_id = s.id
+       AND e.student_id = $1
+       AND e.status     = 'pending'
+       AND s.term_id    = $2`,
+    [studentId, termId],
+  );
+
+  if ((rowCount ?? 0) > 0) {
+    await db.query(
+      `INSERT INTO audit_logs (user_id, action, entity_type, entity_id, new_value)
+       VALUES ($1, 'CONFIRM_ENROLLMENT', 'terms', $2, $3)`,
+      [studentId, termId, JSON.stringify({ confirmed: rowCount, termName })],
+    );
+  }
+
+  return { confirmed: rowCount ?? 0, termName };
+}
+
 // ─── Active-term schedule (powers .ics export) ───────────────────────────────
 
 /**

@@ -140,6 +140,36 @@ export async function downloadCor(req: Request, res: Response, next: NextFunctio
 }
 
 /**
+ * GET /students/me/pending-enrollment — returns the pending sections so the
+ * COR page can render the "confirm enrollment" banner + modal. 204 when
+ * there's nothing to confirm.
+ */
+export async function getPendingEnrollment(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getPendingEnrollment(req.user!.sub);
+    if (!data) { res.status(204).send(); return; }
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
+/**
+ * POST /students/me/confirm-enrollment — flips pending → enrolled for the
+ * active term. Returns `{ confirmed, termName }`.
+ */
+export async function confirmEnrollment(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.confirmEnrollment(req.user!.sub));
+  } catch (e: unknown) {
+    if (e instanceof Error && 'status' in e) {
+      const err = e as Error & { status: number };
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    next(e);
+  }
+}
+
+/**
  * GET /students/me/schedule.ics — returns the student's active-term schedule
  * as an iCalendar feed (RFC 5545). Google Calendar, Apple Calendar, and
  * Outlook all consume this format directly on import.

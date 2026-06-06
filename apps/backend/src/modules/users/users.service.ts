@@ -106,9 +106,12 @@ export async function createUser(data: {
  * Idempotent — re-running skips duplicates.
  */
 async function enrollStudentInBlockActiveSections(studentId: string, blockId: string) {
+  // Same posture as Open Term: speculative `pending` rows, student confirms
+  // on their COR page. Keeps enlistment behaviour consistent regardless of
+  // whether the student is created mid-term or via Open Term.
   await db.query(
-    `INSERT INTO enrollments (student_id, section_id)
-     SELECT $1, s.id
+    `INSERT INTO enrollments (student_id, section_id, status)
+     SELECT $1, s.id, 'pending'::enroll_status
      FROM sections s
      JOIN terms t ON t.id = s.term_id
      WHERE s.block_id = $2 AND t.is_active = TRUE

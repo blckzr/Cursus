@@ -97,10 +97,17 @@ export default function Gradebook() {
     return s == null ? '' : String(s);
   };
 
-  // Live computed grade using edits + server scores
+  // Live computed grade using edits + server scores.
+  //
+  // ⚠ Why all the explicit Number() casts: Postgres NUMERIC columns come back
+  // from node-pg as strings ("100.00"), not JS numbers. The TS types say
+  // `number`, but at runtime `+=` with strings does concatenation, and a
+  // category with 2+ assessments would produce garbage like "0100.0050.00"
+  // → NaN → NaN computed grade. Cast on read to keep the math honest.
   const computedFor = (student: Student): number | null => {
     let total = 0, weightUsed = 0;
     categories.forEach(c => {
+      const catWeight = Number(c.weight);
       let earned = 0, max = 0;
       c.assessments.forEach(a => {
         const k = cellKey(student.enrollmentId, a.id);
@@ -111,16 +118,16 @@ export default function Gradebook() {
         } else {
           const s = student.scores[a.id];
           if (s == null) return;
-          v = s;
+          v = Number(s);
         }
         if (v !== undefined && !isNaN(v)) {
           earned += v;
-          max += a.max_score;
+          max += Number(a.max_score);
         }
       });
       if (max > 0) {
-        total += (earned / max) * 100 * (c.weight / 100);
-        weightUsed += c.weight;
+        total += (earned / max) * 100 * (catWeight / 100);
+        weightUsed += catWeight;
       }
     });
     if (weightUsed === 0) return null;

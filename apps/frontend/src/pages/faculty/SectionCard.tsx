@@ -17,9 +17,11 @@ export default function FacultySectionCard({ section, basePath = '/faculty/secti
 
   const students: any[] = data?.students || [];
   const enrolled = students.length;
+  // computedGrade arrives as a NUMERIC string from Postgres — coerce to keep
+  // sum/comparison in numeric-land.
   const graded = students.filter(s => s.computedGrade != null);
-  const avg = graded.length ? graded.reduce((s, e) => s + e.computedGrade, 0) / graded.length : null;
-  const atRisk = students.filter(s => s.computedGrade != null && s.computedGrade < 75).length;
+  const avg = graded.length ? graded.reduce((s, e) => s + Number(e.computedGrade), 0) / graded.length : null;
+  const atRisk = students.filter(s => s.computedGrade != null && Number(s.computedGrade) < 75).length;
 
   return (
     <Link
