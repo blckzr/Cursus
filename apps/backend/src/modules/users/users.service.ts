@@ -79,9 +79,13 @@ export async function createUser(data: {
     }
   }
 
+  // Force the password-change flow on the user's first login. The admin only
+  // controls the *initial* credential (default `1.PolytechnicU` for now), so
+  // the new account is in a "shared password" state until the user replaces it.
   const { rows } = await db.query(
-    `INSERT INTO users (email, password_hash, full_name, role, branch, user_code, program_id, year_level, block_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO users (email, password_hash, full_name, role, branch, user_code,
+                        program_id, year_level, block_id, password_must_change)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)
      RETURNING ${SAFE_COLS}`,
     [data.email, hash, data.fullName, data.role, branch, userCode,
      data.programId ?? null, yearLevel, blockSectionId],
@@ -126,6 +130,9 @@ export async function updateUser(id: string, data: {
   if (data.password  !== undefined) {
     sets.push(`password_hash = $${i++}`);
     vals.push(await bcrypt.hash(data.password, 12));
+    // An admin resetting the password puts the account back into the
+    // forced-change state — same posture as a brand-new account.
+    sets.push(`password_must_change = TRUE`);
   }
 
   if (data.programId !== undefined) {

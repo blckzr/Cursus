@@ -96,6 +96,9 @@ CREATE TABLE users (
     -- 24 units/week is a common PH teaching-load default.
     max_teaching_units INT  DEFAULT 24
                             CHECK (max_teaching_units IS NULL OR max_teaching_units BETWEEN 0 AND 60),
+    -- Forces the password-change flow on the next login. Set TRUE on creation
+    -- and when an admin resets a password; cleared when the user changes it.
+    password_must_change BOOLEAN NOT NULL DEFAULT FALSE,
     created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 

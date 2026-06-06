@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { type LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Icon from '../components/Icon';
@@ -207,11 +207,49 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
         </header>
 
         <div className="flex-1 overflow-y-auto scrollable">
-          <div className="px-3 py-4 sm:px-4 sm:py-5 md:p-7 max-w-[1200px] mx-auto">
-            <Outlet />
-          </div>
+          <PasswordChangeGate>
+            <div className="px-3 py-4 sm:px-4 sm:py-5 md:p-7 max-w-[1200px] mx-auto">
+              <Outlet />
+            </div>
+          </PasswordChangeGate>
         </div>
       </main>
     </div>
+  );
+}
+
+// ─── Forced password change gate ─────────────────────────────────────────────
+
+/**
+ * When the signed-in user has `passwordMustChange = true` (default-password
+ * accounts, admin-reset accounts), every route except `/<role>/account` is
+ * redirected to that page, and a sticky banner is rendered above the content.
+ *
+ * The Account page itself surfaces the change-password form prominently when
+ * this flag is set (see `Account.tsx`).
+ */
+function PasswordChangeGate({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  if (!user?.passwordMustChange) return <>{children}</>;
+
+  const accountPath = `/${user.role}/account`;
+  if (location.pathname !== accountPath) {
+    return <Navigate to={accountPath} replace />;
+  }
+
+  return (
+    <>
+      <div className="bg-amber-50 border-b border-amber-200 px-3 py-2.5 sm:px-4 md:px-7">
+        <div className="max-w-[1200px] mx-auto flex items-start gap-2 text-xs sm:text-sm text-amber-800">
+          <Icon name="shield" size={14} className="mt-0.5 flex-shrink-0 text-amber-600" />
+          <div>
+            <strong>Change your default password to continue.</strong> Until you do, the rest of Cursus is locked.
+          </div>
+        </div>
+      </div>
+      {children}
+    </>
   );
 }
