@@ -1,7 +1,7 @@
 import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText, FileBadge, Star, TrendingUp, MessageSquare } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText, FileBadge, Star, TrendingUp, MessageSquare, KeyRound } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
@@ -25,6 +25,7 @@ const AuditLog            = lazy(() => import('./pages/admin/AuditLog'));
 const Analytics           = lazy(() => import('./pages/admin/Analytics'));
 const AdminAppeals        = lazy(() => import('./pages/admin/Appeals'));
 const AdminEvaluations    = lazy(() => import('./pages/admin/Evaluations'));
+const AdminPasswordResets = lazy(() => import('./pages/admin/PasswordResets'));
 const FacultyDashboard    = lazy(() => import('./pages/faculty/Dashboard'));
 const FacultySections     = lazy(() => import('./pages/faculty/Sections'));
 const FacultyAvailability = lazy(() => import('./pages/faculty/Availability'));
@@ -69,6 +70,7 @@ const adminNav = [
   { label: 'Evaluations', to: '/admin/evaluations', icon: Star          },
   { label: 'Analytics',   to: '/admin/analytics',   icon: TrendingUp    },
   { label: 'Activity log',to: '/admin/audit-log',   icon: FileText      },
+  { label: 'Password resets', to: '/admin/password-resets', icon: KeyRound },
   { label: 'Account',     to: '/admin/account',     icon: Settings      },
 ];
 
@@ -131,6 +133,7 @@ export default function App() {
               <Route path="evaluations" element={<AdminEvaluations />} />
               <Route path="analytics"   element={<Analytics />} />
               <Route path="audit-log"   element={<AuditLog />} />
+              <Route path="password-resets" element={<AdminPasswordResets />} />
               <Route path="account"     element={<Account />} />
             </Route>
 

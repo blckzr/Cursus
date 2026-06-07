@@ -1089,7 +1089,7 @@ time (different faculty, no faculty conflict). Now tracks
 the candidate generator to enumerate every valid start time (not just
 the first), giving the algorithm fallbacks when 07:00 is locked.
 
-### 8.5 Forgot-password flow — `S`
+### 8.5 Forgot-password flow — `S` ✅ SHIPPED
 
 **Problem.** Currently a user who forgets their password has to ask an
 admin to reset it via `/admin/users` (the admin enters a new password →

@@ -19,6 +19,7 @@ import analyticsRouter from '../modules/analytics/analytics.routes';
 import appealsRouter from '../modules/appeals/appeals.routes';
 import archiveRouter from '../modules/archive/archive.routes';
 import evaluationsRouter from '../modules/evaluations/evaluations.routes';
+import passwordResetsRouter from '../modules/password-resets/password-resets.routes';
 
 const router = Router();
 
@@ -164,6 +165,7 @@ router.use('/qualifications',     qualificationsRouter);
 router.use('/admin/analytics',    analyticsRouter);
 router.use('/admin',              archiveRouter);
 router.use('/',                   evaluationsRouter);
+router.use('/',                   passwordResetsRouter);
 router.use('/appeals',            appealsRouter);
 router.use('/', curriculumRouter);
 router.use('/', gradebookRouter);

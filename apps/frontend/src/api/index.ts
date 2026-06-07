@@ -485,6 +485,29 @@ export const createEvalQuestion = (data: { prompt: string; kind: 'likert_5'|'tex
 export const updateEvalQuestion = (id: string, data: { prompt?: string; displayOrder?: number; archived?: boolean }) =>
   api.patch<EvalQuestion>(`/evaluations/admin/questions/${id}`, data).then(r => r.data);
 
+// ── Forgot-password (FUTURE_FEATURES 8.5) ────────────────────────────────────
+export interface ResetRequestRow {
+  id:             string;
+  status:         'pending' | 'approved' | 'denied';
+  requested_at:   string;
+  resolved_at:    string | null;
+  user_id:        string;
+  user_code:      string | null;
+  full_name:      string;
+  email:          string;
+  role:           string;
+  resolver_name:  string | null;
+  admin_note:     string | null;
+}
+export const submitForgotPassword = (userCode: string) =>
+  api.post<{ submitted: true }>('/auth/forgot-password', { userCode }).then(r => r.data);
+export const listPasswordResets = (status: 'pending' | 'approved' | 'denied' | 'all' = 'pending') =>
+  api.get<ResetRequestRow[]>('/admin/password-resets', { params: { status } }).then(r => r.data);
+export const approvePasswordReset = (id: string, note?: string) =>
+  api.post(`/admin/password-resets/${id}/approve`, { note }).then(r => r.data);
+export const denyPasswordReset = (id: string, note?: string) =>
+  api.post(`/admin/password-resets/${id}/deny`, { note }).then(r => r.data);
+
 // ── Enrollment confirmation (self-enlistment) ────────────────────────────────
 export interface PendingEnrollmentSubject {
   enrollment_id: string;
