@@ -20,7 +20,7 @@ import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
 import { csvEscape, downloadCsv, todayStamp } from '../../lib/csv';
-import { DAY_ORDER, DAY_LABEL, parseDays, joinDays } from '../../lib/days';
+import { DAY_ORDER, DAY_LABEL } from '../../lib/days';
 import FacultyScheduleGrid from '../../components/FacultyScheduleGrid';
 
 // Mobile keeps Course, Faculty (so TBA badges stay visible — the main point of this view),
@@ -81,20 +81,42 @@ export default function Sections() {
   const blockSections   = useMemo(() => yearSections.filter((s: any) => s.block_id === blockId),                                        [yearSections, blockId]);
 
   // ── Subjects-level (table) state ──────────────────────────────────────
+  type DraftMeeting = { dayOfWeek: string; startTime: string; endTime: string };
+  type EditForm = { facultyId: string; meetings: DraftMeeting[]; room: string };
+  const blankMeeting = (): DraftMeeting => ({ dayOfWeek: '', startTime: '', endTime: '' });
+
   const [editing, setEditing] = useState<any | null>(null);
-  const [editForm, setEditForm] = useState({ facultyId: '', dayOfWeek: '', startTime: '', endTime: '', room: '' });
+  const [editForm, setEditForm] = useState<EditForm>({ facultyId: '', meetings: [], room: '' });
   const [err, setErr] = useState('');
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const resetErr = () => { setErr(''); setFieldErrors({}); };
   const [query, setQuery] = useState('');
   const [tbaOnly, setTbaOnly] = useState(false);
 
+  // Validates the meetings array client-side so Save can be disabled before
+  // the backend rejects with a constraint trigger. Same rules as backend:
+  // 1-or-2 meetings; same-day pair must be back-to-back.
+  const validateDraftMeetings = (ms: DraftMeeting[]): string | null => {
+    if (ms.length === 0) return null;  // TBA — allowed
+    if (ms.length > 2)   return 'A section can have at most 2 meetings per week.';
+    for (const m of ms) {
+      if (!m.dayOfWeek || !m.startTime || !m.endTime) return 'Fill in every meeting (day, start, end).';
+      if (m.startTime >= m.endTime) return `Meeting on ${m.dayOfWeek}: end must be after start.`;
+    }
+    if (ms.length === 2) {
+      const [a, b] = [...ms].sort((x, y) => x.startTime.localeCompare(y.startTime));
+      if (a.dayOfWeek === b.dayOfWeek && a.endTime !== b.startTime) {
+        return `Same-day meetings must be back-to-back. Meeting 1 ends ${a.endTime}, Meeting 2 starts ${b.startTime}.`;
+      }
+    }
+    return null;
+  };
+  const meetingsError = validateDraftMeetings(editForm.meetings);
+
   const updateMut = useMutation({
     mutationFn: () => updateSection(editing.id, {
       facultyId: editForm.facultyId || null,
-      dayOfWeek: editForm.dayOfWeek || null,
-      startTime: editForm.startTime || null,
-      endTime:   editForm.endTime   || null,
+      meetings:  editForm.meetings as any,
       room:      editForm.room      || null,
     }),
     onSuccess: () => {
@@ -209,7 +231,7 @@ export default function Sections() {
                   }
                   const header = [
                     'course_code', 'course_title', 'units', 'section_code',
-                    'faculty_name', 'day_of_week', 'start_time', 'end_time',
+                    'faculty_name', 'meetings',
                     'room', 'capacity', 'enrolled',
                   ];
                   const rows = filteredSubjects.map((s: any) => [
@@ -218,9 +240,7 @@ export default function Sections() {
                     String(s.course_units ?? ''),
                     csvEscape(s.section_code),
                     csvEscape(s.faculty_name ?? 'TBA'),
-                    csvEscape(s.day_of_week ?? ''),
-                    String(s.start_time ?? '').slice(0, 5),
-                    String(s.end_time ?? '').slice(0, 5),
+                    csvEscape((s.meetings ?? []).map((m: any) => `${m.dayOfWeek} ${m.startTime}-${m.endTime}`).join('; ')),
                     csvEscape(s.room ?? ''),
                     String(s.capacity ?? ''),
                     String(enrolledFor(s.id)),
@@ -261,9 +281,9 @@ export default function Sections() {
                         ? <span className="text-stone-700">{s.faculty_name}</span>
                         : <span className="badge badge-amber"><Icon name="alert-triangle" size={10} /> TBA</span>}
                     </td>
-                    <td className="table-td text-xs hidden sm:table-cell">
-                      {s.day_of_week
-                        ? <><span className="font-mono">{s.day_of_week}</span> {s.start_time?.slice(0, 5)}–{s.end_time?.slice(0, 5)}</>
+                    <td className="table-td text-xs hidden sm:table-cell font-mono">
+                      {s.meetings && s.meetings.length > 0
+                        ? s.meetings.map((m: any) => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ')
                         : <span className="text-stone-300">—</span>}
                     </td>
                     <td className="table-td text-stone-500 text-xs hidden md:table-cell">{s.room ?? <span className="text-stone-300">—</span>}</td>
@@ -285,9 +305,9 @@ export default function Sections() {
                           setEditing(s);
                           setEditForm({
                             facultyId: s.faculty_id ?? '',
-                            dayOfWeek: s.day_of_week ?? '',
-                            startTime: (s.start_time ?? '').slice(0, 5),
-                            endTime:   (s.end_time   ?? '').slice(0, 5),
+                            meetings:  (s.meetings ?? []).map((m: any) => ({
+                              dayOfWeek: m.dayOfWeek, startTime: m.startTime, endTime: m.endTime,
+                            })),
                             room:      s.room ?? '',
                           });
                           resetErr();
@@ -319,48 +339,86 @@ export default function Sections() {
               facultyId={editForm.facultyId || null}
               termId={editing.term_id}
               excludeSectionId={editing.id}
-              proposed={{
-                dayOfWeek: editForm.dayOfWeek,
-                startTime: editForm.startTime,
-                endTime:   editForm.endTime,
-              }}
+              proposedMeetings={editForm.meetings.filter(m => m.dayOfWeek && m.startTime && m.endTime)}
             />
 
+            {/* Meetings editor — 1 required, second optional. Same-day pair must be back-to-back. */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="label !mb-0">Meetings</label>
+                <span className="text-[10px] text-stone-400">1 or 2 per week · same-day pair must be back-to-back</span>
+              </div>
+
+              {editForm.meetings.length === 0 && (
+                <button type="button" className="btn-ghost w-full border border-dashed border-khaki-200 text-xs"
+                  onClick={() => setEditForm(f => ({ ...f, meetings: [blankMeeting()] }))}>
+                  <Icon name="plus" size={12} className="inline mr-1" /> Add a meeting
+                </button>
+              )}
+
+              {editForm.meetings.map((m, idx) => (
+                <div key={idx} className="rounded-lg border border-beige-200 p-3 bg-beige-50/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[10px] uppercase tracking-wider text-stone-500 font-semibold">Meeting {idx + 1}</span>
+                    {editForm.meetings.length > 1 && (
+                      <button type="button" className="text-xs text-red-600 hover:underline"
+                        onClick={() => setEditForm(f => ({ ...f, meetings: f.meetings.filter((_, i) => i !== idx) }))}>
+                        Remove
+                      </button>
+                    )}
+                  </div>
+                  <div className="flex gap-1.5 flex-wrap mb-2">
+                    {DAY_ORDER.map(d => (
+                      <button key={d} type="button"
+                        className={`chip ${m.dayOfWeek === d ? 'active' : ''}`}
+                        onClick={() => setEditForm(f => ({
+                          ...f,
+                          meetings: f.meetings.map((mm, i) => i === idx ? { ...mm, dayOfWeek: d } : mm),
+                        }))}>
+                        {DAY_LABEL[d]}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <InputField label="Start" type="time" value={m.startTime}
+                      onChange={e => setEditForm(f => ({
+                        ...f,
+                        meetings: f.meetings.map((mm, i) => i === idx ? { ...mm, startTime: e.target.value } : mm),
+                      }))} />
+                    <InputField label="End" type="time" value={m.endTime}
+                      onChange={e => setEditForm(f => ({
+                        ...f,
+                        meetings: f.meetings.map((mm, i) => i === idx ? { ...mm, endTime: e.target.value } : mm),
+                      }))} />
+                  </div>
+                </div>
+              ))}
+
+              {editForm.meetings.length === 1 && (
+                <button type="button" className="btn-ghost w-full border border-dashed border-khaki-200 text-xs"
+                  onClick={() => setEditForm(f => ({ ...f, meetings: [...f.meetings, blankMeeting()] }))}>
+                  <Icon name="plus" size={12} className="inline mr-1" /> Add a second meeting
+                </button>
+              )}
+
+              {meetingsError && (
+                <p className="text-xs text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+                  {meetingsError}
+                </p>
+              )}
+            </div>
+
             <div>
-              <label className="label">Day(s)</label>
-              <div className="flex gap-1.5 flex-wrap">
-                {DAY_ORDER.map(d => {
-                  const selected = parseDays(editForm.dayOfWeek);
-                  const active = selected.includes(d);
-                  return (
-                    <button key={d} type="button"
-                      className={`chip ${active ? 'active' : ''}`}
-                      onClick={() => {
-                        const next = active ? selected.filter(x => x !== d) : [...selected, d];
-                        setEditForm(f => ({ ...f, dayOfWeek: joinDays(next) }));
-                      }}>
-                      {DAY_LABEL[d]}
-                    </button>
-                  );
-                })}
-              </div>
-              {fieldErrors.dayOfWeek && <p className="text-xs text-red-600 mt-1">{fieldErrors.dayOfWeek}</p>}
+              <InputField label="Room" value={editForm.room}
+                onChange={e => setEditForm(f => ({ ...f, room: e.target.value }))}
+                placeholder="Room 201" error={fieldErrors.room} />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-              <InputField label="Start time" type="time" value={editForm.startTime}
-                onChange={e => setEditForm(f => ({ ...f, startTime: e.target.value }))} error={fieldErrors.startTime} />
-              <InputField label="End time" type="time" value={editForm.endTime}
-                onChange={e => setEditForm(f => ({ ...f, endTime: e.target.value }))} error={fieldErrors.endTime} />
-              <div className="col-span-2 sm:col-span-1">
-                <InputField label="Room" value={editForm.room}
-                  onChange={e => setEditForm(f => ({ ...f, room: e.target.value }))}
-                  placeholder="Room 201" error={fieldErrors.room} />
-              </div>
-            </div>
+
             {err && <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2">{err}</p>}
             <div className="flex justify-end gap-2 pt-1">
               <button className="btn-ghost" onClick={() => { setEditing(null); resetErr(); }}>Cancel</button>
-              <button className="btn-primary" onClick={() => { resetErr(); updateMut.mutate(); }} disabled={updateMut.isPending}>
+              <button className="btn-primary" onClick={() => { resetErr(); updateMut.mutate(); }}
+                disabled={updateMut.isPending || !!meetingsError}>
                 {updateMut.isPending ? 'Saving…' : 'Save changes'}
               </button>
             </div>
@@ -558,7 +616,7 @@ function BlocksView({ blocks, program, yearLevel, sections, loading, onPick }: {
 
 const STRATEGY_LABEL: Record<AutoAssignStrategy, { label: string; hint: string }> = {
   'balanced':            { label: 'Balanced',            hint: 'Even load · honour preferences' },
-  'prefer-grouped-days': { label: 'Prefer MWF / TTh',    hint: 'Group sessions onto grouped day blocks' },
+  'prefer-grouped-days': { label: 'Prefer standard pairs', hint: 'Boost Mon+Thu / Tue+Fri / Wed+Sat assignments' },
   'prefer-mornings':     { label: 'Prefer mornings',     hint: 'Favour AM start times over PM' },
 };
 
@@ -683,9 +741,9 @@ function AutoAssignModal({ term, onClose, onApplied }: {
                       <td className="table-td !py-2 hidden sm:table-cell text-stone-700">
                         {p.facultyName ?? <span className="text-stone-300 italic">—</span>}
                       </td>
-                      <td className="table-td !py-2 hidden md:table-cell text-stone-700 whitespace-nowrap">
-                        {p.dayOfWeek
-                          ? <><span className="font-mono">{p.dayOfWeek}</span> {p.startTime}–{p.endTime}</>
+                      <td className="table-td !py-2 hidden md:table-cell text-stone-700 font-mono">
+                        {p.meetings && p.meetings.length > 0
+                          ? p.meetings.map(m => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ')
                           : <span className="text-stone-300 italic">—</span>}
                       </td>
                       <td className="table-td !py-2 text-right">

@@ -1,5 +1,18 @@
 import { api } from './client';
 
+// ── Shared types ─────────────────────────────────────────────────────────────
+export type DayCode = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
+export interface Meeting {
+  dayOfWeek: DayCode;
+  startTime: string;   // 'HH:MM'
+  endTime:   string;   // 'HH:MM'
+}
+/** One-line schedule label, or 'TBA' if no meetings. */
+export const formatMeetings = (meetings: Meeting[] | undefined | null): string => {
+  if (!meetings || meetings.length === 0) return 'TBA';
+  return meetings.map(m => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ');
+};
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (userCode: string, password: string) =>
   api.post('/auth/login', { userCode, password }).then(r => r.data);
@@ -62,6 +75,8 @@ export const addCurriculumEntry    = (programId: string, data: object) =>
   api.post(`/programs/${programId}/curriculum`, data).then(r => r.data);
 export const removeCurriculumEntry = (programId: string, entryId: string) =>
   api.delete(`/programs/${programId}/curriculum/${entryId}`);
+export const updateCurriculumEntry = (programId: string, entryId: string, data: { meetingsPerWeek: 1 | 2 }) =>
+  api.patch(`/programs/${programId}/curriculum/${entryId}`, data).then(r => r.data);
 
 // ── Terms ─────────────────────────────────────────────────────────────────────
 export const getTerms   = ()                        => api.get('/terms').then(r => r.data);
@@ -183,7 +198,7 @@ export const getRetention = (programId?: string) =>
 export interface FacultyLoadSection {
   sectionId: string; sectionCode: string;
   courseCode: string; courseTitle: string; units: number;
-  dayOfWeek: string | null; startTime: string | null; endTime: string | null;
+  meetings: Meeting[];
   room: string | null;
   hoursPerWeek: number;
 }
@@ -260,7 +275,7 @@ export interface AssignmentProposal {
   courseCode: string; courseTitle: string; units: number;
   blockLabel: string;
   facultyId: string | null; facultyName: string | null;
-  dayOfWeek: string | null; startTime: string | null; endTime: string | null;
+  meetings: Meeting[];
   room: string | null;
   score: number; reason: string;
 }
@@ -409,7 +424,7 @@ export interface PendingEnrollmentSubject {
   enrollment_id: string;
   course_code:   string; course_title: string; units: number;
   section_code:  string;
-  day_of_week:   string | null; start_time: string | null; end_time: string | null;
+  meetings:      Meeting[];
   room:          string | null;
   faculty_name:  string | null;
 }

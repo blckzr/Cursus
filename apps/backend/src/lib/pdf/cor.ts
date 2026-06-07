@@ -40,9 +40,7 @@ export interface CorPayload {
     course_title: string;
     units:        number;
     section_code: string;
-    day_of_week:  string | null;
-    start_time:   string | null;
-    end_time:     string | null;
+    meetings:     Array<{ dayOfWeek: string; startTime: string; endTime: string }>;
     room:         string | null;
     faculty_name: string | null;
   }>;
@@ -190,8 +188,8 @@ function drawSubjectTable(doc: PDFKit.PDFDocument, data: CorPayload): void {
       doc.rect(left, y, width, rowHeight).fill(BEIGE).fillColor(STONE);
     }
 
-    const sched = s.day_of_week
-      ? `${s.day_of_week} · ${(s.start_time ?? '').slice(0, 5)}–${(s.end_time ?? '').slice(0, 5)}`
+    const sched = s.meetings && s.meetings.length > 0
+      ? s.meetings.map(m => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join('; ')
       : 'TBA';
 
     const values: string[] = [

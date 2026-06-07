@@ -12,17 +12,16 @@ import FacultySectionCard from './SectionCard';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 
-/** Today's weekday code mapped to the schedule format ('M','T','W','Th','F'). */
-function todayCode(): string {
-  const map = ['', 'M', 'T', 'W', 'Th', 'F'];
-  const d = new Date().getDay();
-  return map[d] || '';
+/** Today's weekday in the new Meeting day_of_week shape. */
+function todayCode(): 'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'|'' {
+  const map = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] as const;
+  return map[new Date().getDay()] ?? '';
 }
 
-function meetsToday(daysStr: string | undefined | null, code: string): boolean {
-  if (!daysStr || !code) return false;
-  if (code === 'Th') return /Th/.test(daysStr);
-  return daysStr.replace(/Th/g, '').includes(code);
+/** Returns the first meeting that occurs on `code`, or undefined. */
+function meetingToday(meetings: any[] | undefined | null, code: string) {
+  if (!meetings || !code) return undefined;
+  return meetings.find(m => m.dayOfWeek === code);
 }
 
 export default function FacultyDashboard() {
@@ -63,9 +62,11 @@ export default function FacultyDashboard() {
   );
 
   const tCode = todayCode();
+  // Pair each section with its meeting that falls today (if any).
   const todays = mySections
-    .filter(s => meetsToday(s.day_of_week, tCode))
-    .sort((a, b) => String(a.start_time).localeCompare(String(b.start_time)));
+    .map(s => ({ section: s, meeting: meetingToday(s.meetings, tCode) }))
+    .filter(x => x.meeting)
+    .sort((a, b) => a.meeting!.startTime.localeCompare(b.meeting!.startTime));
 
   // Top at-risk students across all sections
   const atRiskStudents = useMemo(() => {
@@ -107,15 +108,15 @@ export default function FacultyDashboard() {
             <div className="card p-0"><EmptyState icon="calendar" title="No classes today" message="Enjoy your day off." /></div>
           ) : (
             <div className="card p-0 overflow-hidden">
-              {todays.map((s, i) => (
+              {todays.map(({ section: s, meeting }, i) => (
                 <Link
                   key={s.id}
                   to={`/faculty/sections/${s.id}`}
                   className={`w-full flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-3.5 hover:bg-beige-50 text-left transition-colors ${i > 0 ? 'border-t border-beige-200' : ''}`}
                 >
                   <div className="text-center w-12 sm:w-14 flex-shrink-0">
-                    <div className="font-mono text-sm font-semibold tabular text-stone-800 tracking-tight">{s.start_time?.slice(0, 5)}</div>
-                    <div className="text-[10px] text-stone-400">to {s.end_time?.slice(0, 5)}</div>
+                    <div className="font-mono text-sm font-semibold tabular text-stone-800 tracking-tight">{meeting!.startTime}</div>
+                    <div className="text-[10px] text-stone-400">to {meeting!.endTime}</div>
                   </div>
                   <div className="w-1 h-10 rounded-full bg-olive-300 flex-shrink-0" />
                   <div className="flex-1 min-w-0">

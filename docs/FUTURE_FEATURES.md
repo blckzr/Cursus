@@ -372,6 +372,100 @@ column names to assessments in the selected category.
 
 **Dependencies.** Gradebook CSV import (already shipped).
 
+### 2.6 Multi-meeting section schedule — `M` ✅ SHIPPED
+
+**Problem.** Today `sections` stores **one** `day_of_week` / `start_time` /
+`end_time` triple. This forces every meeting of a section to share the
+same time slot — fine for elementary "MWF 08:00–09:00" patterns, wrong
+for college reality where one course might meet **Tue 13:00–16:00 (3 h)
+and Fri 13:00–15:00 (2 h)**, or where NSTP meets **only Sun 13:00–17:00**.
+The schema can't express asymmetric durations or single-day patterns
+cleanly.
+
+**Institutional constraints (Universidad Mariana).**
+- A section meets **1 or 2** times per week (never 3+). Spreads subjects
+  across the week so students have time for the rest.
+- When a section has 2 meetings on the **same day**, they must be
+  **back-to-back, no gap** (e.g., a 3-h lecture + 1-h lab block).
+- When a section has 2 meetings on **different days**, the standard
+  pairing is Mon+Thu, Tue+Fri, Wed+Sat. **Sun** is reserved for
+  single-meeting courses (NSTP, special programs).
+
+**Data model.**
+```sql
+CREATE TABLE section_meetings (
+  id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  section_id  UUID NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+  day_of_week TEXT NOT NULL
+              CHECK (day_of_week IN ('Mon','Tue','Wed','Thu','Fri','Sat','Sun')),
+  start_time  TIME NOT NULL,
+  end_time    TIME NOT NULL,
+  CHECK (end_time > start_time)
+);
+CREATE INDEX idx_section_meetings_section ON section_meetings(section_id);
+
+-- Trigger: enforce "1 or 2 meetings; same-day pair must be back-to-back".
+-- Runs AFTER INSERT/UPDATE/DELETE on section_meetings, deferred to end of
+-- statement so a 2-row INSERT doesn't false-positive mid-write.
+
+-- Curriculum drives the meeting count for the auto-assigner.
+ALTER TABLE curriculum_courses
+  ADD COLUMN meetings_per_week INT NOT NULL DEFAULT 2
+  CHECK (meetings_per_week IN (1, 2));
+```
+
+After the migration the legacy `sections.day_of_week / start_time /
+end_time` columns are **dropped** — the join through `section_meetings`
+is the only schedule source of truth.
+
+**Migration backfill.**
+For each existing section, parse `day_of_week`:
+
+| Old pattern | Backfills to | Outcome |
+|---|---|---|
+| `Mon`, `Sat`, `Sun`, … (1 day) | 1 row | ✅ clean |
+| `MTh`, `TF`, `MW`, `TTh`, `WSat`, … (2 days) | 2 rows, same times | ✅ clean |
+| `MWF`, `TThSat`, … (3+ days) | — | ❌ logged into `migration_backfill_problems`; section schedule wiped to TBA; admin reschedules via new UI |
+
+Migration prints `OK=N, FLAGGED=N`. No data is silently lost.
+
+**Backend.**
+- Section list / detail return `meetings: [{ dayOfWeek, startTime, endTime }]`.
+- Auto-assigner refactored:
+  - Reads `curriculum_courses.meetings_per_week`.
+  - For `2`: enumerates standard pairs (Mon+Thu, Tue+Fri, Wed+Sat) × start
+    times.
+  - For `1`: enumerates single days, **Sun-first** so it stays useful
+    while keeping weekdays uncrowded.
+  - Block-conflict and faculty-conflict checks iterate `meetings[]`
+    instead of parsing `MWF`-style strings.
+
+**Frontend.**
+- **Sections admin modal** — replaces the day/time row with a meetings
+  editor: Meeting 1 (required) + an "Add second meeting" button. When
+  both meetings share a day, a "back-to-back" indicator confirms the
+  times touch and Save is disabled if there's a gap.
+- **Curriculum admin page** — each course slot gets a small `1 / 2`
+  toggle for `meetings_per_week`.
+- **Student Schedule grid** — expands from Mon–Fri to **Mon–Sun (7
+  columns)** and renders one block per meeting. Asymmetric subjects (3 h
+  Tue + 2 h Fri) draw two correctly-sized blocks on the right days.
+- **iCal export** — one VEVENT per meeting, recurring weekly until term
+  end.
+- **COR PDF** — meetings list per row: `Mon 07:00–10:00; Thu 13:00–15:00`.
+
+**Edge cases.**
+- Faculty availability conflict checking iterates meetings.
+- Block-room double-booking iterates meetings.
+- Re-opening a term must use the new meeting model from day one.
+- Admin can still leave a brand-new section's `meetings` empty (TBA) and
+  fill it later — auto-assigner skips empty.
+
+**Effort breakdown.** ~2 days.
+
+**Dependencies.** None — but everything that reads section schedule
+changes shape. Land as one focused PR with all callers updated.
+
 ---
 
 ## 3. Admin operations
@@ -682,6 +776,144 @@ visualization already shows lock state.
 **Effort breakdown.** ~1 day.
 
 **Dependencies.** Existing prereq table.
+
+### 4.6 Anonymous faculty evaluation — `L`
+
+**Problem.** PH college standard: students evaluate their instructors
+**before** end-of-term grades are released. The evaluation must be
+**anonymous** so no student is identifiable to the faculty being rated,
+and it must be **gated**:
+- **Time gate.** Opens 30 days before the term's `end_date`, closes at
+  term end + a small grace window.
+- **Grade gate.** A student can't see their *finalized* grade for a
+  section until they've submitted the evaluation for that section's
+  faculty (midterm peeks remain free).
+
+**Data model.**
+```sql
+CREATE TABLE eval_periods (
+  term_id        UUID PRIMARY KEY REFERENCES terms(id) ON DELETE CASCADE,
+  opens_at       TIMESTAMPTZ NOT NULL,     -- term.end_date - 30 days
+  closes_at      TIMESTAMPTZ NOT NULL,     -- term.end_date + grace
+  min_response_n INT NOT NULL DEFAULT 3    -- aggregates hidden below this N
+);
+
+CREATE TABLE eval_questions (
+  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  prompt        TEXT NOT NULL,
+  kind          TEXT NOT NULL CHECK (kind IN ('likert_5', 'text')),
+  display_order INT  NOT NULL DEFAULT 0,
+  archived_at   TIMESTAMPTZ                -- soft-delete so old responses stay valid
+);
+
+CREATE TABLE evaluations (                 -- one row per (student, section)
+  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  section_id   UUID NOT NULL REFERENCES sections(id) ON DELETE CASCADE,
+  student_id   UUID NOT NULL REFERENCES users(id),
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE (section_id, student_id)
+);
+CREATE INDEX idx_evaluations_section ON evaluations(section_id);
+CREATE INDEX idx_evaluations_student ON evaluations(student_id);
+
+CREATE TABLE eval_answers (
+  evaluation_id UUID NOT NULL REFERENCES evaluations(id) ON DELETE CASCADE,
+  question_id   UUID NOT NULL REFERENCES eval_questions(id),
+  likert_value  INT  CHECK (likert_value BETWEEN 1 AND 5),
+  text_value    TEXT,
+  PRIMARY KEY (evaluation_id, question_id)
+);
+```
+
+**The anonymity contract — non-negotiable.**
+
+`evaluations.student_id` exists **only** to:
+1. Enforce one response per student per section (UNIQUE constraint).
+2. Drive the per-student grade-reveal gate.
+
+It is **never** exposed to faculty or admins in any answer-bearing
+query. Every faculty-facing read aggregates:
+
+```sql
+SELECT q.id, q.prompt,
+       avg(a.likert_value)   AS mean,
+       count(a.likert_value) AS n
+  FROM eval_answers a
+  JOIN evaluations  e ON e.id = a.evaluation_id
+  JOIN eval_questions q ON q.id = a.question_id
+ WHERE e.section_id = $1
+ GROUP BY q.id, q.prompt
+HAVING count(a.likert_value) >= (SELECT min_response_n FROM eval_periods WHERE term_id = $2);
+```
+
+Sections with `count < min_response_n` (default 3) return `null` on the
+per-section view — protects very small sections from re-identification.
+Faculty-level rollups (across all their sections in a term) use the same
+threshold on the rollup, not the per-section count.
+
+Free-text answers are surfaced **only** as a shuffled, randomized list
+in the faculty view — never paired with a Likert score or a date.
+
+**Backend.**
+- `GET  /api/eval/period/:termId` — returns `opens_at / closes_at / is_open` for the student banner.
+- `GET  /api/eval/pending` — sections the calling student still owes evaluations for.
+- `GET  /api/eval/section/:sectionId/questions` — active question bank.
+- `POST /api/eval/section/:sectionId` — body `{ answers: [{ questionId, likertValue?, textValue? }] }`. Validates window, idempotent on the UNIQUE constraint.
+- `GET  /api/eval/faculty/me/term/:termId` — aggregate the calling faculty's own rollup. Cells with `n < min_response_n` returned as `null`.
+- `GET  /api/eval/admin/term/:termId` — admin-wide rollup, same K-anonymity rules.
+- `POST /api/eval/admin/questions` + `PATCH /api/eval/admin/questions/:id` — manage the question bank.
+- `POST /api/eval/admin/period/:termId` — set / open the eval window for a term (defaults to `end_date - 30 days`).
+
+**Grade-gate.** The existing student-grades response gains:
+```ts
+mustEvaluateFirst: {
+  sectionId: string;
+  sectionCode: string;
+  courseTitle: string;
+  facultyName: string;
+}[]
+```
+populated as: `enrollments where status='enrolled' AND finalized_at IS NOT NULL AND NOT EXISTS (evaluation by this student for this section)`. The Grades page renders a banner + locks the corresponding rows. Locked rows show the assessment line items (their own work) but the numeric / letter grade renders as `— evaluate to reveal`.
+
+**Frontend.**
+- **Student → Evaluations** new top-nav item (sits next to Appeals). Shows
+  pending sections during the window; closed otherwise. Form is one card
+  per question: 5-point radio for `likert_5`, textarea for `text`.
+  Submit posts atomically; on success the section moves to a "✅
+  submitted" list.
+- **Student → Grades** — gated rows render the lock + a deep link to the
+  pending evaluation.
+- **Faculty → Evaluations** new top-nav item. Shows each section's
+  per-question rollup (mean, distribution sparkline, N) once the
+  threshold is met. Free-text answers in a shuffled list at the bottom.
+  Above-the-fold summary: term-wide mean.
+- **Admin → Evaluations** wide rollup across the institution. Filter by
+  term / program / faculty. Same K-anonymity threshold applies.
+- **Admin → Question bank** CRUD with archive (soft-delete preserves
+  historical answers).
+
+**Edge cases.**
+- Student dropped before evaluation window opens — no entry in pending,
+  no gate. Already enforced by `status='enrolled'` filter.
+- TBA section (no faculty assigned) — skipped from pending. Per spec
+  3.4 these get auto-passed at term close anyway.
+- Student finishes evaluation, then re-evaluates — UNIQUE constraint
+  rejects; UI hides the form once submitted.
+- Faculty teaches multiple sections of the same course — each section is
+  its own evaluation row. The faculty rollup aggregates across them with
+  the K-anonymity threshold on the rollup.
+- Admin override — admins do **not** get a "see who said what" tool.
+  Ever. Re-identification capability would break the contract retroactively.
+
+**Effort breakdown.** ~2 days. Split into three landable PRs:
+1. **Schema + submission flow** (~1 day). Tables, question bank CRUD,
+   student form, window enforcement.
+2. **Grade-reveal gate** (~½ day). `mustEvaluateFirst` field +
+   Grades-page banner + row lock.
+3. **Faculty / admin aggregate views** (~½ day). K-anonymity rollups.
+
+**Dependencies.** None. Fully additive — no cross-cutting changes to
+other modules.
 
 ---
 
@@ -1064,18 +1296,17 @@ Items 5.1–5.4 (analytics), 6.1 (forced password change), 1.1 (COR), 1.3
 (.ics), 1.4 (wishlist), 3.1 (CSV import), 3.4 (auto-assign) are
 **all shipped**. The most impactful remaining bundles:
 
-### Phase A — Academic compliance polish (~3 days)
+### Phase A — Academic compliance polish (~2 days)
 
-Three small features that close common compliance gaps:
+Two small features that close common compliance gaps:
 
 1. **4.5 Prerequisite enforcement at enrollment** — schema is ready;
    `createEnrollment` just needs to check it.
 2. **4.4 Add/drop window enforcement** — two date columns + reject
    updates after deadline.
-3. **3.6 Past-term archive** — important to ship before two academic
-   years of data accumulate.
 
-Together: PH-aligned, no schema rewrites, all `S/M` effort.
+Both are PH-aligned, no schema rewrites, all `S` effort. (3.6 Past-term
+archive has shipped.)
 
 ### Phase B — Faculty productivity (~5 days)
 
@@ -1095,15 +1326,35 @@ work:
 2. **3.2 Bulk enrollment via CSV** — reuses the 3.1 scaffolding.
 3. **3.5 Audit-log actor timeline** — one new endpoint, side-panel UI.
 
-### Phase D — Security & polish (~3 days)
+### Phase D — Security & polish (~1 day)
 
-1. **6.6 Code-split the bundle** — quick win, helps mobile loads.
-2. **6.5 Dark mode** — appreciated by everyone.
-3. **8.7 Notification preferences** — keeps the bell signal high.
+1. **8.7 Notification preferences** — keeps the bell signal high.
+
+(6.6 Code-split and 6.5 Dark mode have shipped.)
+
+### Phase E — College-grade scheduling & quality (~4 days) — NEW
+
+Two features specifically called out by the institution's academic
+office:
+
+1. **2.6 Multi-meeting section schedule** (~2 days) — promotes
+   `sections` schedule from a single `day_of_week/start/end` triple to a
+   `section_meetings` table capped at 1-or-2 meetings per week, with
+   curriculum-driven `meetings_per_week` and a standard pair rotation
+   (Mon+Thu / Tue+Fri / Wed+Sat) in the auto-assigner. Lets one section
+   meet for 3 h Tue + 2 h Fri, or NSTP only on Sun.
+2. **4.6 Anonymous faculty evaluation** (~2 days) — student → faculty
+   evaluation window opens 30 days before term end; submitting unlocks
+   the student's finalized-grade view; faculty see K-anonymous rollups
+   (`n ≥ 3` per section). Three landable PRs internally.
+
+These two together cover the gap between an elementary-grade SIS and a
+real college SIS.
 
 If you can only pick one phase: **Phase A** has the highest "this is
 required for an actual school to use the system" weight. Phase B has the
-highest "faculty will love you" weight.
+highest "faculty will love you" weight. **Phase E** is the most
+college-specific.
 
 ---
 

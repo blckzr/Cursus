@@ -1,5 +1,5 @@
 import { db } from '../../config/db';
-import { parseDays } from '../sections/sections.service';
+// (parseDays import removed — meetings now arrive pre-parsed from section_meetings)
 
 /** Default overload threshold when a faculty member has no personal cap set. */
 const DEFAULT_OVERLOAD_UNITS = 24;
@@ -114,9 +114,7 @@ interface SectionForLoad {
   courseCode:  string;
   courseTitle: string;
   units:       number;
-  dayOfWeek:   string | null;
-  startTime:   string | null;
-  endTime:     string | null;
+  meetings:    { dayOfWeek: string; startTime: string; endTime: string }[];
   room:        string | null;
   hoursPerWeek: number;
 }
@@ -189,9 +187,16 @@ export async function getFacultyLoad(opts: { termId?: string }): Promise<Faculty
             u.max_teaching_units,
             s.id              AS section_id,
             s.section_code,
-            s.day_of_week,
-            s.start_time::text AS start_time,
-            s.end_time::text   AS end_time,
+            COALESCE(
+              (SELECT jsonb_agg(jsonb_build_object(
+                        'dayOfWeek', m.day_of_week,
+                        'startTime', to_char(m.start_time, 'HH24:MI'),
+                        'endTime',   to_char(m.end_time,   'HH24:MI'))
+                       ORDER BY array_position(ARRAY['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], m.day_of_week),
+                                m.start_time)
+               FROM section_meetings m WHERE m.section_id = s.id),
+              '[]'::jsonb
+            ) AS meetings,
             s.room,
             c.code             AS course_code,
             c.title            AS course_title,
@@ -226,16 +231,15 @@ export async function getFacultyLoad(opts: { termId?: string }): Promise<Faculty
     }
     if (r.section_id) {
       const units    = Number(r.units || 0);
-      const hours    = computeHoursPerWeek(r.day_of_week, r.start_time, r.end_time);
+      const meetings = (r.meetings ?? []) as { dayOfWeek: string; startTime: string; endTime: string }[];
+      const hours    = computeHoursPerWeek(meetings);
       row.sections.push({
         sectionId:    r.section_id,
         sectionCode:  r.section_code,
         courseCode:   r.course_code,
         courseTitle:  r.course_title,
         units,
-        dayOfWeek:    r.day_of_week,
-        startTime:    r.start_time,
-        endTime:      r.end_time,
+        meetings,
         room:         r.room,
         hoursPerWeek: hours,
       });
@@ -284,18 +288,18 @@ export async function getFacultyLoad(opts: { termId?: string }): Promise<Faculty
 }
 
 /**
- * Sum of (day-count × session length) for a section. Returns 0 if any field
- * is missing or malformed so partial schedules don't pollute the total.
+ * Sum of meeting durations for a section, in hours/week. Returns 0 if there
+ * are no meetings, so unscheduled sections don't pollute the total.
  */
-function computeHoursPerWeek(dayOfWeek: string | null, startTime: string | null, endTime: string | null): number {
-  if (!dayOfWeek || !startTime || !endTime) return 0;
-  const days = parseDays(dayOfWeek).length;
-  if (days === 0) return 0;
-  const [sh, sm] = startTime.split(':').map(Number);
-  const [eh, em] = endTime.split(':').map(Number);
-  const minutes = (eh * 60 + (em || 0)) - (sh * 60 + (sm || 0));
-  if (minutes <= 0) return 0;
-  return Math.round((days * minutes / 60) * 10) / 10;
+function computeHoursPerWeek(meetings: { startTime: string; endTime: string }[]): number {
+  let totalMin = 0;
+  for (const m of meetings) {
+    const [sh, sm] = m.startTime.split(':').map(Number);
+    const [eh, em] = m.endTime.split(':').map(Number);
+    const minutes = (eh * 60 + (em || 0)) - (sh * 60 + (sm || 0));
+    if (minutes > 0) totalMin += minutes;
+  }
+  return Math.round((totalMin / 60) * 10) / 10;
 }
 
 // ─── Section fill rates ─────────────────────────────────────────────────────

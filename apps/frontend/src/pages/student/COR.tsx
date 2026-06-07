@@ -20,9 +20,7 @@ interface CorSubject {
   course_title:  string;
   units:         number;
   section_code:  string;
-  day_of_week:   string | null;
-  start_time:    string | null;
-  end_time:      string | null;
+  meetings:      Array<{ dayOfWeek: string; startTime: string; endTime: string }>;
   room:          string | null;
   faculty_name:  string | null;
 }
@@ -214,9 +212,9 @@ export default function StudentCor() {
                   <td className="table-td">{s.course_title}</td>
                   <td className="table-td text-center tabular">{s.units}</td>
                   <td className="table-td font-mono text-stone-500 text-xs hidden sm:table-cell">{s.section_code}</td>
-                  <td className="table-td text-stone-600 text-xs whitespace-nowrap">
-                    {s.day_of_week
-                      ? <><span className="font-mono">{s.day_of_week}</span> · {s.start_time?.slice(0, 5)}–{s.end_time?.slice(0, 5)}</>
+                  <td className="table-td text-stone-600 text-xs">
+                    {s.meetings && s.meetings.length > 0
+                      ? <span className="font-mono">{s.meetings.map((m: any) => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join('; ')}</span>
                       : <span className="badge badge-amber"><Icon name="alert-triangle" size={10} /> TBA</span>}
                   </td>
                   <td className="table-td text-stone-500 hidden md:table-cell">{s.room ?? '—'}</td>
@@ -275,16 +273,16 @@ function ConfirmBanner({ pending, onConfirm }: {
   pending: PendingEnrollmentPayload; onConfirm: () => void;
 }) {
   return (
-    <div className="card !p-0 overflow-hidden border-olive-200 ring-2 ring-olive-100">
-      <div className="bg-gradient-to-r from-olive-50 to-beige-50 px-4 py-3 flex items-center gap-3 border-b border-olive-100">
-        <span className="w-9 h-9 rounded-lg bg-olive-100 text-olive-600 flex items-center justify-center flex-shrink-0">
+    <div className="card !p-0 overflow-hidden border-olive-200 ring-2 ring-olive-100 dark:border-olive-400/50 dark:ring-olive-500/20">
+      <div className="bg-gradient-to-r from-olive-50 to-beige-50 dark:from-olive-500/15 dark:to-olive-500/5 px-4 py-3 flex items-center gap-3 border-b border-olive-100 dark:border-olive-400/30">
+        <span className="w-9 h-9 rounded-lg bg-olive-100 text-olive-600 dark:bg-olive-500/30 dark:text-olive-100 flex items-center justify-center flex-shrink-0">
           <Icon name="sparkles" size={17} />
         </span>
         <div className="flex-1 min-w-0">
-          <div className="text-sm font-semibold text-stone-800">
+          <div className="text-sm font-semibold text-stone-800 dark:text-stone-100">
             Confirm your enrollment for {pending.term.name}
           </div>
-          <div className="text-xs text-stone-500 mt-0.5">
+          <div className="text-xs text-stone-500 dark:text-stone-300 mt-0.5">
             The registrar has registered you for {pending.subjects.length} subject{pending.subjects.length === 1 ? '' : 's'} ({pending.totalUnits} units).
             Confirm to attend — until you do, your schedule and grades stay locked.
           </div>
@@ -338,9 +336,9 @@ function ConfirmModal({ pending, onClose, onConfirm, submitting }: {
                   <td className="table-td !py-1.5 font-mono text-xs font-semibold text-olive-600">{s.course_code}</td>
                   <td className="table-td !py-1.5 truncate">{s.course_title}</td>
                   <td className="table-td !py-1.5 text-center tabular">{s.units}</td>
-                  <td className="table-td !py-1.5 text-stone-600 text-xs hidden sm:table-cell whitespace-nowrap">
-                    {s.day_of_week
-                      ? <><span className="font-mono">{s.day_of_week}</span> · {s.start_time?.slice(0,5)}–{s.end_time?.slice(0,5)}</>
+                  <td className="table-td !py-1.5 text-stone-600 text-xs hidden sm:table-cell">
+                    {s.meetings && s.meetings.length > 0
+                      ? <span className="font-mono">{s.meetings.map((m: any) => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join('; ')}</span>
                       : <span className="badge badge-amber"><Icon name="alert-triangle" size={10} /> TBA</span>}
                   </td>
                 </tr>

@@ -22,14 +22,14 @@ function describeGWA(gwa: number | null) {
   return { tone: 'red', label: 'Probation' };
 }
 
-function todayCode() {
-  const map = ['', 'M', 'T', 'W', 'Th', 'F'];
-  return map[new Date().getDay()] || '';
+function todayCode(): 'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'|'' {
+  const map = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'] as const;
+  return map[new Date().getDay()] ?? '';
 }
-function meetsToday(d: string | undefined | null, code: string) {
-  if (!d || !code) return false;
-  if (code === 'Th') return /Th/.test(d);
-  return d.replace(/Th/g, '').includes(code);
+/** Returns the first meeting (if any) that lands on `code`. */
+function meetingToday(meetings: any[] | undefined | null, code: string) {
+  if (!meetings || !code) return undefined;
+  return meetings.find(m => m.dayOfWeek === code);
 }
 
 export default function StudentDashboard() {
@@ -66,8 +66,9 @@ export default function StudentDashboard() {
 
   const tCode = todayCode();
   const todays = activeEnrollments
-    .filter((e: any) => meetsToday(e.day_of_week, tCode))
-    .sort((a: any, b: any) => String(a.start_time).localeCompare(String(b.start_time)));
+    .map((e: any) => ({ enrollment: e, meeting: meetingToday(e.meetings, tCode) }))
+    .filter((x: any) => x.meeting)
+    .sort((a: any, b: any) => a.meeting.startTime.localeCompare(b.meeting.startTime));
 
   const firstName = user?.fullName.split(' ')[0] || '';
 
@@ -164,11 +165,11 @@ export default function StudentDashboard() {
           <div className="card p-0"><EmptyState icon="calendar" title="No classes today" message="Enjoy your day." /></div>
         ) : (
           <div className="card p-0 overflow-hidden">
-            {todays.map((e: any, i: number) => (
+            {todays.map(({ enrollment: e, meeting }: any, i: number) => (
               <div key={e.id} className={`flex items-center gap-3 sm:gap-4 px-3 sm:px-4 py-3 sm:py-3.5 ${i > 0 ? 'border-t border-beige-200' : ''}`}>
                 <div className="text-center w-12 sm:w-14 flex-shrink-0">
-                  <div className="font-mono text-sm font-semibold tabular text-stone-800 tracking-tight">{e.start_time?.slice(0, 5)}</div>
-                  <div className="text-[10px] text-stone-400">to {e.end_time?.slice(0, 5)}</div>
+                  <div className="font-mono text-sm font-semibold tabular text-stone-800 tracking-tight">{meeting.startTime}</div>
+                  <div className="text-[10px] text-stone-400">to {meeting.endTime}</div>
                 </div>
                 <div className="w-1 h-10 rounded-full bg-olive-300 flex-shrink-0" />
                 <div className="flex-1 min-w-0">
@@ -214,9 +215,9 @@ export default function StudentDashboard() {
                 </td>
                 <td className="table-td font-mono text-stone-500 text-xs hidden md:table-cell">{e.section_code}</td>
                 <td className="table-td text-stone-500 hidden md:table-cell">{e.faculty_name}</td>
-                <td className="table-td text-stone-500 text-xs">
-                  {e.day_of_week
-                    ? <><span className="font-mono">{e.day_of_week}</span> · {e.start_time?.slice(0,5)}–{e.end_time?.slice(0,5)}</>
+                <td className="table-td text-stone-500 text-xs font-mono">
+                  {e.meetings && e.meetings.length > 0
+                    ? e.meetings.map((m: any) => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ')
                     : <span className="text-stone-300">—</span>}
                 </td>
                 <td className="table-td text-right hidden sm:table-cell"><span className="badge badge-enrolled">Enrolled</span></td>

@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPrograms, getCourses, getCurriculum, addCurriculumEntry, removeCurriculumEntry } from '../../api';
+import { getPrograms, getCourses, getCurriculum, addCurriculumEntry, removeCurriculumEntry, updateCurriculumEntry } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import SectionTitle from '../../components/SectionTitle';
 import Modal from '../../components/Modal';
@@ -71,10 +71,15 @@ export default function Curriculum() {
       qc.invalidateQueries({ queryKey: ['curriculum', programId] });
       toast.push({ tone: 'info', title: 'Course removed' });
     },
-    onError: (e: unknown) => toast.push({
-      tone: 'error', title: 'Could not remove',
-      message: parseApiError(e).message,
-    }),
+    onError: (e: unknown) => toast.push({ tone: 'error', title: 'Remove failed', message: parseApiError(e).message }),
+  });
+
+  /** Flip a curriculum entry between 1 and 2 meetings/week. */
+  const meetingsMut = useMutation({
+    mutationFn: ({ entryId, mpw }: { entryId: string; mpw: 1 | 2 }) =>
+      updateCurriculumEntry(programId, entryId, { meetingsPerWeek: mpw }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['curriculum', programId] }),
+    onError:   (e: unknown) => toast.push({ tone: 'error', title: 'Update failed', message: parseApiError(e).message }),
   });
 
   return (
@@ -133,19 +138,31 @@ export default function Curriculum() {
                           <p className="text-xs text-stone-400 italic">No courses placed.</p>
                         ) : (
                           <ul className="space-y-1.5">
-                            {items.map(e => (
-                              <li key={e.id} className="group flex items-center gap-2 bg-beige-50 rounded-lg px-2 py-1.5">
-                                <span className="font-mono text-xs font-semibold text-olive-600 w-16 sm:w-20 flex-shrink-0 truncate">{e.code}</span>
-                                <span className="text-xs text-stone-700 flex-1 min-w-0 truncate" title={e.title}>{e.title}</span>
-                                <span className="text-[10px] text-stone-400 tabular flex-shrink-0">{e.units}u</span>
-                                {/* Trash button is always visible on touch (no hover available); fades in on hover on desktop. */}
-                                <button className="btn-icon !w-6 !h-6 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:!text-red-500 flex-shrink-0"
-                                  title={`Remove ${e.code}`}
-                                  onClick={() => { if (window.confirm(`Remove ${e.code} from this curriculum?`)) removeMut.mutate(e.id); }}>
-                                  <Icon name="x" size={10} />
-                                </button>
-                              </li>
-                            ))}
+                            {items.map(e => {
+                              const mpw = (e as any).meetings_per_week === 1 ? 1 : 2;
+                              const toggleMpw = () => meetingsMut.mutate({ entryId: e.id, mpw: mpw === 1 ? 2 : 1 });
+                              return (
+                                <li key={e.id} className="group flex items-center gap-2 bg-beige-50 rounded-lg px-2 py-1.5">
+                                  <span className="font-mono text-xs font-semibold text-olive-600 w-16 sm:w-20 flex-shrink-0 truncate">{e.code}</span>
+                                  <span className="text-xs text-stone-700 flex-1 min-w-0 truncate" title={e.title}>{e.title}</span>
+                                  <span className="text-[10px] text-stone-400 tabular flex-shrink-0">{e.units}u</span>
+                                  <button
+                                    onClick={toggleMpw}
+                                    className={`text-[10px] tabular font-semibold rounded px-1.5 py-0.5 flex-shrink-0 transition-colors ${
+                                      mpw === 1 ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-olive-100 text-olive-600 hover:bg-olive-200'
+                                    }`}
+                                    title={`${mpw} meeting${mpw === 1 ? '' : 's'}/week — click to toggle`}
+                                  >
+                                    {mpw}x
+                                  </button>
+                                  <button className="btn-icon !w-6 !h-6 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:!text-red-500 flex-shrink-0"
+                                    title={`Remove ${e.code}`}
+                                    onClick={() => { if (window.confirm(`Remove ${e.code} from this curriculum?`)) removeMut.mutate(e.id); }}>
+                                    <Icon name="x" size={10} />
+                                  </button>
+                                </li>
+                              );
+                            })}
                           </ul>
                         )}
                       </div>

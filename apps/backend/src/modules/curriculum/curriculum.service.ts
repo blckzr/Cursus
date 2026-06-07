@@ -14,7 +14,7 @@ function slotIsBefore(yA: number, sA: Semester, yB: number, sB: Semester): boole
 /** All curriculum entries for a program, joined to the course catalog. */
 export async function listCurriculum(programId: string) {
   const { rows } = await db.query(
-    `SELECT cc.id, cc.year_level, cc.semester, cc.display_order,
+    `SELECT cc.id, cc.year_level, cc.semester, cc.display_order, cc.meetings_per_week,
             c.id     AS course_id,
             c.code,
             c.title,
@@ -42,6 +42,7 @@ export async function listCurriculum(programId: string) {
  */
 export async function addCurriculumEntry(programId: string, data: {
   courseId: string; yearLevel: number; semester: Semester; displayOrder?: number;
+  meetingsPerWeek?: 1 | 2;
 }) {
   // 1 & 2 — course exists + visibility check
   const { rows: courseRows } = await db.query(
@@ -103,11 +104,21 @@ export async function addCurriculumEntry(programId: string, data: {
   }
 
   const { rows } = await db.query(
-    `INSERT INTO curriculum_courses (program_id, course_id, year_level, semester, display_order)
-     VALUES ($1, $2, $3, $4, $5)
+    `INSERT INTO curriculum_courses (program_id, course_id, year_level, semester, display_order, meetings_per_week)
+     VALUES ($1, $2, $3, $4, $5, $6)
      RETURNING *`,
-    [programId, data.courseId, data.yearLevel, data.semester, data.displayOrder ?? 0],
+    [programId, data.courseId, data.yearLevel, data.semester, data.displayOrder ?? 0, data.meetingsPerWeek ?? 2],
   );
+  return rows[0];
+}
+
+/** Toggle a curriculum entry's `meetings_per_week` (1 or 2). */
+export async function updateCurriculumEntry(entryId: string, data: { meetingsPerWeek: 1 | 2 }) {
+  const { rows } = await db.query(
+    `UPDATE curriculum_courses SET meetings_per_week = $1 WHERE id = $2 RETURNING *`,
+    [data.meetingsPerWeek, entryId],
+  );
+  if (!rows[0]) throw Object.assign(new Error('Curriculum entry not found'), { status: 404 });
   return rows[0];
 }
 

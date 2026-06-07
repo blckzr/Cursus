@@ -1,25 +1,40 @@
 /**
  * Day-of-week + time helpers shared by the section editor, faculty availability,
- * and the schedule grid. Keep the parser tolerant — section storage uses the
- * compact format ('MWF', 'TTh', 'SunSat'), so we have to round-trip cleanly.
+ * and the schedule grid.
+ *
+ * Post-2.6: the canonical day code is the 3-letter form ('Mon', 'Tue', ...,
+ * 'Sun'), matching `section_meetings.day_of_week`. `parseDays()` still accepts
+ * the legacy compact form ('MWF', 'TTh') because faculty_availability rows
+ * keep using it.
  */
 
-export const DAY_ORDER = ['M', 'T', 'W', 'Th', 'F', 'Sat', 'Sun'] as const;
+export const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 export type DayCode = typeof DAY_ORDER[number];
 export const DAY_LABEL: Record<DayCode, string> = {
-  M: 'Mon', T: 'Tue', W: 'Wed', Th: 'Thu', F: 'Fri', Sat: 'Sat', Sun: 'Sun',
+  Mon: 'Mon', Tue: 'Tue', Wed: 'Wed', Thu: 'Thu', Fri: 'Fri', Sat: 'Sat', Sun: 'Sun',
 };
 
-/** Compact day string → list of canonical tokens. Multi-char tokens win first. */
+/**
+ * Compact day string → list of canonical 3-letter tokens. Handles the legacy
+ * faculty_availability format ('MWF', 'TTh') AS WELL AS already-canonical
+ * 3-letter strings ('Mon', 'TueFri'). Multi-char tokens win first.
+ */
 export function parseDays(s: string | null | undefined): DayCode[] {
   if (!s) return [];
   let rest = s.replace(/\s+/g, '');
   const out = new Set<DayCode>();
-  while (/sun/i.test(rest)) { out.add('Sun'); rest = rest.replace(/sun/i, ''); }
-  while (/sat/i.test(rest)) { out.add('Sat'); rest = rest.replace(/sat/i, ''); }
-  while (/th/i.test(rest))  { out.add('Th');  rest = rest.replace(/th/i,  ''); }
+  // Match 3-letter day codes first (case-insensitive)
+  for (const code of DAY_ORDER) {
+    const re = new RegExp(code, 'gi');
+    if (re.test(rest)) { out.add(code); rest = rest.replace(re, ''); }
+  }
+  // Legacy single-letter / 'Th' tokens
+  while (/th/i.test(rest))  { out.add('Thu'); rest = rest.replace(/th/i, ''); }
   for (const c of rest.toUpperCase()) {
-    if ('MTWF'.includes(c)) out.add(c as DayCode);
+    if (c === 'M') out.add('Mon');
+    else if (c === 'T') out.add('Tue');
+    else if (c === 'W') out.add('Wed');
+    else if (c === 'F') out.add('Fri');
   }
   return [...out];
 }

@@ -41,11 +41,12 @@ export default function FacultySectionCard({ section, basePath = '/faculty/secti
       </div>
 
       <div className="text-xs text-stone-500 mt-3 flex items-center gap-x-3 gap-y-1 flex-wrap">
-        {section.day_of_week && (
-          <span className="flex items-center gap-1">
+        {section.meetings && section.meetings.length > 0 && (
+          <span className="flex items-center gap-1 flex-wrap">
             <Icon name="calendar" size={11} />
-            <span className="font-mono">{section.day_of_week}</span>
-            <span className="tabular">· {String(section.start_time ?? '').slice(0, 5)}–{String(section.end_time ?? '').slice(0, 5)}</span>
+            <span className="font-mono tabular">
+              {section.meetings.map((m: any) => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ')}
+            </span>
           </span>
         )}
         {section.room && (

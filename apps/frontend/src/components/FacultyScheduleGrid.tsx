@@ -39,11 +39,12 @@ interface Props {
   facultyId:         string | null | undefined;
   termId:            string | null | undefined;
   excludeSectionId?: string;
-  proposed?: {
-    dayOfWeek: string;
-    startTime: string;
-    endTime:   string;
-  };
+  /**
+   * Post-2.6: a section can have up to 2 meetings, each on its own day. The
+   * grid renders ALL of them as 'proposed' blocks and a conflict is reported
+   * per-meeting against the day they actually fall on.
+   */
+  proposedMeetings?: Array<{ dayOfWeek: string; startTime: string; endTime: string }>;
 }
 
 function formatMin(m: number): string {
@@ -104,7 +105,7 @@ function computeBlocks(
   return blocks.filter(b => b.state !== 'unavailable');
 }
 
-export default function FacultyScheduleGrid({ facultyId, termId, excludeSectionId, proposed }: Props) {
+export default function FacultyScheduleGrid({ facultyId, termId, excludeSectionId, proposedMeetings }: Props) {
   const { data: rawSlots = [], isLoading: loadingSlots } = useQuery({
     queryKey: ['availability', facultyId],
     queryFn:  () => getAvailability(facultyId!),
@@ -127,30 +128,46 @@ export default function FacultyScheduleGrid({ facultyId, termId, excludeSectionI
     [rawSlots],
   );
 
-  const commits: Commitment[] = useMemo(
-    () => (rawSections as { id: string; day_of_week: string | null; start_time: string | null; end_time: string | null }[])
-      .filter(s => s.id !== excludeSectionId && s.day_of_week && s.start_time && s.end_time)
-      .map(s => ({
-        days:  parseDays(s.day_of_week!),
-        start: timeToMin(s.start_time!),
-        end:   timeToMin(s.end_time!),
-      })),
-    [rawSections, excludeSectionId],
-  );
+  const commits: Commitment[] = useMemo(() => {
+    // One Commitment per meeting on every section we keep — meetings come
+    // from the post-2.6 `meetings: Meeting[]` field on sections.
+    const out: Commitment[] = [];
+    for (const s of rawSections as Array<{ id: string; meetings?: Array<{ dayOfWeek: string; startTime: string; endTime: string }> }>) {
+      if (s.id === excludeSectionId) continue;
+      for (const m of (s.meetings ?? [])) {
+        out.push({
+          days:  parseDays(m.dayOfWeek),
+          start: timeToMin(m.startTime),
+          end:   timeToMin(m.endTime),
+        });
+      }
+    }
+    return out;
+  }, [rawSections, excludeSectionId]);
 
-  const proposedRange: Proposed | null = useMemo(() => {
-    if (!proposed?.dayOfWeek || !proposed.startTime || !proposed.endTime) return null;
-    const start = timeToMin(proposed.startTime);
-    const end   = timeToMin(proposed.endTime);
-    if (end <= start) return null;
-    return { days: parseDays(proposed.dayOfWeek), start, end };
-  }, [proposed]);
+  const proposedRanges: Proposed[] = useMemo(() => {
+    if (!proposedMeetings || proposedMeetings.length === 0) return [];
+    const out: Proposed[] = [];
+    for (const m of proposedMeetings) {
+      if (!m.dayOfWeek || !m.startTime || !m.endTime) continue;
+      const start = timeToMin(m.startTime);
+      const end   = timeToMin(m.endTime);
+      if (end <= start) continue;
+      out.push({ days: parseDays(m.dayOfWeek), start, end });
+    }
+    return out;
+  }, [proposedMeetings]);
 
   const dayBlocks = useMemo(() => {
     const out: Record<DayCode, Block[]> = {} as Record<DayCode, Block[]>;
-    for (const d of DAY_ORDER) out[d] = computeBlocks(d, slots, commits, proposedRange);
+    for (const d of DAY_ORDER) {
+      // Find the proposed range (if any) on this specific day so the per-day
+      // computeBlocks() only sees the slice it cares about.
+      const onThisDay = proposedRanges.find(p => p.days.includes(d)) ?? null;
+      out[d] = computeBlocks(d, slots, commits, onThisDay);
+    }
     return out;
-  }, [slots, commits, proposedRange]);
+  }, [slots, commits, proposedRanges]);
 
   if (!facultyId) {
     return (
@@ -240,13 +257,13 @@ export default function FacultyScheduleGrid({ facultyId, termId, excludeSectionI
         <span className="flex items-center gap-1"><span className={`w-3 h-3 rounded-sm ${STATE_CLS['proposed-conflict'].split(' ')[0]}`} /> Proposed (conflict)</span>
       </div>
 
-      {proposedRange && (
+      {proposedRanges.length > 0 && (
         <p className="mt-2 text-xs text-stone-500">
-          The bold colored bar shows where <strong className="text-stone-700">your proposed slot</strong> would land.
+          The bold colored bar shows where <strong className="text-stone-700">your proposed meeting{proposedRanges.length === 1 ? '' : 's'}</strong> would land.
           Red bordering means it conflicts with something — pick a slot that lands on green (Available).
         </p>
       )}
-      {!proposedRange && !noAvailability && (
+      {proposedRanges.length === 0 && !noAvailability && (
         <p className="mt-2 text-xs text-stone-500">
           Pick a day + time below — the grid will live-preview where your slot lands.
         </p>

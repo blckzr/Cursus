@@ -2,6 +2,32 @@ import { db } from '../../config/db';
 import { computeWeightedGrade, numericToLetter } from '../../utils/gradeCalc';
 import { createMany as createNotifications } from '../notifications/notifications.service';
 
+/**
+ * Reusable SQL fragment that aggregates a section's meetings into a JSONB
+ * array. Ordered Mon→Sun then by start_time so consumers can render directly.
+ * Post-2.6: `sections` no longer has day_of_week / start_time / end_time
+ * columns — meetings come from `section_meetings`.
+ */
+const MEETINGS_AGG = `
+  COALESCE(
+    (SELECT jsonb_agg(jsonb_build_object(
+              'dayOfWeek', m.day_of_week,
+              'startTime', to_char(m.start_time, 'HH24:MI'),
+              'endTime',   to_char(m.end_time,   'HH24:MI'))
+              ORDER BY array_position(ARRAY['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], m.day_of_week),
+                       m.start_time)
+     FROM section_meetings m WHERE m.section_id = s.id),
+    '[]'::jsonb
+  )
+`;
+
+/** Sort sections by their first meeting (day-of-week then start time), TBA last. */
+const FIRST_MEETING_SORT = `
+  (SELECT array_position(ARRAY['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], m.day_of_week)
+   FROM section_meetings m WHERE m.section_id = s.id ORDER BY m.day_of_week, m.start_time LIMIT 1) NULLS LAST,
+  (SELECT m.start_time FROM section_meetings m WHERE m.section_id = s.id ORDER BY m.start_time LIMIT 1) NULLS LAST
+`;
+
 // ─── Gradebook Grid ───────────────────────────────────────────────────────────
 
 export async function getGradebook(sectionId: string) {
@@ -254,7 +280,8 @@ export async function getStudentGrades(studentId: string) {
   const { rows } = await db.query(
     `SELECT e.id, e.status, e.numeric_grade, e.letter_grade, e.finalized_at, e.enrolled_at,
             s.id           AS section_id, s.section_code,
-            s.day_of_week, s.start_time, s.end_time, s.room,
+            ${MEETINGS_AGG} AS meetings,
+            s.room,
             c.code         AS course_code, c.title AS course_title, c.units,
             t.id           AS term_id, t.name AS term_name,
             t.start_date, t.end_date, t.is_active AS term_is_active,
@@ -275,8 +302,9 @@ export async function getStudentGrades(studentId: string) {
 
 export async function getRoster(sectionId: string) {
   const { rows: section } = await db.query(
-    `SELECT s.id, s.section_code, s.day_of_week, s.start_time::text AS start_time,
-            s.end_time::text AS end_time, s.room, s.capacity,
+    `SELECT s.id, s.section_code,
+            ${MEETINGS_AGG} AS meetings,
+            s.room, s.capacity,
             c.code AS course_code, c.title AS course_title, c.units,
             t.name AS term_name, t.semester AS term_semester,
             u.full_name AS faculty_name,
@@ -482,7 +510,7 @@ export async function getPendingEnrollment(studentId: string) {
   const { rows: pending } = await db.query(
     `SELECT e.id AS enrollment_id,
             s.section_code,
-            s.day_of_week, s.start_time::text AS start_time, s.end_time::text AS end_time,
+            ${MEETINGS_AGG} AS meetings,
             s.room,
             c.code  AS course_code, c.title AS course_title, c.units,
             t.id AS term_id, t.name AS term_name, t.semester AS term_semester,
@@ -496,7 +524,7 @@ export async function getPendingEnrollment(studentId: string) {
      WHERE e.student_id = $1
        AND e.status     = 'pending'
        AND t.is_active  = TRUE
-     ORDER BY s.day_of_week NULLS LAST, s.start_time NULLS LAST, c.code`,
+     ORDER BY ${FIRST_MEETING_SORT}, c.code`,
     [studentId],
   );
 
@@ -576,9 +604,7 @@ export async function getActiveSchedule(studentId: string) {
   const { rows: enrolls } = await db.query(
     `SELECT e.id AS enrollment_id,
             s.section_code,
-            s.day_of_week,
-            s.start_time::text AS start_time,
-            s.end_time::text   AS end_time,
+            ${MEETINGS_AGG} AS meetings,
             s.room,
             c.code  AS course_code,
             c.title AS course_title,
@@ -593,7 +619,7 @@ export async function getActiveSchedule(studentId: string) {
      WHERE e.student_id = $1
        AND e.status     = 'enrolled'
        AND t.is_active  = TRUE
-     ORDER BY s.day_of_week NULLS LAST, s.start_time NULLS LAST, c.code`,
+     ORDER BY ${FIRST_MEETING_SORT}, c.code`,
     [studentId],
   );
 
@@ -646,7 +672,7 @@ export async function getCorData(studentId: string) {
   const { rows: enrollments } = await db.query(
     `SELECT e.id AS enrollment_id, e.status,
             s.id AS section_id, s.section_code,
-            s.day_of_week, s.start_time::text AS start_time, s.end_time::text AS end_time,
+            ${MEETINGS_AGG} AS meetings,
             s.room,
             c.code AS course_code, c.title AS course_title, c.units,
             t.id AS term_id, t.name AS term_name, t.semester AS term_semester,
@@ -660,7 +686,7 @@ export async function getCorData(studentId: string) {
      WHERE e.student_id = $1
        AND e.status     = 'enrolled'
        AND t.is_active  = TRUE
-     ORDER BY s.day_of_week NULLS LAST, s.start_time NULLS LAST, c.code`,
+     ORDER BY ${FIRST_MEETING_SORT}, c.code`,
     [studentId],
   );
 

@@ -224,7 +224,7 @@ export async function downloadScheduleIcs(req: Request, res: Response, next: Nex
       termEnd:     new Date(data.term.endDate),
       enrollments: data.enrollments.map((e: {
         enrollment_id: string; section_code: string;
-        day_of_week: string | null; start_time: string | null; end_time: string | null;
+        meetings: { dayOfWeek: 'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'; startTime: string; endTime: string }[];
         room: string | null;
         course_code: string; course_title: string; faculty_name: string | null;
       }) => ({
@@ -232,9 +232,7 @@ export async function downloadScheduleIcs(req: Request, res: Response, next: Nex
         courseCode:   e.course_code,
         courseTitle:  e.course_title,
         sectionCode:  e.section_code,
-        dayOfWeek:    e.day_of_week,
-        startTime:    e.start_time,
-        endTime:      e.end_time,
+        meetings:     e.meetings ?? [],
         room:         e.room,
         facultyName:  e.faculty_name,
       })),

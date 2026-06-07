@@ -5,8 +5,8 @@
 --
 -- This file inserts:
 --   • 1 admin account
---   • 20 faculty accounts (with availability + qualifications)
---   • 5 student accounts (all in BSCS 1-1)
+--   • 40 faculty accounts (with availability + qualifications)
+--   • 20 student accounts — 5 per year level (BSCS 1-1, 2-1, 3-1, 4-1)
 --   • The BSCS program + 8 blocks (4 years × 2 blocks)
 --   • The full BSCS catalog of 50+ subjects (from the source curriculum sheet)
 --   • Course prerequisites + per-year/semester placement
@@ -358,13 +358,20 @@ BEGIN
       VALUES (v_code, v_email, pw, v_name, 'faculty', 'MN', 24, FALSE)
       RETURNING id INTO v_user_id;
 
-      -- Availability: morning + afternoon teaching block on their pattern,
-      -- short Saturday office hour (out of the way of any section schedule).
+      -- Availability: full Mon–Sun teaching window so the post-2.6 auto-assigner
+      -- can place ANY standard pair (Mon+Thu, Tue+Fri, Wed+Sat) or a single-day
+      -- pattern (Sun for NSTP, etc.). Pre-2.6 the seed used MWF / TTh strings
+      -- here, but those don't span any of the new standard pairs — auto-assign
+      -- would reject every candidate on availability. v_days is intentionally
+      -- ignored here; we keep the column in the VALUES table for documentation.
+      --
+      -- Office hours are intentionally omitted from the seed because they only
+      -- get in the way of the assigner. Add them per-faculty via the UI to
+      -- exercise the office-hour conflict path.
       INSERT INTO faculty_availability (faculty_id, day_of_week, start_time, end_time, kind)
       VALUES
-        (v_user_id, v_days, TIME '07:00', TIME '12:00', 'teaching'),
-        (v_user_id, v_days, TIME '13:00', TIME '17:00', 'teaching'),
-        (v_user_id, 'Sat',  TIME '08:00', TIME '10:00', 'office_hour');
+        (v_user_id, 'MTWThFSatSun', TIME '07:00', TIME '12:00', 'teaching'),
+        (v_user_id, 'MTWThFSatSun', TIME '13:00', TIME '21:00', 'teaching');
 
       -- Qualifications: each track gets the appropriate course set.
       IF v_track = 'cs' THEN
@@ -402,36 +409,61 @@ BEGIN
   END LOOP;
 
   -- ============================================================
-  -- 8. STUDENTS — 5, all in BSCS 1-1
+  -- 8. STUDENTS — 5 per year level (20 total), all in block 1 of
+  --    their year. Block 2 of each year stays empty so you can also
+  --    exercise the "open term against an empty block" path.
   -- ============================================================
-  SELECT id INTO v_block_id
-  FROM blocks WHERE program_id = bscs_id AND year_level = 1 AND block_number = 1;
+  FOR y IN 1..4 LOOP
+    SELECT id INTO v_block_id
+    FROM blocks WHERE program_id = bscs_id AND year_level = y AND block_number = 1;
 
-  FOR v_face_idx IN 1..5 LOOP
-    DECLARE
-      v_name  TEXT;
-      v_email TEXT;
-      v_code  TEXT;
-    BEGIN
-      SELECT name, email INTO v_name, v_email
-      FROM (VALUES
-        (1, 'Juan Miguel dela Cruz',     'juan.delacruz@cursus.local'),
-        (2, 'Maria Concepcion Reyes',    'maria.reyes@cursus.local'),
-        (3, 'Antonio Lopez Bautista',    'antonio.bautista@cursus.local'),
-        (4, 'Patricia Andrea Garcia',    'patricia.garcia@cursus.local'),
-        (5, 'Jose Rafael Hernandez',     'jose.hernandez@cursus.local')
-      ) AS roster(idx, name, email)
-      WHERE idx = v_face_idx;
+    FOR v_face_idx IN 1..5 LOOP
+      DECLARE
+        v_name  TEXT;
+        v_email TEXT;
+        v_code  TEXT;
+      BEGIN
+        -- 20 distinct names, 5 per year level. v_face_idx within the loop
+        -- selects from each year's slot.
+        SELECT name, email INTO v_name, v_email
+        FROM (VALUES
+          -- Year 1
+          (1, 1, 'Juan Miguel dela Cruz',      'juan.delacruz.y1@cursus.local'),
+          (1, 2, 'Maria Concepcion Reyes',     'maria.reyes.y1@cursus.local'),
+          (1, 3, 'Antonio Lopez Bautista',     'antonio.bautista.y1@cursus.local'),
+          (1, 4, 'Patricia Andrea Garcia',     'patricia.garcia.y1@cursus.local'),
+          (1, 5, 'Jose Rafael Hernandez',      'jose.hernandez.y1@cursus.local'),
+          -- Year 2
+          (2, 1, 'Andres Felipe Santos',       'andres.santos.y2@cursus.local'),
+          (2, 2, 'Beatriz Ysabel Mendoza',     'beatriz.mendoza.y2@cursus.local'),
+          (2, 3, 'Carlos Eduardo Aquino',      'carlos.aquino.y2@cursus.local'),
+          (2, 4, 'Dolores Pilar Marquez',      'dolores.marquez.y2@cursus.local'),
+          (2, 5, 'Emilio Aguinaldo Tan',       'emilio.tan.y2@cursus.local'),
+          -- Year 3
+          (3, 1, 'Francisco Jose Villanueva',  'francisco.villanueva.y3@cursus.local'),
+          (3, 2, 'Gabriela Silang Cruz',       'gabriela.cruz.y3@cursus.local'),
+          (3, 3, 'Hector Manuel Domingo',      'hector.domingo.y3@cursus.local'),
+          (3, 4, 'Imelda Sofia Pascual',       'imelda.pascual.y3@cursus.local'),
+          (3, 5, 'Joaquin Antonio Lim',        'joaquin.lim.y3@cursus.local'),
+          -- Year 4
+          (4, 1, 'Katarina Luisa Manalo',      'katarina.manalo.y4@cursus.local'),
+          (4, 2, 'Lorenzo Diego Salazar',      'lorenzo.salazar.y4@cursus.local'),
+          (4, 3, 'Margarita Rose Espino',      'margarita.espino.y4@cursus.local'),
+          (4, 4, 'Nicolas Carlos Tagle',       'nicolas.tagle.y4@cursus.local'),
+          (4, 5, 'Olivia Theresa Romualdez',   'olivia.romualdez.y4@cursus.local')
+        ) AS roster(year, idx, name, email)
+        WHERE year = y AND idx = v_face_idx;
 
-      v_code := EXTRACT(YEAR FROM now())::TEXT
-              || '-' || LPAD(nextval('student_code_seq')::TEXT, 5, '0')
-              || '-MN-0';
+        v_code := EXTRACT(YEAR FROM now())::TEXT
+                || '-' || LPAD(nextval('student_code_seq')::TEXT, 5, '0')
+                || '-MN-0';
 
-      INSERT INTO users (user_code, email, password_hash, full_name, role, branch,
-                         program_id, year_level, block_id, password_must_change)
-      VALUES (v_code, v_email, pw, v_name, 'student', 'MN',
-              bscs_id, 1, v_block_id, FALSE);
-    END;
+        INSERT INTO users (user_code, email, password_hash, full_name, role, branch,
+                           program_id, year_level, block_id, password_must_change)
+        VALUES (v_code, v_email, pw, v_name, 'student', 'MN',
+                bscs_id, y, v_block_id, FALSE);
+      END;
+    END LOOP;
   END LOOP;
 
   -- ============================================================

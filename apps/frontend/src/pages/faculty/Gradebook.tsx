@@ -259,8 +259,8 @@ export default function Gradebook() {
         subtitle={
           <span className="flex items-center gap-x-2 gap-y-1 flex-wrap">
             <span className="font-mono font-semibold text-olive-500">{section.section_code}</span>
-            {section.day_of_week && (
-              <><span className="hidden sm:inline">·</span><span><span className="font-mono">{section.day_of_week}</span> · {section.start_time?.slice(0,5)}–{section.end_time?.slice(0,5)}</span></>
+            {section.meetings && section.meetings.length > 0 && (
+              <><span className="hidden sm:inline">·</span><span className="font-mono">{section.meetings.map((m: any) => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ')}</span></>
             )}
             {section.room && <><span className="hidden sm:inline">·</span><span className="flex items-center gap-1"><Icon name="map-pin" size={11} /> {section.room}</span></>}
             <span className="hidden sm:inline">·</span>

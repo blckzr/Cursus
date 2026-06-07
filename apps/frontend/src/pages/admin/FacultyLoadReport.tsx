@@ -264,9 +264,9 @@ function FacultyRow({ row, expanded, onToggle }: {
                   <li key={s.sectionId} className="flex items-center gap-3 text-xs px-2 py-1.5 rounded bg-white border border-beige-200">
                     <span className="font-mono font-semibold text-olive-600 w-20 truncate">{s.courseCode}</span>
                     <span className="flex-1 text-stone-700 truncate">{s.courseTitle}</span>
-                    <span className="text-stone-500 tabular hidden sm:inline">
-                      {s.dayOfWeek
-                        ? <><span className="font-mono">{s.dayOfWeek}</span> {(s.startTime ?? '').slice(0,5)}–{(s.endTime ?? '').slice(0,5)}</>
+                    <span className="text-stone-500 tabular hidden sm:inline font-mono">
+                      {s.meetings && s.meetings.length > 0
+                        ? s.meetings.map(m => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ')
                         : <span className="text-stone-300 italic">TBA</span>}
                     </span>
                     <span className="text-stone-400 tabular text-[10px] w-12 text-right">{s.units}u</span>
