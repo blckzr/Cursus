@@ -24,6 +24,7 @@ const Enrollments         = lazy(() => import('./pages/admin/Enrollments'));
 const AuditLog            = lazy(() => import('./pages/admin/AuditLog'));
 const Analytics           = lazy(() => import('./pages/admin/Analytics'));
 const AdminAppeals        = lazy(() => import('./pages/admin/Appeals'));
+const AdminEvaluations    = lazy(() => import('./pages/admin/Evaluations'));
 const FacultyDashboard    = lazy(() => import('./pages/faculty/Dashboard'));
 const FacultySections     = lazy(() => import('./pages/faculty/Sections'));
 const FacultyAvailability = lazy(() => import('./pages/faculty/Availability'));
@@ -31,6 +32,7 @@ const Gradebook           = lazy(() => import('./pages/faculty/Gradebook'));
 const Roster              = lazy(() => import('./pages/faculty/Roster'));
 const FacultySubjects     = lazy(() => import('./pages/faculty/Subjects'));
 const FacultyAppeals      = lazy(() => import('./pages/faculty/Appeals'));
+const FacultyEvaluations  = lazy(() => import('./pages/faculty/Evaluations'));
 const StudentDashboard    = lazy(() => import('./pages/student/Dashboard'));
 const StudentGrades       = lazy(() => import('./pages/student/Grades'));
 const StudentSchedule     = lazy(() => import('./pages/student/Schedule'));
@@ -38,6 +40,7 @@ const StudentCurriculum   = lazy(() => import('./pages/student/Curriculum'));
 const StudentCor          = lazy(() => import('./pages/student/COR'));
 const StudentWishlist     = lazy(() => import('./pages/student/Wishlist'));
 const StudentAppeals      = lazy(() => import('./pages/student/Appeals'));
+const StudentEvaluations  = lazy(() => import('./pages/student/Evaluations'));
 const Account             = lazy(() => import('./pages/Account'));
 
 const qc = new QueryClient({
@@ -63,6 +66,7 @@ const adminNav = [
   { label: 'Sections',    to: '/admin/sections',    icon: School        },
   { label: 'Enrollments', to: '/admin/enrollments', icon: ClipboardList },
   { label: 'Appeals',     to: '/admin/appeals',     icon: MessageSquare },
+  { label: 'Evaluations', to: '/admin/evaluations', icon: Star          },
   { label: 'Analytics',   to: '/admin/analytics',   icon: TrendingUp    },
   { label: 'Activity log',to: '/admin/audit-log',   icon: FileText      },
   { label: 'Account',     to: '/admin/account',     icon: Settings      },
@@ -74,6 +78,7 @@ const facultyNav = [
   { label: 'My Subjects',   to: '/faculty/subjects',     icon: BookOpen      },
   { label: 'Availability',  to: '/faculty/availability', icon: Clock         },
   { label: 'Appeals',       to: '/faculty/appeals',      icon: MessageSquare },
+  { label: 'Evaluations',   to: '/faculty/evaluations',  icon: Star          },
   { label: 'Account',       to: '/faculty/account',      icon: Settings      },
 ];
 const studentNav = [
@@ -84,6 +89,7 @@ const studentNav = [
   { label: 'Wishlist',   to: '/student/wishlist',   icon: Star          },
   { label: 'COR',        to: '/student/cor',        icon: FileBadge     },
   { label: 'Appeals',    to: '/student/appeals',    icon: MessageSquare },
+  { label: 'Evaluations',to: '/student/evaluations',icon: Star          },
   { label: 'Account',    to: '/student/account',    icon: Settings      },
 ];
 
@@ -122,6 +128,7 @@ export default function App() {
               <Route path="sections"    element={<Sections />} />
               <Route path="enrollments" element={<Enrollments />} />
               <Route path="appeals"     element={<AdminAppeals />} />
+              <Route path="evaluations" element={<AdminEvaluations />} />
               <Route path="analytics"   element={<Analytics />} />
               <Route path="audit-log"   element={<AuditLog />} />
               <Route path="account"     element={<Account />} />
@@ -136,6 +143,7 @@ export default function App() {
               <Route path="subjects"     element={<FacultySubjects />} />
               <Route path="availability" element={<FacultyAvailability />} />
               <Route path="appeals"      element={<FacultyAppeals />} />
+              <Route path="evaluations"  element={<FacultyEvaluations />} />
               <Route path="account"      element={<Account />} />
             </Route>
 
@@ -148,6 +156,7 @@ export default function App() {
               <Route path="wishlist"   element={<StudentWishlist />} />
               <Route path="cor"        element={<StudentCor />} />
               <Route path="appeals"    element={<StudentAppeals />} />
+              <Route path="evaluations" element={<StudentEvaluations />} />
               <Route path="account"    element={<Account />} />
             </Route>
           </Routes>

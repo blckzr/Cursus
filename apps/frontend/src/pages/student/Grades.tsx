@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getStudentGrades, downloadTranscript, createAppeal, listMyAppeals, type AppealRow } from '../../api';
+import { getStudentGrades, downloadTranscript, createAppeal, listMyAppeals, getMustEvaluateFirst, type AppealRow } from '../../api';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
@@ -44,6 +45,13 @@ export default function StudentGrades() {
     queryFn: () => getStudentGrades(user!.id),
     enabled: !!user,
   });
+  // Grade-reveal gate: sections the student must evaluate before their
+  // finalized grade unlocks (FUTURE_FEATURES 4.6).
+  const { data: mustEvaluate = [] } = useQuery({
+    queryKey: ['must-evaluate-first'],
+    queryFn:  getMustEvaluateFirst,
+  });
+  const lockedSectionIds = new Set(mustEvaluate.map(m => m.sectionId));
   // Pull existing appeals so we can mark already-appealed grades inline.
   const { data: appeals = [] } = useQuery<AppealRow[]>({
     queryKey: ['my-appeals'],
@@ -113,6 +121,30 @@ export default function StudentGrades() {
           </button>
         }
       />
+
+      {/* Grade-reveal gate banner (FUTURE_FEATURES 4.6) */}
+      {mustEvaluate.length > 0 && (
+        <div className="card mb-4 border-amber-200 dark:border-amber-400/40 bg-amber-50/60 dark:!bg-amber-400/[0.08]">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-400/25 text-amber-700 dark:text-amber-200 flex items-center justify-center flex-shrink-0">
+              <Icon name="shield" size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+                {mustEvaluate.length} finalized grade{mustEvaluate.length === 1 ? ' is' : 's are'} hidden until you evaluate
+              </div>
+              <div className="text-xs text-stone-600 dark:text-stone-300 mt-0.5">
+                {mustEvaluate.slice(0, 3).map(m => m.courseTitle).join(', ')}
+                {mustEvaluate.length > 3 && ` and ${mustEvaluate.length - 3} more`}.
+                Submitting an anonymous evaluation unlocks each section's final grade immediately.
+              </div>
+            </div>
+            <Link to="/student/evaluations" className="btn-primary text-xs flex items-center gap-1.5 flex-shrink-0">
+              <Icon name="arrow-right" size={11} /> Go evaluate
+            </Link>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-7">
@@ -200,7 +232,15 @@ export default function StudentGrades() {
                             : <span className="badge badge-completed">Completed</span>}
                         </td>
                         <td className="table-td text-right">
-                          {e.letter_grade ? (
+                          {e.letter_grade && lockedSectionIds.has(e.section_id) ? (
+                            <Link
+                              to="/student/evaluations"
+                              className="text-xs text-amber-700 dark:text-amber-200 hover:underline inline-flex items-center gap-1"
+                              title="Evaluate the instructor to reveal this grade"
+                            >
+                              <Icon name="shield" size={11} /> Evaluate to reveal
+                            </Link>
+                          ) : e.letter_grade ? (
                             <div className="leading-tight flex items-center justify-end gap-2">
                               <div>
                                 <span className="font-display text-lg font-medium text-olive-600 tabular">{e.letter_grade}</span>

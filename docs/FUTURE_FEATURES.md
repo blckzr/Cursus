@@ -777,7 +777,7 @@ visualization already shows lock state.
 
 **Dependencies.** Existing prereq table.
 
-### 4.6 Anonymous faculty evaluation — `L`
+### 4.6 Anonymous faculty evaluation — `L` ✅ SHIPPED
 
 **Problem.** PH college standard: students evaluate their instructors
 **before** end-of-term grades are released. The evaluation must be

@@ -419,6 +419,72 @@ export const previewArchiveTerm = (termId: string) =>
 export const archiveTerm = (termId: string) =>
   api.post<ArchiveResult>(`/admin/archive-term/${termId}`).then(r => r.data);
 
+// ── Faculty evaluation (FUTURE_FEATURES 4.6) ─────────────────────────────────
+export interface EvalQuestion {
+  id: string; prompt: string; kind: 'likert_5' | 'text'; display_order: number;
+  archived_at?: string | null;
+}
+export interface EvalPendingSection {
+  sectionId: string; sectionCode: string;
+  courseCode: string; courseTitle: string;
+  facultyId: string; facultyName: string;
+}
+export interface EvalStatusPayload {
+  term: { id: string; name: string; semester: string } | null;
+  isOpen: boolean;
+  opensAt: string | null;
+  closesAt: string | null;
+  pending: EvalPendingSection[];
+  done:    EvalPendingSection[];
+}
+export const getEvalStatus    = () => api.get<EvalStatusPayload>('/evaluations/status').then(r => r.data);
+export const getEvalQuestions = () => api.get<EvalQuestion[]>('/evaluations/questions').then(r => r.data);
+export const submitEvaluation = (sectionId: string, answers: { questionId: string; likertValue?: number; textValue?: string }[]) =>
+  api.post<{ evaluationId: string }>(`/evaluations/section/${sectionId}`, { answers }).then(r => r.data);
+
+export interface MustEvaluateFirst { sectionId: string; sectionCode: string; courseTitle: string; facultyName: string }
+export const getMustEvaluateFirst = () =>
+  api.get<MustEvaluateFirst[]>('/students/me/must-evaluate-first').then(r => r.data);
+
+export interface FacultyEvalRollup {
+  termMean: number | null;
+  termResponses: number;
+  minResponseN: number;
+  sections: Array<{
+    sectionId: string; sectionCode: string; courseCode: string; courseTitle: string;
+    responses: number; meetsThreshold: boolean; minResponseN: number;
+    questions: Array<{
+      questionId: string; prompt: string; kind: 'likert_5' | 'text';
+      mean: number | null; n: number; distribution?: number[];
+    }>;
+    texts: string[];
+  }>;
+}
+export const getFacultyEvalRollup = (termId: string) =>
+  api.get<FacultyEvalRollup>(`/evaluations/faculty/term/${termId}`).then(r => r.data);
+
+export interface AdminEvalRollup {
+  minResponseN: number;
+  faculty: Array<{
+    facultyId: string; facultyName: string; userCode: string | null;
+    sections: number; responses: number; mean: number | null;
+  }>;
+}
+export const getAdminEvalRollup = (termId: string) =>
+  api.get<AdminEvalRollup>(`/evaluations/admin/term/${termId}`).then(r => r.data);
+
+export const getEvalPeriod = (termId: string) =>
+  api.get<{ opens_at: string; closes_at: string; min_response_n: number }>(`/evaluations/admin/period/${termId}`).then(r => r.data);
+export const setEvalPeriod = (termId: string, data: { opensAt?: string; closesAt?: string; minResponseN?: number; preset?: 'auto' }) =>
+  api.post(`/evaluations/admin/period/${termId}`, data).then(r => r.data);
+
+export const listAdminEvalQuestions = () =>
+  api.get<EvalQuestion[]>('/evaluations/admin/questions').then(r => r.data);
+export const createEvalQuestion = (data: { prompt: string; kind: 'likert_5'|'text'; displayOrder?: number }) =>
+  api.post<EvalQuestion>('/evaluations/admin/questions', data).then(r => r.data);
+export const updateEvalQuestion = (id: string, data: { prompt?: string; displayOrder?: number; archived?: boolean }) =>
+  api.patch<EvalQuestion>(`/evaluations/admin/questions/${id}`, data).then(r => r.data);
+
 // ── Enrollment confirmation (self-enlistment) ────────────────────────────────
 export interface PendingEnrollmentSubject {
   enrollment_id: string;
