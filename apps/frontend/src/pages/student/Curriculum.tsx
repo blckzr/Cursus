@@ -106,7 +106,9 @@ export default function StudentCurriculum() {
         subtitle={program ? program.name : 'No program assigned yet'}
         action={
           <button onClick={handleDownload} className="btn-secondary flex items-center gap-2">
-            <Icon name="download" size={14} /> Download transcript
+            <Icon name="download" size={14} />
+            <span className="hidden sm:inline">Download transcript</span>
+            <span className="sm:hidden">Transcript</span>
           </button>
         }
       />
@@ -146,13 +148,15 @@ export default function StudentCurriculum() {
             </div>
           </div>
 
-          {/* Filter chips */}
-          <div className="flex items-center gap-2 mb-5 flex-wrap">
-            <Chip active={filter === 'all'}        onClick={() => setFilter('all')}>All ({entries.length})</Chip>
-            <Chip active={filter === 'completed'}  onClick={() => setFilter('completed')}>Completed ({stats.completed})</Chip>
-            <Chip active={filter === 'current'}    onClick={() => setFilter('current')}>In progress ({stats.current})</Chip>
-            <Chip active={filter === 'pending'}    onClick={() => setFilter('pending')}>Pending ({stats.pending})</Chip>
-            <Chip active={filter === 'locked'}     onClick={() => setFilter('locked')}>Locked ({stats.locked})</Chip>
+          {/* Filter chips — horizontal scroll on mobile so they don't pile into 2-3 rows. */}
+          <div className="-mx-3 px-3 sm:mx-0 sm:px-0 mb-5 overflow-x-auto scrollable">
+            <div className="flex items-center gap-2 w-max sm:w-auto sm:flex-wrap">
+              <Chip active={filter === 'all'}        onClick={() => setFilter('all')}>All ({entries.length})</Chip>
+              <Chip active={filter === 'completed'}  onClick={() => setFilter('completed')}>Completed ({stats.completed})</Chip>
+              <Chip active={filter === 'current'}    onClick={() => setFilter('current')}>In progress ({stats.current})</Chip>
+              <Chip active={filter === 'pending'}    onClick={() => setFilter('pending')}>Pending ({stats.pending})</Chip>
+              <Chip active={filter === 'locked'}     onClick={() => setFilter('locked')}>Locked ({stats.locked})</Chip>
+            </div>
           </div>
 
           {/* Year cards */}
@@ -189,23 +193,29 @@ export default function StudentCurriculum() {
 
 function CourseRow({ entry }: { entry: Entry }) {
   return (
-    <li className="flex items-center gap-3 px-2 py-1.5 rounded hover:bg-beige-50 transition-colors"
+    <li className="flex items-center gap-2 sm:gap-3 px-2 py-1.5 rounded hover:bg-beige-50 transition-colors"
         title={entry.status === 'locked' ? `Locked — needs: ${entry.blockedBy.join(', ')}` : undefined}>
       <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${STATUS_RING[entry.status]}`}>
         <Icon name={STATUS_ICON[entry.status]} size={12} />
       </span>
-      <span className="font-mono text-xs font-semibold text-olive-600 w-24 flex-shrink-0">{entry.courseCode}</span>
-      <span className="flex-1 min-w-0 text-sm text-stone-700 truncate">{entry.courseTitle}</span>
+      {/*
+        Mobile (< sm): course code stacks on top of title in a single flex column to recover horizontal space.
+        Desktop: code and title sit side-by-side, code in a fixed-width slot.
+      */}
+      <div className="flex-1 min-w-0 flex flex-col sm:flex-row sm:items-center sm:gap-3">
+        <span className="font-mono text-xs font-semibold text-olive-600 sm:w-24 sm:flex-shrink-0 truncate">{entry.courseCode}</span>
+        <span className="flex-1 min-w-0 text-sm text-stone-700 truncate">{entry.courseTitle}</span>
+      </div>
       <span className="text-[10px] text-stone-400 tabular w-8 text-right flex-shrink-0">{entry.units}u</span>
-      <span className="text-xs tabular w-28 text-right flex-shrink-0">
+      <span className="text-xs tabular text-right flex-shrink-0 w-20 sm:w-28">
         {entry.status === 'completed' && entry.grade && (
           <>
             <span className="font-display font-semibold text-olive-600 text-base">{entry.grade.letter}</span>
-            <span className="text-stone-400 text-[10px] ml-1">({entry.grade.numeric.toFixed(2)})</span>
+            <span className="text-stone-400 text-[10px] ml-1 hidden sm:inline">({entry.grade.numeric.toFixed(2)})</span>
           </>
         )}
         {entry.status === 'current' && (
-          <span className="text-khaki-500 font-medium">{entry.termName ?? 'In progress'}</span>
+          <span className="text-khaki-500 font-medium truncate inline-block max-w-full">{entry.termName ?? 'In progress'}</span>
         )}
         {entry.status === 'pending' && (
           <span className="text-stone-400">Pending</span>

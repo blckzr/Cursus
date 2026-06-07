@@ -20,9 +20,10 @@ interface Props {
 
 export default function PageHeader({ eyebrow, title, subtitle, action, stats, children }: Props) {
   return (
-    <div className="mb-7">
-      <div className="flex items-start justify-between gap-6">
-        <div>
+    <div className="mb-6 md:mb-7">
+      {/* Header — stacks on mobile, side-by-side from sm: up. Action wraps to its own row when tight. */}
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 md:gap-6">
+        <div className="min-w-0">
           {eyebrow && (
             <div className="text-[0.7rem] font-semibold tracking-[0.14em] uppercase text-olive-400 mb-2">
               {eyebrow}
@@ -35,11 +36,15 @@ export default function PageHeader({ eyebrow, title, subtitle, action, stats, ch
               : <div className="text-sm text-stone-500 mt-1.5">{subtitle}</div>
           )}
         </div>
-        {action && <div className="flex items-center gap-2 flex-shrink-0">{action}</div>}
+        {action && (
+          <div className="flex items-center gap-2 flex-wrap sm:flex-shrink-0">
+            {action}
+          </div>
+        )}
       </div>
 
       {stats && (
-        <div className="mt-5 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <div className="mt-4 md:mt-5 grid grid-cols-2 md:grid-cols-4 gap-2.5 md:gap-3">
           {stats.map((s, i) => (
             <div key={i} className="bg-white rounded-xl border border-khaki-100 p-3.5 flex items-center justify-between gap-3">
               <div className="min-w-0">

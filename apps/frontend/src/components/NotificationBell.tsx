@@ -16,9 +16,9 @@ interface Notification {
 
 /** Pick an icon + tint per notification kind. Falls back to a neutral bell. */
 const KIND_VISUAL: Record<string, { icon: string; tint: string }> = {
-  grade_finalized:  { icon: 'award',           tint: 'text-olive-500 bg-olive-50' },
-  term_opened:      { icon: 'calendar',        tint: 'text-khaki-600 bg-khaki-50' },
-  schedule_changed: { icon: 'clock',           tint: 'text-amber-600 bg-amber-50' },
+  grade_finalized:  { icon: 'award',    tint: 'text-olive-500 bg-olive-50 dark:bg-olive-500/20 dark:text-olive-100' },
+  term_opened:      { icon: 'calendar', tint: 'text-khaki-600 bg-khaki-50 dark:bg-khaki-300/20 dark:text-khaki-100' },
+  schedule_changed: { icon: 'clock',    tint: 'text-amber-600 bg-amber-50 dark:bg-amber-400/20 dark:text-amber-200' },
 };
 
 /** Compact relative-time formatter for the dropdown. */
@@ -89,14 +89,14 @@ export default function NotificationBell() {
       </button>
 
       {open && (
-        <div className="absolute right-0 mt-2 w-[360px] max-w-[92vw] bg-white border border-beige-200 rounded-xl shadow-xl z-50 overflow-hidden">
-          <div className="flex items-center justify-between px-4 py-2.5 border-b border-beige-200 bg-beige-50">
-            <div className="text-sm font-semibold text-stone-700">Notifications</div>
+        <div className="absolute right-0 mt-2 w-[360px] max-w-[92vw] bg-white dark:bg-stone-900 border border-beige-200 dark:border-stone-700 rounded-xl shadow-xl z-50 overflow-hidden">
+          <div className="flex items-center justify-between px-4 py-2.5 border-b border-beige-200 dark:border-stone-700 bg-beige-50 dark:bg-stone-800">
+            <div className="text-sm font-semibold text-stone-700 dark:text-stone-100">Notifications</div>
             {unread > 0 && (
               <button
                 onClick={() => readAllMut.mutate()}
                 disabled={readAllMut.isPending}
-                className="text-xs text-olive-600 hover:text-olive-700 font-medium"
+                className="text-xs text-olive-600 hover:text-olive-700 dark:text-olive-200 dark:hover:text-olive-100 font-medium"
               >
                 Mark all read
               </button>
@@ -105,21 +105,21 @@ export default function NotificationBell() {
 
           <div className="max-h-[60vh] overflow-y-auto scrollable">
             {rows.length === 0 ? (
-              <div className="px-4 py-10 text-center text-stone-400">
-                <Icon name="inbox" size={28} className="mx-auto mb-2 text-stone-300" />
+              <div className="px-4 py-10 text-center text-stone-400 dark:text-stone-500">
+                <Icon name="inbox" size={28} className="mx-auto mb-2 text-stone-300 dark:text-stone-600" />
                 <div className="text-sm font-medium">No notifications yet</div>
-                <div className="text-xs text-stone-400 mt-1">You'll see grade updates, schedule changes, and new terms here.</div>
+                <div className="text-xs mt-1">You'll see grade updates, schedule changes, and new terms here.</div>
               </div>
             ) : (
               rows.map(n => {
-                const visual = KIND_VISUAL[n.kind] ?? { icon: 'bell', tint: 'text-stone-500 bg-beige-100' };
+                const visual = KIND_VISUAL[n.kind] ?? { icon: 'bell', tint: 'text-stone-500 bg-beige-100 dark:bg-stone-700 dark:text-stone-200' };
                 const isUnread = !n.read_at;
                 return (
                   <button
                     key={n.id}
                     onClick={() => handleRowClick(n)}
-                    className={`w-full text-left px-4 py-3 border-b border-beige-100 last:border-0 flex items-start gap-3 transition-colors hover:bg-beige-50 ${
-                      isUnread ? 'bg-olive-50/40' : ''
+                    className={`w-full text-left px-4 py-3 border-b border-beige-100 dark:border-stone-700/60 last:border-0 flex items-start gap-3 transition-colors hover:bg-beige-50 dark:hover:bg-stone-800 ${
+                      isUnread ? 'bg-olive-50/40 dark:bg-olive-500/[0.08]' : ''
                     }`}
                   >
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${visual.tint}`}>
@@ -127,15 +127,25 @@ export default function NotificationBell() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <div className={`text-sm truncate ${isUnread ? 'font-semibold text-stone-800' : 'font-medium text-stone-600'}`}>
+                        <div className={`text-sm truncate ${
+                          isUnread
+                            ? 'font-semibold text-stone-800 dark:text-stone-50'
+                            : 'font-medium text-stone-600 dark:text-stone-300'
+                        }`}>
                           {n.title}
                         </div>
-                        {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-olive-500 flex-shrink-0" />}
+                        {isUnread && <span className="w-1.5 h-1.5 rounded-full bg-olive-500 dark:bg-olive-300 flex-shrink-0" />}
                       </div>
                       {n.body && (
-                        <div className="text-xs text-stone-500 mt-0.5 line-clamp-2">{n.body}</div>
+                        <div className={`text-xs mt-0.5 line-clamp-2 ${
+                          isUnread
+                            ? 'text-stone-600 dark:text-stone-200'
+                            : 'text-stone-500 dark:text-stone-400'
+                        }`}>
+                          {n.body}
+                        </div>
                       )}
-                      <div className="text-[10px] text-stone-400 mt-1 uppercase tracking-wider">{timeAgo(n.created_at)}</div>
+                      <div className="text-[10px] text-stone-400 dark:text-stone-500 mt-1 uppercase tracking-wider">{timeAgo(n.created_at)}</div>
                     </div>
                   </button>
                 );

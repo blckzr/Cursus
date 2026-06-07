@@ -1,30 +1,48 @@
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText } from 'lucide-react';
+import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, ClipboardList, LayoutGrid, BarChart2, Boxes, Home, ListTree, Clock, Settings, FileText, FileBadge, Star, TrendingUp, MessageSquare, KeyRound } from 'lucide-react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
+// Login + shell stay eager: they're on the critical path for the very first
+// paint and small enough that splitting them just costs a round trip.
 import Login from './pages/Login';
-import AdminDashboard from './pages/admin/Dashboard';
-import Users from './pages/admin/Users';
-import Programs from './pages/admin/Programs';
-import Courses from './pages/admin/Courses';
-import Curriculum from './pages/admin/Curriculum';
-import Terms from './pages/admin/Terms';
-import Sections from './pages/admin/Sections';
-import Blocks from './pages/admin/Blocks';
-import Enrollments from './pages/admin/Enrollments';
-import AuditLog from './pages/admin/AuditLog';
-import FacultyDashboard from './pages/faculty/Dashboard';
-import FacultySections from './pages/faculty/Sections';
-import FacultyAvailability from './pages/faculty/Availability';
-import Gradebook from './pages/faculty/Gradebook';
-import Roster from './pages/faculty/Roster';
-import StudentDashboard from './pages/student/Dashboard';
-import StudentGrades from './pages/student/Grades';
-import StudentSchedule from './pages/student/Schedule';
-import StudentCurriculum from './pages/student/Curriculum';
-import Account from './pages/Account';
+// Every other route is its own chunk via React.lazy. Vite emits a separate
+// JS file per `import('...')` call; the initial bundle drops because users
+// only download the page they navigate to. The shell (sidebar, topbar,
+// notifications) loads with the first chunk and stays in cache.
+const AdminDashboard      = lazy(() => import('./pages/admin/Dashboard'));
+const Users               = lazy(() => import('./pages/admin/Users'));
+const Programs            = lazy(() => import('./pages/admin/Programs'));
+const Courses             = lazy(() => import('./pages/admin/Courses'));
+const Curriculum          = lazy(() => import('./pages/admin/Curriculum'));
+const Terms               = lazy(() => import('./pages/admin/Terms'));
+const Sections            = lazy(() => import('./pages/admin/Sections'));
+const Blocks              = lazy(() => import('./pages/admin/Blocks'));
+const Enrollments         = lazy(() => import('./pages/admin/Enrollments'));
+const AuditLog            = lazy(() => import('./pages/admin/AuditLog'));
+const Analytics           = lazy(() => import('./pages/admin/Analytics'));
+const AdminAppeals        = lazy(() => import('./pages/admin/Appeals'));
+const AdminEvaluations    = lazy(() => import('./pages/admin/Evaluations'));
+const AdminPasswordResets = lazy(() => import('./pages/admin/PasswordResets'));
+const FacultyDashboard    = lazy(() => import('./pages/faculty/Dashboard'));
+const FacultySections     = lazy(() => import('./pages/faculty/Sections'));
+const FacultyAvailability = lazy(() => import('./pages/faculty/Availability'));
+const Gradebook           = lazy(() => import('./pages/faculty/Gradebook'));
+const Roster              = lazy(() => import('./pages/faculty/Roster'));
+const FacultySubjects     = lazy(() => import('./pages/faculty/Subjects'));
+const FacultyAppeals      = lazy(() => import('./pages/faculty/Appeals'));
+const FacultyEvaluations  = lazy(() => import('./pages/faculty/Evaluations'));
+const StudentDashboard    = lazy(() => import('./pages/student/Dashboard'));
+const StudentGrades       = lazy(() => import('./pages/student/Grades'));
+const StudentSchedule     = lazy(() => import('./pages/student/Schedule'));
+const StudentCurriculum   = lazy(() => import('./pages/student/Curriculum'));
+const StudentCor          = lazy(() => import('./pages/student/COR'));
+const StudentWishlist     = lazy(() => import('./pages/student/Wishlist'));
+const StudentAppeals      = lazy(() => import('./pages/student/Appeals'));
+const StudentEvaluations  = lazy(() => import('./pages/student/Evaluations'));
+const Account             = lazy(() => import('./pages/Account'));
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -48,22 +66,33 @@ const adminNav = [
   { label: 'Terms',       to: '/admin/terms',       icon: Calendar      },
   { label: 'Sections',    to: '/admin/sections',    icon: School        },
   { label: 'Enrollments', to: '/admin/enrollments', icon: ClipboardList },
+  { label: 'Appeals',     to: '/admin/appeals',     icon: MessageSquare },
+  { label: 'Evaluations', to: '/admin/evaluations', icon: Star          },
+  { label: 'Analytics',   to: '/admin/analytics',   icon: TrendingUp    },
   { label: 'Activity log',to: '/admin/audit-log',   icon: FileText      },
+  { label: 'Password resets', to: '/admin/password-resets', icon: KeyRound },
   { label: 'Account',     to: '/admin/account',     icon: Settings      },
 ];
 
 const facultyNav = [
-  { label: 'Overview',      to: '/faculty',              icon: Home       },
-  { label: 'My Sections',   to: '/faculty/sections',     icon: LayoutGrid },
-  { label: 'Availability',  to: '/faculty/availability', icon: Clock      },
-  { label: 'Account',       to: '/faculty/account',      icon: Settings   },
+  { label: 'Overview',      to: '/faculty',              icon: Home          },
+  { label: 'My Sections',   to: '/faculty/sections',     icon: LayoutGrid    },
+  { label: 'My Subjects',   to: '/faculty/subjects',     icon: BookOpen      },
+  { label: 'Availability',  to: '/faculty/availability', icon: Clock         },
+  { label: 'Appeals',       to: '/faculty/appeals',      icon: MessageSquare },
+  { label: 'Evaluations',   to: '/faculty/evaluations',  icon: Star          },
+  { label: 'Account',       to: '/faculty/account',      icon: Settings      },
 ];
 const studentNav = [
-  { label: 'Overview',   to: '/student',            icon: Home      },
-  { label: 'Curriculum', to: '/student/curriculum', icon: ListTree  },
-  { label: 'My grades',  to: '/student/grades',     icon: BarChart2 },
-  { label: 'Schedule',   to: '/student/schedule',   icon: Calendar  },
-  { label: 'Account',    to: '/student/account',    icon: Settings  },
+  { label: 'Overview',   to: '/student',            icon: Home          },
+  { label: 'Curriculum', to: '/student/curriculum', icon: ListTree      },
+  { label: 'My grades',  to: '/student/grades',     icon: BarChart2     },
+  { label: 'Schedule',   to: '/student/schedule',   icon: Calendar      },
+  { label: 'Wishlist',   to: '/student/wishlist',   icon: Star          },
+  { label: 'COR',        to: '/student/cor',        icon: FileBadge     },
+  { label: 'Appeals',    to: '/student/appeals',    icon: MessageSquare },
+  { label: 'Evaluations',to: '/student/evaluations',icon: Star          },
+  { label: 'Account',    to: '/student/account',    icon: Settings      },
 ];
 
 function Guard({ role }: { role: 'admin' | 'faculty' | 'student' }) {
@@ -100,7 +129,11 @@ export default function App() {
               <Route path="terms"       element={<Terms />} />
               <Route path="sections"    element={<Sections />} />
               <Route path="enrollments" element={<Enrollments />} />
+              <Route path="appeals"     element={<AdminAppeals />} />
+              <Route path="evaluations" element={<AdminEvaluations />} />
+              <Route path="analytics"   element={<Analytics />} />
               <Route path="audit-log"   element={<AuditLog />} />
+              <Route path="password-resets" element={<AdminPasswordResets />} />
               <Route path="account"     element={<Account />} />
             </Route>
 
@@ -110,7 +143,10 @@ export default function App() {
               <Route path="sections" element={<FacultySections />} />
               <Route path="sections/:id" element={<Gradebook />} />
               <Route path="sections/:id/roster" element={<Roster />} />
+              <Route path="subjects"     element={<FacultySubjects />} />
               <Route path="availability" element={<FacultyAvailability />} />
+              <Route path="appeals"      element={<FacultyAppeals />} />
+              <Route path="evaluations"  element={<FacultyEvaluations />} />
               <Route path="account"      element={<Account />} />
             </Route>
 
@@ -120,6 +156,10 @@ export default function App() {
               <Route path="curriculum" element={<StudentCurriculum />} />
               <Route path="grades"     element={<StudentGrades />} />
               <Route path="schedule"   element={<StudentSchedule />} />
+              <Route path="wishlist"   element={<StudentWishlist />} />
+              <Route path="cor"        element={<StudentCor />} />
+              <Route path="appeals"    element={<StudentAppeals />} />
+              <Route path="evaluations" element={<StudentEvaluations />} />
               <Route path="account"    element={<Account />} />
             </Route>
           </Routes>

@@ -2,6 +2,13 @@ import bcrypt from 'bcryptjs';
 import { db } from '../../config/db';
 import { pickRandomBlock } from '../blocks/blocks.service';
 
+/**
+ * Default password assigned to every newly created account. The user is
+ * expected to change it on first login. Exported so the notifications/email
+ * layer can include it in the onboarding message.
+ */
+export const DEFAULT_NEW_USER_PASSWORD = '1.PolytechnicU';
+
 const SAFE_COLS =
   'id, user_code, email, full_name, role, branch, program_id, year_level, block_id, is_active, graduated_at, created_at';
 
@@ -48,12 +55,14 @@ export async function getUserById(id: string) {
 }
 
 export async function createUser(data: {
-  email: string; password: string; fullName: string; role: string;
+  email: string; password?: string; fullName: string; role: string;
   branch?: string; programId?: string;
 }) {
   const branch   = (data.branch ?? 'MN').toUpperCase();
   const year     = new Date().getFullYear();
-  const hash     = await bcrypt.hash(data.password, 12);
+  // Use the supplied password if given, otherwise the system default.
+  const password = data.password ?? DEFAULT_NEW_USER_PASSWORD;
+  const hash     = await bcrypt.hash(password, 12);
   const userCode = await generateUserCode(data.role, branch, year);
 
   // Students are auto-assigned to a random year-1 block of their program.
@@ -70,9 +79,13 @@ export async function createUser(data: {
     }
   }
 
+  // Force the password-change flow on the user's first login. The admin only
+  // controls the *initial* credential (default `1.PolytechnicU` for now), so
+  // the new account is in a "shared password" state until the user replaces it.
   const { rows } = await db.query(
-    `INSERT INTO users (email, password_hash, full_name, role, branch, user_code, program_id, year_level, block_id)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `INSERT INTO users (email, password_hash, full_name, role, branch, user_code,
+                        program_id, year_level, block_id, password_must_change)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, TRUE)
      RETURNING ${SAFE_COLS}`,
     [data.email, hash, data.fullName, data.role, branch, userCode,
      data.programId ?? null, yearLevel, blockSectionId],
@@ -93,9 +106,12 @@ export async function createUser(data: {
  * Idempotent — re-running skips duplicates.
  */
 async function enrollStudentInBlockActiveSections(studentId: string, blockId: string) {
+  // Same posture as Open Term: speculative `pending` rows, student confirms
+  // on their COR page. Keeps enlistment behaviour consistent regardless of
+  // whether the student is created mid-term or via Open Term.
   await db.query(
-    `INSERT INTO enrollments (student_id, section_id)
-     SELECT $1, s.id
+    `INSERT INTO enrollments (student_id, section_id, status)
+     SELECT $1, s.id, 'pending'::enroll_status
      FROM sections s
      JOIN terms t ON t.id = s.term_id
      WHERE s.block_id = $2 AND t.is_active = TRUE
@@ -117,6 +133,9 @@ export async function updateUser(id: string, data: {
   if (data.password  !== undefined) {
     sets.push(`password_hash = $${i++}`);
     vals.push(await bcrypt.hash(data.password, 12));
+    // An admin resetting the password puts the account back into the
+    // forced-change state — same posture as a brand-new account.
+    sets.push(`password_must_change = TRUE`);
   }
 
   if (data.programId !== undefined) {

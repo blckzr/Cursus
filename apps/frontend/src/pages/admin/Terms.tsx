@@ -1,10 +1,17 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getTerms, createTerm, updateTerm, openTerm, getSections, getEnrollments, getPrograms, getBlocks } from '../../api';
+import {
+  getTerms, createTerm, updateTerm, openTerm,
+  getSections, getEnrollments, getPrograms, getBlocks, getWishlistDemand,
+  previewTbaAutoPass, autoPassTbaSections,
+  previewArchiveTerm, archiveTerm,
+  type TbaAutoPassPreview, type ArchivePreview,
+} from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
 import EmptyState from '../../components/EmptyState';
 import CardGridSkeleton from '../../components/CardGridSkeleton';
+import Skeleton from '../../components/Skeleton';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
@@ -12,7 +19,14 @@ import { parseApiError } from '../../lib/apiError';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 const WEEK = 7 * 24 * 60 * 60 * 1000;
+const YEAR = 365 * 24 * 60 * 60 * 1000;
 const SEM_LABEL: Record<string, string> = { '1': '1st Sem', '2': '2nd Sem', summer: 'Summer' };
+
+/** Per FUTURE_FEATURES 3.6: terms become archivable a year after they end. */
+function isArchivable(t: any) {
+  if (isActive(t.is_active) || t.archived_at) return false;
+  return Date.now() - new Date(t.end_date).getTime() > YEAR;
+}
 
 export default function Terms() {
   const qc = useQueryClient();
@@ -24,6 +38,9 @@ export default function Terms() {
   const [showCreate, setShowCreate] = useState(false);
   const [editTerm, setEditTerm] = useState<Record<string, string> | null>(null);
   const [openWizardTerm, setOpenWizardTerm] = useState<Record<string, any> | null>(null);
+  const [demandTerm, setDemandTerm] = useState<Record<string, any> | null>(null);
+  const [tbaTerm,    setTbaTerm]    = useState<Record<string, any> | null>(null);
+  const [archiveTermTarget, setArchiveTermTarget] = useState<Record<string, any> | null>(null);
   const [form, setForm] = useState({ name: '', semester: '1', startDate: '', endDate: '', isActive: 'false' });
   const [editActive, setEditActive] = useState('false');
   const [err, setErr] = useState('');
@@ -96,6 +113,7 @@ export default function Terms() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     {active && <span className="badge badge-completed">Current</span>}
+                    {t.archived_at && <span className="badge badge-neutral" title={`Archived ${new Date(t.archived_at).toLocaleDateString()}`}>Archived</span>}
                     <button className="btn-icon" title="Edit"
                       onClick={() => { setEditTerm(t); setEditActive(String(t.is_active)); resetErr(); }}>
                       <Icon name="pencil" size={13} />
@@ -112,8 +130,48 @@ export default function Terms() {
                     className="btn-secondary w-full mt-3 flex items-center justify-center gap-2"
                     onClick={() => setOpenWizardTerm(t)}
                   >
-                    <Icon name="sparkles" size={14} /> Open term — generate sections & enrollments
+                    <Icon name="sparkles" size={14} />
+                    <span className="hidden sm:inline">Open term — generate sections &amp; enrollments</span>
+                    <span className="sm:hidden">Open term</span>
                   </button>
+                )}
+                {!active && !t.archived_at && (
+                  <>
+                    <button
+                      className="btn-ghost w-full mt-3 flex items-center justify-center gap-2 border border-khaki-200"
+                      onClick={() => setDemandTerm(t)}
+                    >
+                      <Icon name="star" size={14} />
+                      See wishlist demand
+                    </button>
+                    <button
+                      className="btn-ghost w-full mt-2 flex items-center justify-center gap-2 border border-amber-200 text-amber-700 hover:bg-amber-50"
+                      onClick={() => setTbaTerm(t)}
+                      title="If any sections still have no faculty assigned, auto-pass the enrolled students (1.00)."
+                    >
+                      <Icon name="award" size={14} />
+                      Auto-pass TBA sections
+                    </button>
+                    {isArchivable(t) && (
+                      <button
+                        className="btn-ghost w-full mt-2 flex items-center justify-center gap-2 border border-khaki-200"
+                        onClick={() => setArchiveTermTarget(t)}
+                        title="Move this term's sections, enrollments, and gradebook out of the live tables."
+                      >
+                        <Icon name="boxes" size={14} />
+                        Archive term
+                      </button>
+                    )}
+                  </>
+                )}
+                {t.archived_at && (
+                  <div className="bg-beige-100 rounded-lg p-3 text-xs text-stone-600 mt-3 flex items-start gap-2">
+                    <Icon name="info" size={14} className="mt-0.5 flex-shrink-0 text-stone-400" />
+                    <span>
+                      Archived {new Date(t.archived_at).toLocaleDateString()}. Sections, enrollments, and gradebook
+                      data for this term live in the <code>*_archive</code> tables. Transcripts still find them.
+                    </span>
+                  </div>
                 )}
               </div>
             );
@@ -178,6 +236,35 @@ export default function Terms() {
           setOpenWizardTerm(null);
         }} />
       )}
+
+      {demandTerm && (
+        <DemandModal term={demandTerm} onClose={() => setDemandTerm(null)} />
+      )}
+
+      {tbaTerm && (
+        <TbaAutoPassModal
+          term={tbaTerm}
+          onClose={() => setTbaTerm(null)}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ['enrollments'] });
+            qc.invalidateQueries({ queryKey: ['sections'] });
+            setTbaTerm(null);
+          }}
+        />
+      )}
+
+      {archiveTermTarget && (
+        <ArchiveTermModal
+          term={archiveTermTarget}
+          onClose={() => setArchiveTermTarget(null)}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ['terms'] });
+            qc.invalidateQueries({ queryKey: ['enrollments'] });
+            qc.invalidateQueries({ queryKey: ['sections'] });
+            setArchiveTermTarget(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -228,7 +315,7 @@ function OpenTermWizard({ term, onClose, onDone }: { term: any; onClose: () => v
       <div className="space-y-4">
         {result ? (
           <div className="space-y-3">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="card text-center !py-4">
                 <div className="text-3xl font-display tabular font-medium text-olive-500">{result.sectionsCreated}</div>
                 <div className="text-xs text-stone-500 mt-1">Sections created</div>
@@ -283,5 +370,368 @@ function OpenTermWizard({ term, onClose, onDone }: { term: any; onClose: () => v
         )}
       </div>
     </Modal>
+  );
+}
+
+// ============================================================================
+// Wishlist demand modal
+// ============================================================================
+
+interface DemandRow {
+  courseId:     string;
+  code:         string;
+  title:        string;
+  units:        number;
+  programCode:  string | null;
+  demand:       number;
+  highPriority: number;
+  byYearLevel:  { yearLevel: number; count: number }[];
+  students:     {
+    studentId:   string; studentName: string; userCode: string | null;
+    yearLevel:   number | null; priority: number; notes: string | null;
+  }[];
+}
+
+function DemandModal({ term, onClose }: { term: any; onClose: () => void }) {
+  const { data: rows = [], isLoading } = useQuery<DemandRow[]>({
+    queryKey: ['wishlist-demand', term.id],
+    queryFn:  () => getWishlistDemand(term.id),
+  });
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const totalDemand = rows.reduce((s, r) => s + r.demand, 0);
+  const uniqueStudents = new Set(rows.flatMap(r => r.students.map(s => s.studentId))).size;
+
+  return (
+    <Modal
+      title={`Wishlist demand — ${term.name}`}
+      subtitle="What students are asking for, before sections are opened. Use this to decide how many sections of each course to provision."
+      onClose={onClose}
+      size="lg"
+    >
+      {isLoading ? (
+        <Skeleton className="h-64 rounded-lg" />
+      ) : rows.length === 0 ? (
+        <EmptyState icon="inbox" title="No demand yet" message="Students haven't wishlisted any courses for this term." />
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-3 gap-3">
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-olive-500">{rows.length}</div>
+              <div className="text-xs text-stone-500 mt-1">Courses wished</div>
+            </div>
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-olive-500">{totalDemand}</div>
+              <div className="text-xs text-stone-500 mt-1">Total entries</div>
+            </div>
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-olive-500">{uniqueStudents}</div>
+              <div className="text-xs text-stone-500 mt-1">Unique students</div>
+            </div>
+          </div>
+
+          <div className="border border-beige-200 rounded-lg max-h-[480px] overflow-y-auto scrollable">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-beige-50 z-10">
+                <tr>
+                  <th className="table-th !py-2">Course</th>
+                  <th className="table-th !py-2 text-center" style={{ width: 70 }}>Demand</th>
+                  <th className="table-th !py-2 text-center hidden sm:table-cell" style={{ width: 70 }}>High prio</th>
+                  <th className="table-th !py-2 hidden md:table-cell">By year</th>
+                  <th className="table-th !py-2" style={{ width: 40 }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <FragmentRow key={`${r.courseId}-${r.programCode ?? 'all'}`}
+                    row={r}
+                    expanded={expanded === r.courseId}
+                    onToggle={() => setExpanded(prev => prev === r.courseId ? null : r.courseId)} />
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bg-beige-100 rounded-lg p-3 text-xs text-stone-600 flex items-start gap-2">
+            <Icon name="info" size={14} className="mt-0.5 flex-shrink-0 text-stone-400" />
+            <span>Click any row to see which students requested the course and at what priority.</span>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function FragmentRow({ row, expanded, onToggle }: { row: DemandRow; expanded: boolean; onToggle: () => void }) {
+  return (
+    <>
+      <tr className="hover:bg-beige-50 cursor-pointer transition-colors" onClick={onToggle}>
+        <td className="table-td !py-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-mono text-xs font-semibold text-olive-600">{row.code}</span>
+            <span className="text-stone-700 truncate">{row.title}</span>
+            {row.programCode && <span className="badge badge-neutral text-[10px]">{row.programCode}</span>}
+          </div>
+          <div className="text-[10px] text-stone-400 mt-0.5 tabular">{row.units} units</div>
+        </td>
+        <td className="table-td !py-2 text-center tabular font-semibold text-olive-600">{row.demand}</td>
+        <td className="table-td !py-2 text-center tabular hidden sm:table-cell">{row.highPriority}</td>
+        <td className="table-td !py-2 hidden md:table-cell">
+          <div className="flex items-center gap-1 flex-wrap">
+            {row.byYearLevel.map(y => (
+              <span key={y.yearLevel} className="text-[10px] bg-beige-100 text-stone-600 rounded px-1.5 py-0.5 tabular">
+                Y{y.yearLevel}: {y.count}
+              </span>
+            ))}
+          </div>
+        </td>
+        <td className="table-td !py-2 text-right">
+          <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={12} className="text-stone-400" />
+        </td>
+      </tr>
+      {expanded && (
+        <tr>
+          <td colSpan={5} className="bg-beige-50/60 px-4 py-3">
+            <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold mb-2">
+              Interested students ({row.students.length})
+            </div>
+            <ul className="space-y-1 max-h-48 overflow-y-auto scrollable">
+              {row.students.map(s => (
+                <li key={s.studentId} className="flex items-center gap-3 text-xs px-2 py-1 rounded hover:bg-white">
+                  <span className="font-mono text-stone-500 truncate max-w-[140px]">{s.userCode ?? '—'}</span>
+                  <span className="flex-1 text-stone-700 truncate">{s.studentName}</span>
+                  {s.yearLevel != null && <span className="text-stone-400">Y{s.yearLevel}</span>}
+                  <span className={`badge ${s.priority <= 2 ? 'badge-dropped' : s.priority >= 4 ? 'badge-neutral' : 'badge-faculty'}`}>P{s.priority}</span>
+                </li>
+              ))}
+            </ul>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
+
+// ============================================================================
+// TBA section auto-pass modal
+// ============================================================================
+
+function TbaAutoPassModal({ term, onClose, onDone }: {
+  term: any; onClose: () => void; onDone: () => void;
+}) {
+  const toast = useToast();
+  const { data, isLoading } = useQuery<TbaAutoPassPreview>({
+    queryKey: ['tba-auto-pass-preview', term.id],
+    queryFn:  () => previewTbaAutoPass(term.id),
+  });
+
+  const mut = useMutation({
+    mutationFn: () => autoPassTbaSections(term.id),
+    onSuccess:  res => {
+      toast.push({
+        tone:    res.sectionsProcessed === 0 ? 'info' : 'success',
+        title:   res.sectionsProcessed === 0
+          ? 'Nothing to auto-pass'
+          : `${res.studentsPromoted} student${res.studentsPromoted === 1 ? '' : 's'} promoted`,
+        message: res.sectionsProcessed > 0
+          ? `${res.sectionsProcessed} section${res.sectionsProcessed === 1 ? '' : 's'} closed at 1.00.`
+          : undefined,
+      });
+      onDone();
+    },
+    onError: (e: unknown) => toast.push({
+      tone: 'error', title: 'Auto-pass failed', message: parseApiError(e).message,
+    }),
+  });
+
+  return (
+    <Modal
+      title={`Auto-pass TBA sections — ${term.name}`}
+      subtitle="Sections that never had a faculty assigned. Confirming will give each enrolled student a 1.00 final grade and close the section."
+      onClose={onClose}
+      size="lg"
+    >
+      {isLoading ? (
+        <Skeleton className="h-64 rounded-lg" />
+      ) : !data || data.sections.length === 0 ? (
+        <div className="space-y-4">
+          <EmptyState
+            icon="check"
+            title="Nothing to do"
+            message="Every section in this term has a faculty assigned (or no enrolled students)."
+          />
+          <div className="flex justify-end">
+            <button className="btn-primary" onClick={onClose}>Close</button>
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-amber-600">{data.summary.sectionsAffected}</div>
+              <div className="text-xs text-stone-500 mt-1">TBA sections</div>
+            </div>
+            <div className="card text-center !py-3">
+              <div className="text-2xl font-display tabular font-medium text-olive-500">{data.summary.studentsAffected}</div>
+              <div className="text-xs text-stone-500 mt-1">Students → 1.00</div>
+            </div>
+          </div>
+
+          <div className="border border-beige-200 rounded-lg max-h-72 overflow-y-auto scrollable">
+            <table className="w-full text-xs">
+              <thead className="sticky top-0 bg-beige-50 z-10">
+                <tr>
+                  <th className="table-th !py-2">Section</th>
+                  <th className="table-th !py-2">Course</th>
+                  <th className="table-th !py-2 text-center" style={{ width: 80 }}>Students</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.sections.map(s => (
+                  <tr key={s.section_id}>
+                    <td className="table-td !py-1.5">
+                      <span className="font-mono font-semibold text-olive-600">{s.section_code}</span>
+                      <div className="text-[10px] text-stone-400">{s.block_label}</div>
+                    </td>
+                    <td className="table-td !py-1.5">
+                      <span className="font-mono text-stone-500 mr-2">{s.course_code}</span>
+                      <span className="text-stone-700">{s.course_title}</span>
+                    </td>
+                    <td className="table-td !py-1.5 text-center tabular font-semibold">{s.students}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 flex items-start gap-2">
+            <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+            <div>
+              <div className="font-semibold mb-1">This action can't be undone from the UI.</div>
+              Every still-enrolled student in the sections above will be marked <span className="font-mono font-semibold">1.00</span>, status <span className="font-mono font-semibold">completed</span>, with the reason audit-logged. A "Final grade posted" notification is sent to each student.
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button
+              className="btn-primary flex items-center gap-2"
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending}
+            >
+              {mut.isPending
+                ? <><span className="spinner" /> Processing…</>
+                : <><Icon name="award" size={14} /> Auto-pass {data.summary.studentsAffected} student{data.summary.studentsAffected === 1 ? '' : 's'}</>}
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+// ============================================================================
+// Archive term modal (FUTURE_FEATURES 3.6)
+// ============================================================================
+
+function ArchiveTermModal({ term, onClose, onDone }: {
+  term: any; onClose: () => void; onDone: () => void;
+}) {
+  const toast = useToast();
+  const { data, isLoading } = useQuery<ArchivePreview>({
+    queryKey: ['archive-preview', term.id],
+    queryFn:  () => previewArchiveTerm(term.id),
+  });
+
+  const mut = useMutation({
+    mutationFn: () => archiveTerm(term.id),
+    onSuccess: (res) => {
+      const total = res.moved.sections + res.moved.enrollments + res.moved.scores;
+      toast.push({
+        tone: 'success',
+        title: 'Term archived',
+        message: `${total.toLocaleString()} rows moved into *_archive tables.`,
+      });
+      onDone();
+    },
+    onError: (e: unknown) => toast.push({ tone: 'error', title: 'Archive failed', message: parseApiError(e).message }),
+  });
+
+  const blocked = data && (data.blockers.activeAppeals > 0 || data.blockers.alreadyArchived || data.blockers.isActive);
+
+  return (
+    <Modal
+      title={`Archive term — ${term.name}`}
+      subtitle="Move sections, enrollments, and gradebook data out of the live tables to keep queries fast. Transcripts continue to work via a UNION view."
+      onClose={onClose}
+      size="lg"
+    >
+      {isLoading || !data ? (
+        <Skeleton className="h-64 rounded-lg" />
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <CountTile label="Sections"    value={data.counts.sections} />
+            <CountTile label="Enrollments" value={data.counts.enrollments} />
+            <CountTile label="Scores"      value={data.counts.scores} />
+            <CountTile label="Assessments" value={data.counts.assessments} />
+            <CountTile label="Categories"  value={data.counts.assessment_categories} />
+            <CountTile label="Resolved appeals" value={data.counts.resolvedAppeals} />
+          </div>
+
+          {blocked && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 flex items-start gap-2">
+              <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+              <div>
+                {data.blockers.isActive && <div><strong>This is the active term.</strong> Make a newer term active before archiving.</div>}
+                {data.blockers.alreadyArchived && <div><strong>Already archived.</strong> Nothing to do.</div>}
+                {data.blockers.activeAppeals > 0 && (
+                  <div>
+                    <strong>{data.blockers.activeAppeals} appeal{data.blockers.activeAppeals === 1 ? '' : 's'} still active.</strong>{' '}
+                    Resolve or withdraw them in <em>Appeals</em> first — archived terms must keep no live appeals open.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!blocked && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2">
+              <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-semibold mb-1">This cannot be undone from the UI.</div>
+                Rows are moved into <code className="font-mono">sections_archive</code>,{' '}
+                <code className="font-mono">enrollments_archive</code>,{' '}
+                <code className="font-mono">scores_archive</code>, etc.{' '}
+                Student transcripts will still read them through the <code className="font-mono">enrollments_full_v</code> view.
+                Restoring is rare and runs as admin-only one-off SQL.
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button
+              className="btn-primary flex items-center gap-2"
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending || blocked}
+            >
+              {mut.isPending
+                ? <><span className="spinner" /> Archiving…</>
+                : <><Icon name="boxes" size={14} /> Archive {term.name}</>}
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function CountTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="card text-center !py-3">
+      <div className="text-2xl font-display tabular font-medium text-olive-500">{value.toLocaleString()}</div>
+      <div className="text-xs text-stone-500 mt-1">{label}</div>
+    </div>
   );
 }

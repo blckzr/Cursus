@@ -12,6 +12,12 @@ interface User {
   programName?: string | null;
   yearLevel?: number | null;
   blockLabel?: string | null;
+  /**
+   * When TRUE, the app blocks every authenticated route and forces the user
+   * onto the change-password screen. Set on account creation and on admin
+   * password reset; cleared by /auth/change-password.
+   */
+  passwordMustChange?: boolean;
 }
 
 interface AuthCtx {

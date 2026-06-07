@@ -12,12 +12,16 @@ import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 import { InputField, SelectField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
+import { csvEscape, downloadCsv, todayStamp } from '../../lib/csv';
 
+// Mobile keeps Code, Title, Units. Visibility / Programs / Sections collapse below sm/md.
 const HEADERS: DataTableHeader[] = [
-  { label: 'Code' }, { label: 'Title' },
-  { label: 'Units', align: 'center', width: 70 },
-  { label: 'Visibility' }, { label: 'Programs' },
-  { label: 'Sections', align: 'center', width: 90 },
+  { label: 'Code' },
+  { label: 'Title' },
+  { label: 'Units',    align: 'center', width: 70 },
+  { label: 'Visibility', hideBelow: 'sm' },
+  { label: 'Programs',   hideBelow: 'md' },
+  { label: 'Sections', align: 'center', width: 90, hideBelow: 'sm' },
 ];
 
 type Visibility = 'public' | 'restricted';
@@ -70,27 +74,63 @@ export default function Courses() {
     programIds: f.programIds.includes(id) ? f.programIds.filter(x => x !== id) : [...f.programIds, id],
   }));
 
+  /** Export the filtered course list. Reuses the same column shape regardless of the visibility filter. */
+  const handleExport = () => {
+    if (filtered.length === 0) {
+      toast.push({ tone: 'info', title: 'Nothing to export', message: 'Adjust the filters to include some courses.' });
+      return;
+    }
+    const header = ['code', 'title', 'units', 'visibility', 'programs', 'sections'];
+    const rows = filtered.map((c: any) => [
+      csvEscape(c.code),
+      csvEscape(c.title),
+      String(c.units),
+      c.visibility,
+      csvEscape(c.visibility === 'public'
+        ? 'ALL'
+        : (c.programs ?? []).map((p: { code: string }) => p.code).join(';')),
+      String(sectionCountFor(c.code)),
+    ]);
+    downloadCsv([header, ...rows], `courses-${todayStamp()}.csv`);
+    toast.push({ tone: 'success', title: `Exported ${filtered.length} course${filtered.length === 1 ? '' : 's'}` });
+  };
+
   return (
     <div>
       <PageHeader
         eyebrow="Catalog"
         title="Courses"
         subtitle="Master list of courses. Public courses are available to every program; restricted ones are linked to specific programs."
-        action={<button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}><Icon name="plus" size={14} /> New course</button>}
+        action={
+          <>
+            <button className="btn-ghost flex items-center gap-2 border border-khaki-200" onClick={handleExport}>
+              <Icon name="download" size={14} />
+              <span className="hidden sm:inline">Export CSV</span>
+              <span className="sm:hidden">Export</span>
+            </button>
+            <button className="btn-primary flex items-center gap-2" onClick={() => { setShowCreate(true); resetErr(); }}>
+              <Icon name="plus" size={14} /> New course
+            </button>
+          </>
+        }
       />
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
-        <SearchInput value={query} onChange={setQuery} placeholder="Search code or title…" className="w-72" />
-        <div className="flex items-center gap-1.5">
-          <Chip active={visibilityFilter === 'all'}        onClick={() => setVisibilityFilter('all')}>All</Chip>
-          <Chip active={visibilityFilter === 'public'}     onClick={() => setVisibilityFilter('public')}>Public</Chip>
-          <Chip active={visibilityFilter === 'restricted'} onClick={() => setVisibilityFilter('restricted')}>Restricted</Chip>
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
+        <SearchInput value={query} onChange={setQuery} placeholder="Search code or title…" className="w-full md:w-72" />
+        <div className="-mx-3 px-3 md:mx-0 md:px-0 overflow-x-auto scrollable">
+          <div className="flex items-center gap-1.5 w-max md:w-auto">
+            <Chip active={visibilityFilter === 'all'}        onClick={() => setVisibilityFilter('all')}>All</Chip>
+            <Chip active={visibilityFilter === 'public'}     onClick={() => setVisibilityFilter('public')}>Public</Chip>
+            <Chip active={visibilityFilter === 'restricted'} onClick={() => setVisibilityFilter('restricted')}>Restricted</Chip>
+          </div>
         </div>
-        <select className="input !w-auto" value={progFilter} onChange={e => setProgFilter(e.target.value)}>
-          <option value="all">Any program</option>
-          {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code}</option>)}
-        </select>
-        <span className="text-xs text-stone-400 ml-auto tabular">{filtered.length} of {courses.length}</span>
+        <div className="flex items-center justify-between gap-3">
+          <select className="input w-full md:!w-auto" value={progFilter} onChange={e => setProgFilter(e.target.value)}>
+            <option value="all">Any program</option>
+            {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code}</option>)}
+          </select>
+          <span className="text-xs text-stone-400 md:ml-auto tabular whitespace-nowrap">{filtered.length} of {courses.length}</span>
+        </div>
       </div>
 
       {isLoading ? (
@@ -98,18 +138,18 @@ export default function Courses() {
       ) : filtered.length === 0 ? (
         <div className="card p-0"><EmptyState icon="book-open" title="No courses match" message="Try a different filter or add a course." /></div>
       ) : (
-        <DataTable headers={HEADERS}>
+        <DataTable headers={HEADERS} pageSize={10}>
           {filtered.map((c: any) => (
             <tr key={c.id} className="hover:bg-beige-50 transition-colors">
               <td className="table-td font-mono font-semibold text-olive-500">{c.code}</td>
               <td className="table-td">{c.title}</td>
               <td className="table-td text-center tabular">{c.units}</td>
-              <td className="table-td">
+              <td className="table-td hidden sm:table-cell">
                 {c.visibility === 'public'
                   ? <span className="badge badge-enrolled">Public</span>
                   : <span className="badge badge-faculty">Restricted</span>}
               </td>
-              <td className="table-td">
+              <td className="table-td hidden md:table-cell">
                 {c.visibility === 'public' ? (
                   <span className="text-xs text-stone-400 italic">All programs</span>
                 ) : (c.programs || []).length === 0 ? (
@@ -122,7 +162,7 @@ export default function Courses() {
                   </div>
                 )}
               </td>
-              <td className="table-td text-center tabular">{sectionCountFor(c.code)}</td>
+              <td className="table-td text-center tabular hidden sm:table-cell">{sectionCountFor(c.code)}</td>
             </tr>
           ))}
         </DataTable>
@@ -131,9 +171,9 @@ export default function Courses() {
       {showCreate && (
         <Modal title="New course" onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <InputField label="Code" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="CS101" error={fieldErrors.code} />
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <InputField label="Title" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="Introduction to Programming" error={fieldErrors.title} />
               </div>
             </div>
