@@ -9,11 +9,13 @@ import Avatar from '../../components/Avatar';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 
+// Mobile keeps User code, Name, Status (the at-a-glance enrolled/dropped/completed badge).
+// Email and Year level collapse below sm/md.
 const HEADERS: DataTableHeader[] = [
   { label: 'User code' },
   { label: 'Name' },
-  { label: 'Email' },
-  { label: 'Year' },
+  { label: 'Email',  hideBelow: 'md' },
+  { label: 'Year',   hideBelow: 'sm' },
   { label: 'Status' },
 ];
 
@@ -53,14 +55,14 @@ export default function Roster() {
         title={section?.course_title || 'Roster'}
         subtitle={
           section ? (
-            <span className="flex items-center gap-3 flex-wrap">
+            <span className="flex items-center gap-x-2 gap-y-1 flex-wrap">
               <span className="font-mono font-semibold text-olive-500">{section.section_code}</span>
-              {section.day_of_week && (
-                <><span>·</span><span><span className="font-mono">{section.day_of_week}</span> · {section.start_time?.slice(0,5)}–{section.end_time?.slice(0,5)}</span></>
+              {section.meetings && section.meetings.length > 0 && (
+                <><span className="hidden sm:inline">·</span><span className="font-mono">{section.meetings.map((m: any) => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ')}</span></>
               )}
-              {section.room && <><span>·</span><span className="flex items-center gap-1"><Icon name="map-pin" size={11} /> {section.room}</span></>}
-              {section.faculty_name && <><span>·</span><span className="flex items-center gap-1"><Icon name="user" size={11} /> {section.faculty_name}</span></>}
-              <span>·</span>
+              {section.room && <><span className="hidden sm:inline">·</span><span className="flex items-center gap-1"><Icon name="map-pin" size={11} /> {section.room}</span></>}
+              {section.faculty_name && <><span className="hidden sm:inline">·</span><span className="flex items-center gap-1"><Icon name="user" size={11} /> {section.faculty_name}</span></>}
+              <span className="hidden sm:inline">·</span>
               <span className="flex items-center gap-1"><Icon name="users" size={11} /> {students.length} enrolled</span>
             </span>
           ) : null
@@ -85,7 +87,7 @@ export default function Roster() {
             message="When the term is opened, students from this block will appear here." />
         </div>
       ) : (
-        <DataTable headers={HEADERS}>
+        <DataTable headers={HEADERS} pageSize={10}>
           {students.map(s => (
             <tr key={s.id} className="hover:bg-beige-50 transition-colors">
               <td className="table-td">
@@ -99,8 +101,8 @@ export default function Roster() {
                   <span className="font-medium text-stone-800">{s.full_name}</span>
                 </div>
               </td>
-              <td className="table-td text-stone-500 text-xs">{s.email}</td>
-              <td className="table-td text-stone-500">{s.year_level ?? '—'}</td>
+              <td className="table-td text-stone-500 text-xs hidden md:table-cell">{s.email}</td>
+              <td className="table-td text-stone-500 hidden sm:table-cell">{s.year_level ?? '—'}</td>
               <td className="table-td">
                 {s.status === 'completed'
                   ? <span className="badge badge-completed">Completed</span>

@@ -123,10 +123,13 @@ export async function openTerm(termId: string, scope: { programIds?: string[] },
               sectionsSkipped++;
             }
 
-            // Auto-enroll every active student in this block (regular students only)
+            // Speculatively enroll every active student in this block, but
+            // leave the row PENDING — the student must explicitly confirm via
+            // the COR page. Until they do, gradebook / roster / schedule all
+            // ignore the row (those views filter status = 'enrolled').
             const enrollRes = await client.query(
-              `INSERT INTO enrollments (student_id, section_id)
-               SELECT u.id, $2
+              `INSERT INTO enrollments (student_id, section_id, status)
+               SELECT u.id, $2, 'pending'::enroll_status
                FROM users u
                WHERE u.block_id = $1 AND u.role = 'student' AND u.is_active = true
                ON CONFLICT (student_id, section_id) DO NOTHING
@@ -145,23 +148,25 @@ export async function openTerm(termId: string, scope: { programIds?: string[] },
       [adminId, termId, JSON.stringify({ sectionsCreated, sectionsSkipped, enrollmentsCreated })],
     );
 
-    // Notify every student who now has at least one enrollment in this term.
+    // Notify every student who now has at least one *pending* enrollment in
+    // this term so they know to confirm. (Confirmed enrollees pre-existing
+    // from a re-run also get notified — same message, same link.)
     const termNameRes = await client.query('SELECT name FROM terms WHERE id = $1', [termId]);
     const termName = termNameRes.rows[0]?.name ?? 'A new term';
     const recipientsRes = await client.query(
       `SELECT DISTINCT e.student_id
        FROM enrollments e
        JOIN sections   s ON s.id = e.section_id
-       WHERE s.term_id = $1 AND e.status = 'enrolled'`,
+       WHERE s.term_id = $1 AND e.status IN ('pending', 'enrolled')`,
       [termId],
     );
     await createNotifications(
       recipientsRes.rows.map((r: { student_id: string }) => ({
         userId: r.student_id,
         kind:   'term_opened',
-        title:  `${termName} is now open`,
-        body:   `Your sections and schedule for ${termName} are available.`,
-        link:   '/student/schedule',
+        title:  `${termName} is open — please confirm your enrollment`,
+        body:   `Open your Certificate of Registration and tap "Confirm enrollment" to attend ${termName}.`,
+        link:   '/student/cor',
         data:   { termId },
       })),
       client,

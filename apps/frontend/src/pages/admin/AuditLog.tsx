@@ -9,12 +9,16 @@ import SearchInput from '../../components/SearchInput';
 import Modal from '../../components/Modal';
 import Avatar from '../../components/Avatar';
 import Icon from '../../components/Icon';
+import { useToast } from '../../components/Toast';
+import { csvEscape, downloadCsv, todayStamp } from '../../lib/csv';
 
+// Mobile keeps Time, Action, Details button. Actor + Entity collapse — they're still
+// visible inside the details modal opened by the chevron button.
 const HEADERS: DataTableHeader[] = [
   { label: 'Time' },
-  { label: 'Actor' },
+  { label: 'Actor',  hideBelow: 'sm' },
   { label: 'Action' },
-  { label: 'Entity' },
+  { label: 'Entity', hideBelow: 'md' },
   { label: '', align: 'right', width: 60 },
 ];
 
@@ -55,12 +59,14 @@ interface Row {
 }
 
 export default function AuditLog() {
+  const toast = useToast();
   const [actor, setActor] = useState('');
   const [action, setAction] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [page, setPage] = useState(0);
   const [detail, setDetail] = useState<Row | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   // Reset to page 0 whenever a filter changes
   const filterKey = `${actor}|${action}|${from}|${to}`;
@@ -90,39 +96,106 @@ export default function AuditLog() {
   const clearFilters = () => { setActor(''); setAction(''); setFrom(''); setTo(''); };
   const hasFilters = !!(actor || action || from || to);
 
+  /**
+   * Audit log is server-paginated, so the export action issues a fresh fetch
+   * with a much bigger limit (the backend caps at 5,000) to grab the full
+   * filtered set in one round-trip.
+   */
+  const handleExport = async () => {
+    setExporting(true);
+    try {
+      const res = await getAuditLogs({
+        actor:  actor || undefined,
+        action: action || undefined,
+        from:   from ? new Date(from).toISOString() : undefined,
+        to:     to   ? new Date(`${to}T23:59:59`).toISOString() : undefined,
+        limit:  5000,
+        offset: 0,
+      }) as { rows: Row[]; total: number };
+
+      if (res.rows.length === 0) {
+        toast.push({ tone: 'info', title: 'Nothing to export', message: 'Adjust the filters to include some entries.' });
+        return;
+      }
+
+      const header = [
+        'created_at', 'action', 'entity_type', 'entity_id',
+        'actor_name', 'actor_code', 'actor_role',
+        'old_value', 'new_value',
+      ];
+      const rows = res.rows.map(r => [
+        r.created_at ? new Date(r.created_at).toISOString() : '',
+        ACTION_META[r.action]?.label ?? r.action,
+        csvEscape(r.entity_type ?? ''),
+        csvEscape(r.entity_id ?? ''),
+        csvEscape(r.user_full_name ?? ''),
+        csvEscape(r.user_user_code ?? ''),
+        csvEscape(r.user_role ?? ''),
+        csvEscape(r.old_value != null ? JSON.stringify(r.old_value) : ''),
+        csvEscape(r.new_value != null ? JSON.stringify(r.new_value) : ''),
+      ]);
+      downloadCsv([header, ...rows], `audit-log-${todayStamp()}.csv`);
+
+      const note = res.total > res.rows.length
+        ? `Showing ${res.rows.length} of ${res.total} — refine filters to capture the rest.`
+        : undefined;
+      toast.push({ tone: 'success', title: `Exported ${res.rows.length} entr${res.rows.length === 1 ? 'y' : 'ies'}`, message: note });
+    } catch {
+      toast.push({ tone: 'error', title: 'Export failed' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <div>
       <PageHeader
         eyebrow="Compliance"
         title="Activity log"
         subtitle="Every state-changing action across the system, newest first. Used for audit trails."
+        action={
+          <button
+            className="btn-ghost flex items-center gap-2 border border-khaki-200"
+            onClick={handleExport}
+            disabled={exporting}
+          >
+            <Icon name="download" size={14} />
+            {exporting ? 'Preparing…' : <><span className="hidden sm:inline">Export CSV</span><span className="sm:hidden">Export</span></>}
+          </button>
+        }
       />
 
-      <div className="flex items-center gap-3 mb-4 flex-wrap">
+      <div className="flex flex-col md:flex-row md:items-center gap-3 mb-4 md:flex-wrap">
         <SearchInput
           value={actor}
           onChange={setActor}
           placeholder="Search actor (name / code / email)…"
-          className="w-72"
+          className="w-full md:w-72"
         />
-        <select className="input !w-auto" value={action} onChange={e => setAction(e.target.value)}>
+        <select className="input w-full md:!w-auto" value={action} onChange={e => setAction(e.target.value)}>
           <option value="">All actions</option>
           {actionTypes.map(a => (
             <option key={a} value={a}>{ACTION_META[a]?.label ?? a}</option>
           ))}
         </select>
-        <div className="flex items-center gap-2 text-xs text-stone-500">
-          <span>From</span>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="input !w-auto !py-1" />
-          <span>To</span>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} className="input !w-auto !py-1" />
+        <div className="grid grid-cols-2 md:flex md:items-center gap-2 text-xs text-stone-500">
+          <div className="flex items-center gap-2">
+            <span className="flex-shrink-0">From</span>
+            <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="input flex-1 md:!w-auto !py-1" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="flex-shrink-0">To</span>
+            <input type="date" value={to} onChange={e => setTo(e.target.value)} className="input flex-1 md:!w-auto !py-1" />
+          </div>
         </div>
-        {hasFilters && (
-          <button onClick={clearFilters} className="btn-ghost text-xs">Clear filters</button>
-        )}
-        <span className="text-xs text-stone-400 ml-auto tabular">
-          {isLoading ? '…' : `${total.toLocaleString()} entr${total === 1 ? 'y' : 'ies'}`}
-        </span>
+        <div className="flex items-center justify-between gap-3">
+          {hasFilters && (
+            <button onClick={clearFilters} className="btn-ghost text-xs">Clear filters</button>
+          )}
+          <span className="text-xs text-stone-400 md:ml-auto tabular whitespace-nowrap">
+            {isLoading ? '…' : `${total.toLocaleString()} entr${total === 1 ? 'y' : 'ies'}`}
+          </span>
+        </div>
       </div>
 
       {isLoading ? (
@@ -143,7 +216,7 @@ export default function AuditLog() {
                     {timeAgo(r.created_at)}
                   </div>
                 </td>
-                <td className="table-td">
+                <td className="table-td hidden sm:table-cell">
                   {r.user_id ? (
                     <div className="flex items-center gap-2">
                       <Avatar name={r.user_full_name ?? '?'} size={24} tone="beige" />
@@ -157,7 +230,7 @@ export default function AuditLog() {
                 <td className="table-td">
                   <span className={`badge ${meta.badge}`}>{meta.label}</span>
                 </td>
-                <td className="table-td">
+                <td className="table-td hidden md:table-cell">
                   <div className="leading-tight">
                     <div className="text-xs text-stone-700">{r.entity_type}</div>
                     {r.entity_id && (
@@ -213,7 +286,7 @@ export default function AuditLog() {
           size="lg"
         >
           <div className="space-y-4">
-            <div className="grid grid-cols-2 gap-3 text-xs">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div className="bg-beige-50 rounded-lg p-2">
                 <div className="text-[10px] uppercase tracking-wider text-stone-400 font-semibold">Actor</div>
                 <div className="text-stone-700 mt-1">{detail.user_full_name ?? '—'}</div>

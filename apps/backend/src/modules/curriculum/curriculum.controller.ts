@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { addCurriculumEntrySchema } from './curriculum.schema';
+import { addCurriculumEntrySchema, updateCurriculumEntrySchema } from './curriculum.schema';
 import * as svc from './curriculum.service';
 
 export async function listCurriculum(req: Request, res: Response, next: NextFunction) {
@@ -19,6 +19,13 @@ export async function removeEntry(req: Request, res: Response, next: NextFunctio
   try {
     await svc.removeCurriculumEntry(req.params.programId, req.params.entryId);
     res.status(204).send();
+  } catch (e) { next(e); }
+}
+
+export async function updateEntry(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = updateCurriculumEntrySchema.parse(req.body);
+    res.json(await svc.updateCurriculumEntry(req.params.entryId, data));
   } catch (e) { next(e); }
 }
 

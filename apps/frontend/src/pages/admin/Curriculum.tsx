@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getPrograms, getCourses, getCurriculum, addCurriculumEntry, removeCurriculumEntry } from '../../api';
+import { getPrograms, getCourses, getCurriculum, addCurriculumEntry, removeCurriculumEntry, updateCurriculumEntry } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import SectionTitle from '../../components/SectionTitle';
 import Modal from '../../components/Modal';
@@ -71,10 +71,15 @@ export default function Curriculum() {
       qc.invalidateQueries({ queryKey: ['curriculum', programId] });
       toast.push({ tone: 'info', title: 'Course removed' });
     },
-    onError: (e: unknown) => toast.push({
-      tone: 'error', title: 'Could not remove',
-      message: parseApiError(e).message,
-    }),
+    onError: (e: unknown) => toast.push({ tone: 'error', title: 'Remove failed', message: parseApiError(e).message }),
+  });
+
+  /** Flip a curriculum entry between 1 and 2 meetings/week. */
+  const meetingsMut = useMutation({
+    mutationFn: ({ entryId, mpw }: { entryId: string; mpw: 1 | 2 }) =>
+      updateCurriculumEntry(programId, entryId, { meetingsPerWeek: mpw }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['curriculum', programId] }),
+    onError:   (e: unknown) => toast.push({ tone: 'error', title: 'Update failed', message: parseApiError(e).message }),
   });
 
   return (
@@ -84,10 +89,12 @@ export default function Curriculum() {
         title="Curriculum builder"
         subtitle="Lay out each program's courses by year and semester. Prerequisites are enforced — a course can't be placed before its prereq slot."
         action={
-          <SelectField label="" value={programId} onChange={e => setProgramId(e.target.value)}>
-            {programs.length === 0 && <option value="">Loading…</option>}
-            {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
-          </SelectField>
+          <div className="w-full sm:w-auto sm:min-w-[260px]">
+            <SelectField label="" value={programId} onChange={e => setProgramId(e.target.value)}>
+              {programs.length === 0 && <option value="">Loading…</option>}
+              {programs.map((p: any) => <option key={p.id} value={p.id}>{p.code} — {p.name}</option>)}
+            </SelectField>
+          </div>
         }
       />
 
@@ -97,9 +104,9 @@ export default function Curriculum() {
         <div className="space-y-4">{[0, 1].map(i => <Skeleton key={i} className="h-56 rounded-xl" />)}</div>
       ) : (
         <>
-          <div className="flex items-center gap-4 mb-5 text-sm text-stone-600">
+          <div className="flex items-center gap-x-4 gap-y-1 mb-5 text-sm text-stone-600 flex-wrap">
             <span><span className="text-stone-400">Overall:</span> <span className="font-semibold tabular">{overallTotal}</span> units</span>
-            <span className="text-stone-300">·</span>
+            <span className="text-stone-300 hidden sm:inline">·</span>
             <span><span className="text-stone-400">Program total:</span> <span className="font-semibold tabular">{program?.total_units}</span> units</span>
             {overallTotal !== program?.total_units && (
               <span className="badge badge-amber"><Icon name="alert-triangle" size={10} /> mismatch</span>
@@ -131,18 +138,31 @@ export default function Curriculum() {
                           <p className="text-xs text-stone-400 italic">No courses placed.</p>
                         ) : (
                           <ul className="space-y-1.5">
-                            {items.map(e => (
-                              <li key={e.id} className="group flex items-center gap-2 bg-beige-50 rounded-lg px-2 py-1.5">
-                                <span className="font-mono text-xs font-semibold text-olive-600 w-20 flex-shrink-0">{e.code}</span>
-                                <span className="text-xs text-stone-700 flex-1 truncate" title={e.title}>{e.title}</span>
-                                <span className="text-[10px] text-stone-400 tabular">{e.units}u</span>
-                                <button className="btn-icon !w-6 !h-6 opacity-0 group-hover:opacity-100 hover:!text-red-500"
-                                  title={`Remove ${e.code}`}
-                                  onClick={() => { if (window.confirm(`Remove ${e.code} from this curriculum?`)) removeMut.mutate(e.id); }}>
-                                  <Icon name="x" size={10} />
-                                </button>
-                              </li>
-                            ))}
+                            {items.map(e => {
+                              const mpw = (e as any).meetings_per_week === 1 ? 1 : 2;
+                              const toggleMpw = () => meetingsMut.mutate({ entryId: e.id, mpw: mpw === 1 ? 2 : 1 });
+                              return (
+                                <li key={e.id} className="group flex items-center gap-2 bg-beige-50 rounded-lg px-2 py-1.5">
+                                  <span className="font-mono text-xs font-semibold text-olive-600 w-16 sm:w-20 flex-shrink-0 truncate">{e.code}</span>
+                                  <span className="text-xs text-stone-700 flex-1 min-w-0 truncate" title={e.title}>{e.title}</span>
+                                  <span className="text-[10px] text-stone-400 tabular flex-shrink-0">{e.units}u</span>
+                                  <button
+                                    onClick={toggleMpw}
+                                    className={`text-[10px] tabular font-semibold rounded px-1.5 py-0.5 flex-shrink-0 transition-colors ${
+                                      mpw === 1 ? 'bg-amber-100 text-amber-700 hover:bg-amber-200' : 'bg-olive-100 text-olive-600 hover:bg-olive-200'
+                                    }`}
+                                    title={`${mpw} meeting${mpw === 1 ? '' : 's'}/week — click to toggle`}
+                                  >
+                                    {mpw}x
+                                  </button>
+                                  <button className="btn-icon !w-6 !h-6 opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:!text-red-500 flex-shrink-0"
+                                    title={`Remove ${e.code}`}
+                                    onClick={() => { if (window.confirm(`Remove ${e.code} from this curriculum?`)) removeMut.mutate(e.id); }}>
+                                    <Icon name="x" size={10} />
+                                  </button>
+                                </li>
+                              );
+                            })}
                           </ul>
                         )}
                       </div>
@@ -226,12 +246,12 @@ function CoursePickerModal({ programId, yearLevel, semester, placedCourseIds, on
               {available.length === 0 ? 'No courses available.' : 'All matching courses are already placed.'}
             </p>
           ) : filtered.map(c => (
-            <label key={c.id} className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-beige-50 ${selectedId === c.id ? 'bg-olive-50' : ''}`}>
-              <input type="radio" name="course" checked={selectedId === c.id} onChange={() => setSelectedId(c.id)} />
-              <span className="font-mono text-xs font-semibold text-olive-600 w-24">{c.code}</span>
-              <span className="text-sm text-stone-800 flex-1 truncate">{c.title}</span>
-              <span className="text-[10px] text-stone-400 tabular">{c.units}u</span>
-              <span className={c.visibility === 'public' ? 'badge badge-enrolled' : 'badge badge-faculty'}>
+            <label key={c.id} className={`flex items-center gap-2 sm:gap-3 px-3 py-2 cursor-pointer hover:bg-beige-50 ${selectedId === c.id ? 'bg-olive-50' : ''}`}>
+              <input type="radio" name="course" checked={selectedId === c.id} onChange={() => setSelectedId(c.id)} className="flex-shrink-0" />
+              <span className="font-mono text-xs font-semibold text-olive-600 w-16 sm:w-24 flex-shrink-0 truncate">{c.code}</span>
+              <span className="text-sm text-stone-800 flex-1 min-w-0 truncate">{c.title}</span>
+              <span className="text-[10px] text-stone-400 tabular flex-shrink-0">{c.units}u</span>
+              <span className={`flex-shrink-0 hidden sm:inline-flex ${c.visibility === 'public' ? 'badge badge-enrolled' : 'badge badge-faculty'}`}>
                 {c.visibility === 'public' ? 'Public' : 'Restricted'}
               </span>
             </label>

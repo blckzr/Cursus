@@ -10,7 +10,9 @@ import { useToast } from '../../components/Toast';
 import { InputField } from '../../components/FormField';
 import { parseApiError } from '../../lib/apiError';
 
-const EMPTY = { code: '', name: '', totalUnits: '', yearLevels: '4', blocksPerYear: '3', blockCapacity: '50' };
+// total_units is no longer in the form — it's computed live by the API
+// from the program's curriculum entries (sum of placed course units).
+const EMPTY = { code: '', name: '', yearLevels: '4', blocksPerYear: '3', blockCapacity: '50' };
 
 export default function Programs() {
   const qc = useQueryClient();
@@ -26,7 +28,6 @@ export default function Programs() {
     mutationFn: () => createProgram({
       code: form.code,
       name: form.name,
-      totalUnits: Number(form.totalUnits),
       yearLevels: Number(form.yearLevels),
       blocksPerYear: Number(form.blocksPerYear),
       blockCapacity: Number(form.blockCapacity),
@@ -77,13 +78,19 @@ export default function Programs() {
       {showCreate && (
         <Modal title="New program" subtitle="Block sections are generated automatically from the configuration." onClose={() => { setShowCreate(false); resetErr(); }}>
           <div className="space-y-4">
-            <div className="grid grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <InputField label="Code" value={form.code} onChange={e => setForm(f => ({ ...f, code: e.target.value.toUpperCase() }))} placeholder="BSCS" error={fieldErrors.code} />
-              <div className="col-span-2">
+              <div className="sm:col-span-2">
                 <InputField label="Program name" value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="Bachelor of Science in Computer Science" error={fieldErrors.name} />
               </div>
             </div>
-            <InputField label="Total units" type="number" value={form.totalUnits} onChange={e => setForm(f => ({ ...f, totalUnits: e.target.value }))} placeholder="150" error={fieldErrors.totalUnits} />
+            <div className="bg-beige-100 rounded-lg px-3 py-2.5 text-xs text-stone-600 flex items-start gap-2">
+              <Icon name="info" size={12} className="mt-0.5 text-stone-400 flex-shrink-0" />
+              <span>
+                Total program units are computed automatically from the
+                curriculum — add courses on the <span className="font-medium text-stone-700">Curriculum builder</span> page after creating this program.
+              </span>
+            </div>
 
             <div className="border-t border-beige-200 pt-3">
               <p className="text-xs font-semibold text-stone-500 mb-2 uppercase tracking-wider">Block configuration</p>
@@ -102,7 +109,7 @@ export default function Programs() {
             <div className="flex justify-end gap-2 pt-1">
               <button className="btn-ghost" onClick={() => { setShowCreate(false); resetErr(); }}>Cancel</button>
               <button className="btn-primary" onClick={() => { resetErr(); createMut.mutate(); }}
-                disabled={createMut.isPending || !form.code || !form.name || !form.totalUnits}>
+                disabled={createMut.isPending || !form.code || !form.name}>
                 {createMut.isPending ? 'Creating…' : 'Create program'}
               </button>
             </div>

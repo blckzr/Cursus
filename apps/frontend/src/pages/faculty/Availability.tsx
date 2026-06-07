@@ -119,11 +119,11 @@ export default function FacultyAvailability() {
         )}
       />
 
-      {/* Add slot form */}
+      {/* Add slot form — stacks on mobile, side-by-side from md: up. */}
       <div className="card mb-4">
         <p className="text-xs font-semibold uppercase tracking-wider text-stone-500 mb-3">Add a slot</p>
-        <div className="flex flex-wrap gap-4 items-end">
-          <div className="flex-1 min-w-[200px]">
+        <div className="flex flex-col md:flex-row md:flex-wrap gap-3 md:gap-4 md:items-end">
+          <div className="md:flex-1 md:min-w-[200px]">
             <label className="label">Day(s)</label>
             <div className="flex gap-1.5 flex-wrap">
               {DAY_ORDER.map(d => {
@@ -136,24 +136,24 @@ export default function FacultyAvailability() {
               })}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-2 w-44">
+          <div className="grid grid-cols-2 gap-2 md:w-44">
             <InputField label="Start" type="time" value={draft.startTime} onChange={e => setDraft(s => ({ ...s, startTime: e.target.value }))} />
             <InputField label="End"   type="time" value={draft.endTime}   onChange={e => setDraft(s => ({ ...s, endTime:   e.target.value }))} />
           </div>
-          <div className="w-44">
+          <div className="md:w-44">
             <SelectField label="Kind" value={draft.kind} onChange={e => setDraft(s => ({ ...s, kind: e.target.value as Slot['kind'] }))}>
               <option value="teaching">Teaching</option>
               <option value="office_hour">Office hour</option>
             </SelectField>
           </div>
-          <button className="btn-primary flex items-center gap-2" onClick={addDraft}
+          <button className="btn-primary flex items-center justify-center gap-2 w-full md:w-auto" onClick={addDraft}
             disabled={!draft.dayOfWeek || !draft.startTime || !draft.endTime}>
             <Icon name="plus" size={14} /> Add
           </button>
         </div>
       </div>
 
-      {/* Slot list */}
+      {/* Slot list — table scrolls horizontally on mobile so small screens don't squeeze cells. */}
       {isLoading ? (
         <Skeleton className="h-64 rounded-xl" />
       ) : slots.length === 0 ? (
@@ -161,30 +161,41 @@ export default function FacultyAvailability() {
           message="Add at least one teaching slot above so the admin can assign you to sections." /></div>
       ) : (
         <div className="card p-0 overflow-hidden">
-          <table className="w-full">
-            <thead><tr>
-              <th className="table-th">Day(s)</th>
-              <th className="table-th">Time</th>
-              <th className="table-th">Kind</th>
-              <th className="table-th text-right"></th>
-            </tr></thead>
-            <tbody>
-              {slots.map((s, i) => (
-                <tr key={i} className="hover:bg-beige-50 transition-colors">
-                  <td className="table-td font-mono">{s.dayOfWeek}</td>
-                  <td className="table-td tabular text-stone-700">{s.startTime} – {s.endTime}</td>
-                  <td className="table-td">
-                    <span className={`badge ${KIND_BADGE[s.kind]}`}>{KIND_LABEL[s.kind]}</span>
-                  </td>
-                  <td className="table-td text-right">
-                    <button className="btn-icon hover:!text-red-500" onClick={() => removeSlot(i)} title="Remove">
-                      <Icon name="x" size={13} />
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {/*
+            Mobile keeps Day(s), Time, Remove button. Kind collapses below sm —
+            the badge re-appears on the row itself so users still know which
+            slot is teaching vs office-hour.
+          */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead><tr>
+                <th className="table-th">Day(s)</th>
+                <th className="table-th">Time</th>
+                <th className="table-th hidden sm:table-cell">Kind</th>
+                <th className="table-th text-right"></th>
+              </tr></thead>
+              <tbody>
+                {slots.map((s, i) => (
+                  <tr key={i} className="hover:bg-beige-50 transition-colors">
+                    <td className="table-td font-mono whitespace-nowrap">
+                      {s.dayOfWeek}
+                      {/* Inline mini-badge so mobile users still see the kind without the column. */}
+                      <span className={`badge ${KIND_BADGE[s.kind]} ml-2 sm:hidden`}>{KIND_LABEL[s.kind]}</span>
+                    </td>
+                    <td className="table-td tabular text-stone-700 whitespace-nowrap">{s.startTime} – {s.endTime}</td>
+                    <td className="table-td hidden sm:table-cell">
+                      <span className={`badge ${KIND_BADGE[s.kind]}`}>{KIND_LABEL[s.kind]}</span>
+                    </td>
+                    <td className="table-td text-right">
+                      <button className="btn-icon hover:!text-red-500" onClick={() => removeSlot(i)} title="Remove">
+                        <Icon name="x" size={13} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
 

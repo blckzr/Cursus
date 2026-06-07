@@ -67,6 +67,27 @@ router.delete('/programs/:programId/curriculum/:entryId', authenticate, authoriz
 
 /**
  * @openapi
+ * /programs/{programId}/curriculum/{entryId}:
+ *   patch:
+ *     tags: [Curriculum]
+ *     summary: Update a curriculum entry's meetings-per-week (admin)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [meetingsPerWeek]
+ *             properties:
+ *               meetingsPerWeek: { type: integer, enum: [1, 2] }
+ *     responses:
+ *       200: { description: Entry updated }
+ *       404: { description: Entry not found }
+ */
+router.patch('/programs/:programId/curriculum/:entryId', authenticate, authorize('admin'), ctrl.updateEntry);
+
+/**
+ * @openapi
  * /students/me/curriculum-progress:
  *   get:
  *     tags: [Curriculum]

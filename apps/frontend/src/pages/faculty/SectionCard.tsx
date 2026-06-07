@@ -17,36 +17,43 @@ export default function FacultySectionCard({ section, basePath = '/faculty/secti
 
   const students: any[] = data?.students || [];
   const enrolled = students.length;
+  // computedGrade arrives as a NUMERIC string from Postgres — coerce to keep
+  // sum/comparison in numeric-land.
   const graded = students.filter(s => s.computedGrade != null);
-  const avg = graded.length ? graded.reduce((s, e) => s + e.computedGrade, 0) / graded.length : null;
-  const atRisk = students.filter(s => s.computedGrade != null && s.computedGrade < 75).length;
+  const avg = graded.length ? graded.reduce((s, e) => s + Number(e.computedGrade), 0) / graded.length : null;
+  const atRisk = students.filter(s => s.computedGrade != null && Number(s.computedGrade) < 75).length;
 
   return (
     <Link
       to={`${basePath}/${section.id}`}
       className="card text-left hover:border-olive-200 hover:shadow-pop transition-all group flex flex-col"
     >
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="font-mono text-xs font-semibold text-olive-500">{section.section_code}</div>
-          <div className="font-medium text-stone-800 text-sm mt-1 leading-tight">{section.course_title}</div>
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="font-mono text-xs font-semibold text-olive-500 truncate">{section.section_code}</div>
+          <div className="font-medium text-stone-800 text-sm mt-1 leading-tight line-clamp-2">{section.course_title}</div>
         </div>
         {atRisk > 0 && (
-          <span className="badge badge-dropped flex items-center gap-0.5">
+          <span className="badge badge-dropped flex items-center gap-0.5 flex-shrink-0">
             <Icon name="alert-triangle" size={10} /> {atRisk}
           </span>
         )}
       </div>
 
-      <div className="text-xs text-stone-500 mt-3 flex items-center gap-3 flex-wrap">
-        {section.day_of_week && (
-          <span className="flex items-center gap-1">
+      <div className="text-xs text-stone-500 mt-3 flex items-center gap-x-3 gap-y-1 flex-wrap">
+        {section.meetings && section.meetings.length > 0 && (
+          <span className="flex items-center gap-1 flex-wrap">
             <Icon name="calendar" size={11} />
-            <span className="font-mono">{section.day_of_week}</span> · {section.start_time}–{section.end_time}
+            <span className="font-mono tabular">
+              {section.meetings.map((m: any) => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ')}
+            </span>
           </span>
         )}
         {section.room && (
-          <span className="flex items-center gap-1"><Icon name="map-pin" size={11} /> {section.room}</span>
+          <span className="flex items-center gap-1 min-w-0">
+            <Icon name="map-pin" size={11} className="flex-shrink-0" />
+            <span className="truncate">{section.room}</span>
+          </span>
         )}
       </div>
 

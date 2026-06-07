@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
-import { NavLink, Outlet, useNavigate, useLocation } from 'react-router-dom';
+import { Suspense, useEffect, useState } from 'react';
+import { NavLink, Outlet, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { type LucideIcon } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import Icon from '../components/Icon';
 import Avatar from '../components/Avatar';
+import Skeleton from '../components/Skeleton';
 import NotificationBell from '../components/NotificationBell';
+import { useTheme } from '../lib/theme';
 
 export interface NavItem {
   label: string;
@@ -55,6 +57,8 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
   const breadcrumbs = [roleLabel, active?.label].filter(Boolean) as string[];
 
   const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  const [theme, , toggleTheme] = useTheme();
 
   // On mobile the drawer is always "expanded" (full content).
   // On desktop `collapsed` controls width + label visibility.
@@ -192,6 +196,16 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
               <span>{today}</span>
             </div>
 
+            {/* Dark / light toggle */}
+            <button
+              onClick={toggleTheme}
+              className="btn-icon flex-shrink-0"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
+            </button>
+
             {/* Notification bell */}
             <NotificationBell />
 
@@ -207,11 +221,78 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
         </header>
 
         <div className="flex-1 overflow-y-auto scrollable">
-          <div className="p-4 md:p-7 max-w-[1200px] mx-auto">
-            <Outlet />
-          </div>
+          <PasswordChangeGate>
+            <div className="px-3 py-4 sm:px-4 sm:py-5 md:p-7 max-w-[1200px] mx-auto">
+              {/*
+                Suspense fallback for route-level code splitting. Each top-level
+                route is a separate JS chunk (see App.tsx) so the user only
+                downloads what they actually click. While a chunk is loading
+                this skeleton stands in for the page layout.
+              */}
+              <Suspense fallback={<PageSkeleton />}>
+                <Outlet />
+              </Suspense>
+            </div>
+          </PasswordChangeGate>
         </div>
       </main>
     </div>
+  );
+}
+
+// ─── Page-level loading skeleton ─────────────────────────────────────────────
+
+function PageSkeleton() {
+  return (
+    <div className="space-y-4 animate-pulse">
+      {/* Eyebrow + title + subtitle (matches PageHeader's vertical rhythm) */}
+      <Skeleton className="h-3 w-24" />
+      <Skeleton className="h-8 w-2/3" />
+      <Skeleton className="h-3 w-1/2" />
+      {/* Stat tiles row */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-5">
+        {[0, 1, 2, 3].map(i => <Skeleton key={i} className="h-20 rounded-xl" />)}
+      </div>
+      {/* Filter/toolbar row */}
+      <Skeleton className="h-12 mt-3" />
+      {/* Main content block (table / chart / grid) */}
+      <Skeleton className="h-[55vh] mt-3" />
+    </div>
+  );
+}
+
+// ─── Forced password change gate ─────────────────────────────────────────────
+
+/**
+ * When the signed-in user has `passwordMustChange = true` (default-password
+ * accounts, admin-reset accounts), every route except `/<role>/account` is
+ * redirected to that page, and a sticky banner is rendered above the content.
+ *
+ * The Account page itself surfaces the change-password form prominently when
+ * this flag is set (see `Account.tsx`).
+ */
+function PasswordChangeGate({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  const location = useLocation();
+
+  if (!user?.passwordMustChange) return <>{children}</>;
+
+  const accountPath = `/${user.role}/account`;
+  if (location.pathname !== accountPath) {
+    return <Navigate to={accountPath} replace />;
+  }
+
+  return (
+    <>
+      <div className="bg-amber-50 border-b border-amber-200 px-3 py-2.5 sm:px-4 md:px-7">
+        <div className="max-w-[1200px] mx-auto flex items-start gap-2 text-xs sm:text-sm text-amber-800">
+          <Icon name="shield" size={14} className="mt-0.5 flex-shrink-0 text-amber-600" />
+          <div>
+            <strong>Change your default password to continue.</strong> Until you do, the rest of Cursus is locked.
+          </div>
+        </div>
+      </div>
+      {children}
+    </>
   );
 }

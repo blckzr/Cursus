@@ -73,6 +73,60 @@ router.post('/', authenticate, authorize('admin'), ctrl.createSection);
 
 /**
  * @openapi
+ * /sections/auto-assign/preview:
+ *   get:
+ *     tags: [Sections]
+ *     summary: Dry-run the auto-assigner for a term (admin)
+ *     description: |
+ *       Returns proposed (faculty, day, time) assignments without writing.
+ *       Use this for a preview UI; call POST .../apply with the same payload
+ *       to commit.
+ *     parameters:
+ *       - in: query
+ *         name: termId
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *       - in: query
+ *         name: strategy
+ *         schema:
+ *           type: string
+ *           enum: [balanced, prefer-grouped-days, prefer-mornings]
+ *         description: Soft-constraint weighting; defaults to `balanced`.
+ *       - in: query
+ *         name: onlyTba
+ *         schema: { type: boolean, default: true }
+ *         description: When true (default) only fills sections without a faculty.
+ *     responses:
+ *       200:
+ *         description: Per-section proposals plus a summary block.
+ */
+router.get('/auto-assign/preview', authenticate, authorize('admin'), ctrl.autoAssignPreview);
+
+/**
+ * @openapi
+ * /sections/auto-assign/apply:
+ *   post:
+ *     tags: [Sections]
+ *     summary: Persist a previously-previewed proposal list (admin)
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [proposals]
+ *             properties:
+ *               proposals:
+ *                 type: array
+ *                 description: Exactly the rows the admin confirmed in the preview.
+ *     responses:
+ *       200:
+ *         description: Number applied / skipped.
+ */
+router.post('/auto-assign/apply', authenticate, authorize('admin'), ctrl.autoAssignApply);
+
+/**
+ * @openapi
  * /sections/{id}:
  *   get:
  *     tags: [Sections]

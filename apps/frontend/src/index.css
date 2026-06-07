@@ -8,6 +8,13 @@
     @apply bg-beige-200 font-sans;
     color: #292524;
     -webkit-font-smoothing: antialiased;
+    transition: background-color .18s ease, color .18s ease;
+  }
+
+  /* Dark mode body — engaged by `.dark` class on <html> (see lib/theme.ts). */
+  html.dark body {
+    background: #0e0d0b;     /* near-black warm */
+    color: #e7e5e4;
   }
 }
 
@@ -92,6 +99,200 @@
   .modal-backdrop { animation: fadeIn .15s ease; }
   .modal-card { animation: modalIn .2s ease; }
 }
+
+/* ============================================================
+   DARK MODE
+   ------------------------------------------------------------
+   The `.dark` class is toggled on <html> by `lib/theme.ts`.
+   All overrides live here so the rest of the app — which uses
+   the design's named utility classes (.card, .input, .btn-*,
+   .badge-*) plus the Tailwind palette — flips at once without
+   having to add `dark:` prefixes to every component.
+
+   Palette:
+     bg base       #0e0d0b   (near-black warm)
+     bg surface 1  #1c1917   (stone-900)
+     bg surface 2  #292524   (stone-800)
+     bg surface 3  #383330   (between 800 and 700)
+     border        #44403c   (stone-700)
+     text primary  #e7e5e4   (stone-200)
+     text muted    #a8a29e   (stone-400)
+     text faint    #78716c   (stone-500)
+     brand olive   #8FA857   (olive-300, bumped up for contrast)
+   ============================================================ */
+
+html.dark {
+  color-scheme: dark;
+}
+
+/* ── Component classes ──────────────────────────────────────── */
+
+html.dark .card {
+  background: #1c1917;
+  border-color: #44403c;
+  box-shadow: 0 1px 2px rgba(0,0,0,.25), 0 1px 3px rgba(0,0,0,.35);
+}
+
+html.dark .input {
+  background: #1c1917;
+  border-color: #44403c;
+  color: #e7e5e4;
+}
+html.dark .input::placeholder { color: #78716c; }
+html.dark .input:focus {
+  border-color: #8FA857;
+  box-shadow: 0 0 0 3px rgba(143,168,87,.22);
+}
+html.dark .label { color: #a8a29e; }
+
+html.dark .btn-secondary {
+  background: #292524;
+  color: #e7e5e4;
+}
+html.dark .btn-secondary:hover { background: #383330; }
+
+html.dark .btn-ghost { color: #d6d3d1; }
+html.dark .btn-ghost:hover { background: #292524; color: #fff; }
+
+html.dark .btn-icon { color: #a8a29e; }
+html.dark .btn-icon:hover { background: #292524; color: #e7e5e4; }
+
+/* Table */
+html.dark .table-th {
+  background: #1c1917;
+  color: #a8a29e;
+}
+html.dark .table-td {
+  color: #d6d3d1;
+  border-top-color: #292524;
+}
+
+/* Badges — keep brand hues, just darken the wash so they pop against dark cards */
+html.dark .badge-admin     { background: rgba(143,168,87,.18); color: #BACB8E; }
+html.dark .badge-faculty   { background: rgba(201,181,135,.18); color: #DDD0AD; }
+html.dark .badge-student   { background: rgba(214,211,209,.12); color: #e7e5e4; }
+html.dark .badge-enrolled  { background: rgba(34,197,94,.18);  color: #86efac; }
+html.dark .badge-dropped   { background: rgba(220,38,38,.20);  color: #fca5a5; }
+html.dark .badge-completed { background: rgba(143,168,87,.18); color: #BACB8E; }
+html.dark .badge-amber     { background: rgba(245,158,11,.18); color: #fcd34d; }
+html.dark .badge-neutral   { background: rgba(214,211,209,.12); color: #d6d3d1; }
+
+/* Chip */
+html.dark .chip {
+  background: #1c1917;
+  color: #d6d3d1;
+  border-color: #44403c;
+}
+html.dark .chip:hover { background: #292524; }
+html.dark .chip.active { background: #6B8030; color: #fff; border-color: #6B8030; }
+
+/* Keyboard hint */
+html.dark .kbd {
+  background: #292524;
+  color: #d6d3d1;
+  border-color: #44403c;
+}
+
+/* Scrollbars */
+html.dark .scrollable::-webkit-scrollbar-thumb {
+  background: #44403c;
+  border-color: #1c1917;
+}
+html.dark .scrollable::-webkit-scrollbar-track { background: #1c1917; }
+
+/* Page title (Fraunces) */
+html.dark .page-title { color: #f5f5f4; }
+html.dark .section-rule { background: linear-gradient(to right, #44403c, transparent); }
+
+/* Risk/warn row highlights — bump opacity since the base is dark */
+html.dark .row-risk { background: linear-gradient(to right, rgba(220,38,38,.18), transparent 40%); }
+html.dark .row-warn { background: linear-gradient(to right, rgba(245,158,11,.15), transparent 40%); }
+
+html.dark .focusable:focus-visible { outline-color: #BACB8E; }
+
+/* ── Tailwind raw-utility overrides ─────────────────────────── */
+/* Many components use bare `bg-white`, `bg-beige-*`, `text-stone-*` inline.
+   Rather than touching every JSX file, these scoped overrides flip those
+   classes when the .dark root is active. */
+
+/* Backgrounds */
+html.dark .bg-white         { background-color: #1c1917 !important; }
+html.dark .bg-beige-50      { background-color: #1c1917 !important; }
+html.dark .bg-beige-100     { background-color: #1c1917 !important; }
+html.dark .bg-beige-200     { background-color: #0e0d0b !important; }
+html.dark .bg-beige-300     { background-color: #292524 !important; }
+html.dark .bg-khaki-50      { background-color: #1c1917 !important; }
+html.dark .bg-khaki-100     { background-color: #292524 !important; }
+html.dark .bg-olive-50      { background-color: rgba(143,168,87,.10) !important; }
+html.dark .bg-olive-100     { background-color: rgba(143,168,87,.18) !important; }
+html.dark .bg-amber-50      { background-color: rgba(245,158,11,.12) !important; }
+html.dark .bg-amber-100     { background-color: rgba(245,158,11,.20) !important; }
+html.dark .bg-red-50        { background-color: rgba(220,38,38,.12) !important; }
+html.dark .bg-red-100       { background-color: rgba(220,38,38,.20) !important; }
+html.dark .bg-green-50      { background-color: rgba(34,197,94,.12) !important; }
+html.dark .bg-blue-50       { background-color: rgba(59,130,246,.12) !important; }
+html.dark .bg-stone-50      { background-color: #1c1917 !important; }
+html.dark .bg-stone-100     { background-color: #292524 !important; }
+
+/* Opacity-suffixed variants (e.g. bg-beige-200/85 used by the sticky topbar) */
+html.dark .bg-beige-200\/85 { background-color: rgba(14,13,11,.85) !important; }
+html.dark .bg-beige-100\/70 { background-color: rgba(28,25,23,.70) !important; }
+html.dark .bg-white\/70     { background-color: rgba(28,25,23,.70) !important; }
+html.dark .bg-white\/15     { background-color: rgba(255,255,255,.10) !important; }
+html.dark .border-khaki-100\/70 { border-color: rgba(68,64,60,.70) !important; }
+html.dark .border-khaki-200\/70 { border-color: rgba(68,64,60,.70) !important; }
+html.dark .border-beige-200\/60 { border-color: rgba(68,64,60,.60) !important; }
+
+/* Borders */
+html.dark .border-beige-100,
+html.dark .border-beige-200,
+html.dark .border-beige-300,
+html.dark .border-khaki-100,
+html.dark .border-khaki-200,
+html.dark .border-stone-100,
+html.dark .border-stone-200 { border-color: #44403c !important; }
+html.dark .border-amber-200 { border-color: rgba(245,158,11,.35) !important; }
+html.dark .border-red-200   { border-color: rgba(220,38,38,.40) !important; }
+html.dark .border-olive-300 { border-color: #8FA857 !important; }
+
+/* Text colors */
+html.dark .text-stone-900,
+html.dark .text-stone-800   { color: #f5f5f4 !important; }
+html.dark .text-stone-700   { color: #e7e5e4 !important; }
+html.dark .text-stone-600   { color: #d6d3d1 !important; }
+html.dark .text-stone-500   { color: #a8a29e !important; }
+html.dark .text-stone-400   { color: #78716c !important; }
+html.dark .text-stone-300   { color: #57534e !important; }
+html.dark .text-amber-800   { color: #fcd34d !important; }
+html.dark .text-amber-700   { color: #fbbf24 !important; }
+html.dark .text-amber-600   { color: #f59e0b !important; }
+html.dark .text-red-700,
+html.dark .text-red-600     { color: #fca5a5 !important; }
+html.dark .text-green-700   { color: #86efac !important; }
+html.dark .text-olive-500   { color: #BACB8E !important; }
+
+/* Hover backgrounds commonly used on rows / list items */
+html.dark .hover\:bg-beige-50:hover   { background-color: #292524 !important; }
+html.dark .hover\:bg-beige-100:hover  { background-color: #292524 !important; }
+html.dark .hover\:bg-khaki-50:hover   { background-color: #292524 !important; }
+html.dark .hover\:bg-stone-50:hover   { background-color: #292524 !important; }
+
+/* Divide colors (used in some lists) */
+html.dark .divide-beige-200 > :not([hidden]) ~ :not([hidden]),
+html.dark .divide-khaki-100 > :not([hidden]) ~ :not([hidden]) {
+  border-color: #383330 !important;
+}
+
+/* Modal backdrop already uses dark overlay — fine.
+   Modal card uses bg-white (overridden above) — good. */
+
+/* SVG charts often use stroke="#F0E8D4" or fill="#FAF6EB" inline; those are
+   acceptable on dark mode since chart bars/lines use olive/red/amber. The
+   axis tick labels use text-stone-400 which is mapped above. */
+
+/* ============================================================
+   END DARK MODE
+   ============================================================ */
 
 /* ---- Print: strip chrome so any page can be printed cleanly ---- */
 @media print {

@@ -435,6 +435,134 @@ router.get('/students/me/transcript', authenticate, authorize('student'), ctrl.e
 
 /**
  * @openapi
+ * /students/me/cor:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Certificate of Registration — JSON payload (preview)
+ *     description: |
+ *       Returns the data that will appear on the student's Certificate of
+ *       Registration: the active term, student profile, and enrolled
+ *       subjects with schedule. The frontend renders an on-page preview
+ *       from this payload before the student downloads the PDF.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200: { description: Registration payload }
+ *       404: { description: No active registration }
+ */
+router.get('/students/me/cor', authenticate, authorize('student'), ctrl.getCor);
+
+/**
+ * @openapi
+ * /students/me/cor.pdf:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Download the Certificate of Registration as a PDF
+ *     description: Landscape A4 PDF — single page covering the active term.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: PDF file download
+ *         content:
+ *           application/pdf:
+ *             schema: { type: string, format: binary }
+ *       404: { description: No active registration }
+ */
+router.get('/students/me/cor.pdf', authenticate, authorize('student'), ctrl.downloadCor);
+
+/**
+ * @openapi
+ * /students/me/pending-enrollment:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Sections waiting for the student's enrollment confirmation
+ *     description: |
+ *       Returns the pending sections in the active term so the COR page can
+ *       render a "Confirm enrollment" prompt. 204 when there's nothing to
+ *       confirm.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Pending enrollment payload }
+ *       204: { description: No pending sections }
+ *
+ * /students/me/confirm-enrollment:
+ *   post:
+ *     tags: [Gradebook]
+ *     summary: Confirm pending enrollment for the active term
+ *     description: |
+ *       Flips every pending enrollment for the calling student in the active
+ *       term to `enrolled`. Audit-logged as CONFIRM_ENROLLMENT. Returns the
+ *       number of rows updated.
+ *     security: [{ bearerAuth: [] }]
+ *     responses:
+ *       200: { description: Confirmed count }
+ *       409: { description: No active term to confirm against }
+ */
+router.get ('/students/me/pending-enrollment',  authenticate, authorize('student'), ctrl.getPendingEnrollment);
+router.post('/students/me/confirm-enrollment',  authenticate, authorize('student'), ctrl.confirmEnrollment);
+
+/**
+ * @openapi
+ * /terms/{id}/tba-auto-pass-preview:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Preview which TBA sections + students would be auto-passed
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200: { description: Sections array + summary counts }
+ *       404: { description: Term not found }
+ *
+ * /terms/{id}/tba-auto-pass:
+ *   post:
+ *     tags: [Gradebook]
+ *     summary: Auto-pass every TBA-section student in a term as 1.00
+ *     description: |
+ *       Policy enforcement for term close — when the registrar never
+ *       staffed a section, students aren't penalised. Sets numeric_grade=100,
+ *       letter_grade='1.00', status='completed' for every still-enrolled
+ *       student in every section where faculty_id IS NULL. Per-enrollment
+ *       audit log + per-student notification.
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema: { type: string, format: uuid }
+ *     responses:
+ *       200: { description: '{ sectionsProcessed, studentsPromoted }' }
+ *       404: { description: Term not found }
+ */
+router.get ('/terms/:id/tba-auto-pass-preview', authenticate, authorize('admin'), ctrl.previewTbaAutoPass);
+router.post('/terms/:id/tba-auto-pass',         authenticate, authorize('admin'), ctrl.autoPassTbaSections);
+
+/**
+ * @openapi
+ * /students/me/schedule.ics:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Download the active-term class schedule as an iCalendar feed
+ *     description: |
+ *       One VEVENT per (section × meeting day), bounded by the term's
+ *       end_date via WEEKLY RRULE. Anchored in Asia/Manila. Google Calendar,
+ *       Apple Calendar, and Outlook import this format natively.
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: iCalendar file
+ *         content:
+ *           text/calendar:
+ *             schema: { type: string }
+ *       404: { description: No active schedule }
+ */
+router.get('/students/me/schedule.ics', authenticate, authorize('student'), ctrl.downloadScheduleIcs);
+
+/**
+ * @openapi
  * /sections/{id}/roster:
  *   get:
  *     tags: [Gradebook]

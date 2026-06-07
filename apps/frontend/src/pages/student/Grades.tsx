@@ -1,6 +1,7 @@
 import { useState, useMemo } from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { getStudentGrades, downloadTranscript } from '../../api';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { getStudentGrades, downloadTranscript, createAppeal, listMyAppeals, getMustEvaluateFirst, type AppealRow } from '../../api';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
@@ -8,7 +9,9 @@ import DataTable from '../../components/DataTable';
 import Chip from '../../components/Chip';
 import Icon from '../../components/Icon';
 import Skeleton from '../../components/Skeleton';
+import Modal from '../../components/Modal';
 import { useToast } from '../../components/Toast';
+import { parseApiError } from '../../lib/apiError';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 
@@ -36,12 +39,44 @@ function termGWA(items: any[]): number | null {
 export default function StudentGrades() {
   const { user } = useAuth();
   const toast = useToast();
+  const qc = useQueryClient();
   const { data: grades = [], isLoading } = useQuery({
     queryKey: ['student-grades', user?.id],
     queryFn: () => getStudentGrades(user!.id),
     enabled: !!user,
   });
+  // Grade-reveal gate: sections the student must evaluate before their
+  // finalized grade unlocks (FUTURE_FEATURES 4.6).
+  const { data: mustEvaluate = [] } = useQuery({
+    queryKey: ['must-evaluate-first'],
+    queryFn:  getMustEvaluateFirst,
+  });
+  const lockedSectionIds = new Set(mustEvaluate.map(m => m.sectionId));
+  // Pull existing appeals so we can mark already-appealed grades inline.
+  const { data: appeals = [] } = useQuery<AppealRow[]>({
+    queryKey: ['my-appeals'],
+    queryFn:  listMyAppeals,
+  });
+  const appealByEnrollment = useMemo(() => {
+    const m = new Map<string, AppealRow>();
+    for (const a of appeals) m.set(a.enrollment_id, a);
+    return m;
+  }, [appeals]);
+
   const [termFilter, setTermFilter] = useState('all');
+  const [appealTarget, setAppealTarget] = useState<any | null>(null);
+  const [appealReason, setAppealReason] = useState('');
+  const [appealErr,    setAppealErr]    = useState('');
+
+  const appealMut = useMutation({
+    mutationFn: () => createAppeal({ enrollmentId: appealTarget!.id, reason: appealReason }),
+    onSuccess:  () => {
+      qc.invalidateQueries({ queryKey: ['my-appeals'] });
+      setAppealTarget(null); setAppealReason(''); setAppealErr('');
+      toast.push({ tone: 'success', title: 'Appeal filed', message: 'Your faculty has been notified.' });
+    },
+    onError:    (e: unknown) => setAppealErr(parseApiError(e).message),
+  });
 
   const handleDownload = async () => {
     try {
@@ -51,6 +86,14 @@ export default function StudentGrades() {
       toast.push({ tone: 'error', title: 'Download failed' });
     }
   };
+
+  // Appeals are allowed within 14 days of finalize. We compute eligibility
+  // client-side so the button can disable; the backend re-checks on submit.
+  const APPEAL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
+  const canAppeal = (e: any) =>
+    e.letter_grade != null && e.finalized_at != null
+    && Date.now() - new Date(e.finalized_at).getTime() <= APPEAL_WINDOW_MS
+    && !appealByEnrollment.has(e.id);
 
   const grouped = useMemo(() => {
     const byTerm: Record<string, { term: any; items: any[] }> = {};
@@ -72,10 +115,36 @@ export default function StudentGrades() {
         subtitle="Your complete grade record across every term — grouped chronologically."
         action={
           <button onClick={handleDownload} className="btn-secondary flex items-center gap-2">
-            <Icon name="download" size={14} /> Download transcript
+            <Icon name="download" size={14} />
+            <span className="hidden sm:inline">Download transcript</span>
+            <span className="sm:hidden">Transcript</span>
           </button>
         }
       />
+
+      {/* Grade-reveal gate banner (FUTURE_FEATURES 4.6) */}
+      {mustEvaluate.length > 0 && (
+        <div className="card mb-4 border-amber-200 dark:border-amber-400/40 bg-amber-50/60 dark:!bg-amber-400/[0.08]">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-400/25 text-amber-700 dark:text-amber-200 flex items-center justify-center flex-shrink-0">
+              <Icon name="shield" size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+                {mustEvaluate.length} finalized grade{mustEvaluate.length === 1 ? ' is' : 's are'} hidden until you evaluate
+              </div>
+              <div className="text-xs text-stone-600 dark:text-stone-300 mt-0.5">
+                {mustEvaluate.slice(0, 3).map(m => m.courseTitle).join(', ')}
+                {mustEvaluate.length > 3 && ` and ${mustEvaluate.length - 3} more`}.
+                Submitting an anonymous evaluation unlocks each section's final grade immediately.
+              </div>
+            </div>
+            <Link to="/student/evaluations" className="btn-primary text-xs flex items-center gap-1.5 flex-shrink-0">
+              <Icon name="arrow-right" size={11} /> Go evaluate
+            </Link>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="space-y-7">
@@ -93,13 +162,16 @@ export default function StudentGrades() {
         <div className="card p-0"><EmptyState icon="bar-chart" title="No grades yet" message="You aren't enrolled in any sections yet." /></div>
       ) : (
         <>
-          <div className="flex items-center gap-2 mb-5 flex-wrap">
-            <Chip active={termFilter === 'all'} onClick={() => setTermFilter('all')}>All terms</Chip>
-            {grouped.map(g => g.term.id && (
-              <Chip key={g.term.id} active={termFilter === g.term.id} onClick={() => setTermFilter(g.term.id)}>
-                {g.term.name}
-              </Chip>
-            ))}
+          {/* Horizontally scroll the chip row on narrow viewports rather than wrapping. */}
+          <div className="-mx-3 px-3 sm:mx-0 sm:px-0 mb-5 overflow-x-auto scrollable">
+            <div className="flex items-center gap-2 w-max sm:w-auto sm:flex-wrap">
+              <Chip active={termFilter === 'all'} onClick={() => setTermFilter('all')}>All terms</Chip>
+              {grouped.map(g => g.term.id && (
+                <Chip key={g.term.id} active={termFilter === g.term.id} onClick={() => setTermFilter(g.term.id)}>
+                  {g.term.name}
+                </Chip>
+              ))}
+            </div>
           </div>
 
           <div className="space-y-7">
@@ -109,14 +181,14 @@ export default function StudentGrades() {
               const units = g.items.reduce((s, e) => s + Number(e.units || 0), 0);
               return (
                 <section key={g.term.id || g.term.name}>
-                  <div className="flex items-end justify-between mb-3 px-1">
-                    <div>
+                  <div className="flex items-end justify-between mb-3 px-1 gap-3 flex-wrap">
+                    <div className="min-w-0">
                       <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Term</div>
-                      <h2 className="text-base font-semibold text-stone-800">{g.term.name}</h2>
+                      <h2 className="text-base font-semibold text-stone-800 truncate">{g.term.name}</h2>
                     </div>
-                    <div className="flex items-center gap-5">
+                    <div className="flex items-center gap-4 sm:gap-5">
                       <div className="text-right">
-                        <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">
+                        <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold whitespace-nowrap">
                           {activeTerm ? 'In progress' : 'Final GWA'}
                         </div>
                         <div className="text-xl font-display tabular font-medium text-stone-800">
@@ -130,32 +202,64 @@ export default function StudentGrades() {
                     </div>
                   </div>
 
-                  <DataTable headers={[
-                    { label: 'Course' }, { label: 'Section' },
-                    { label: 'Units', align: 'center' },
-                    { label: 'Faculty' }, { label: 'Status' },
-                    { label: 'Grade', align: 'right' },
-                  ]}>
+                  {/*
+                    Mobile keeps Course + Grade — the whole point of "my grades".
+                    Section / Faculty / Status collapse below md; Units below sm.
+                  */}
+                  <DataTable
+                    pageSize={10}
+                    headers={[
+                      { label: 'Course' },
+                      { label: 'Section', hideBelow: 'md' },
+                      { label: 'Units',   align: 'center', hideBelow: 'sm' },
+                      { label: 'Faculty', hideBelow: 'lg' },
+                      { label: 'Status',  hideBelow: 'md' },
+                      { label: 'Grade',   align: 'right' },
+                    ]}
+                  >
                     {g.items.map((e: any) => (
                       <tr key={e.id} className="hover:bg-beige-50 transition-colors">
                         <td className="table-td">
                           <span className="font-mono text-xs text-olive-500 font-semibold">{e.course_code}</span>
                           <span className="ml-2">{e.course_title}</span>
                         </td>
-                        <td className="table-td font-mono text-stone-500 text-xs">{e.section_code}</td>
-                        <td className="table-td text-center tabular">{e.units}</td>
-                        <td className="table-td text-stone-500 text-xs">{e.faculty_name}</td>
-                        <td className="table-td">
+                        <td className="table-td font-mono text-stone-500 text-xs hidden md:table-cell">{e.section_code}</td>
+                        <td className="table-td text-center tabular hidden sm:table-cell">{e.units}</td>
+                        <td className="table-td text-stone-500 text-xs hidden lg:table-cell">{e.faculty_name}</td>
+                        <td className="table-td hidden md:table-cell">
                           {e.status === 'enrolled'  ? <span className="badge badge-enrolled">Enrolled</span>
                             : e.status === 'dropped' ? <span className="badge badge-dropped">Dropped</span>
                             : <span className="badge badge-completed">Completed</span>}
                         </td>
                         <td className="table-td text-right">
-                          {e.letter_grade ? (
-                            <div className="leading-tight">
-                              <span className="font-display text-lg font-medium text-olive-600 tabular">{e.letter_grade}</span>
-                              {e.numeric_grade != null && (
-                                <span className="text-stone-400 text-[11px] ml-1 tabular">({Number(e.numeric_grade).toFixed(2)})</span>
+                          {e.letter_grade && lockedSectionIds.has(e.section_id) ? (
+                            <Link
+                              to="/student/evaluations"
+                              className="text-xs text-amber-700 dark:text-amber-200 hover:underline inline-flex items-center gap-1"
+                              title="Evaluate the instructor to reveal this grade"
+                            >
+                              <Icon name="shield" size={11} /> Evaluate to reveal
+                            </Link>
+                          ) : e.letter_grade ? (
+                            <div className="leading-tight flex items-center justify-end gap-2">
+                              <div>
+                                <span className="font-display text-lg font-medium text-olive-600 tabular">{e.letter_grade}</span>
+                                {e.numeric_grade != null && (
+                                  <span className="text-stone-400 text-[11px] ml-1 tabular hidden sm:inline">({Number(e.numeric_grade).toFixed(2)})</span>
+                                )}
+                              </div>
+                              {appealByEnrollment.has(e.id) ? (
+                                <span title="Appeal filed" className="badge badge-amber text-[10px]">
+                                  <Icon name="alert-triangle" size={10} /> Appealed
+                                </span>
+                              ) : canAppeal(e) && (
+                                <button
+                                  className="btn-icon !w-7 !h-7 hover:!text-olive-600 border border-transparent hover:border-khaki-200"
+                                  title="File a grade appeal"
+                                  onClick={() => { setAppealErr(''); setAppealReason(''); setAppealTarget(e); }}
+                                >
+                                  <Icon name="message" size={12} />
+                                </button>
                               )}
                             </div>
                           ) : (
@@ -185,6 +289,71 @@ export default function StudentGrades() {
             </div>
           </details>
         </>
+      )}
+
+      {/* ── Appeal modal ────────────────────────────────────────────── */}
+      {appealTarget && (
+        <Modal
+          title="File a grade appeal"
+          subtitle={`${appealTarget.course_code} · ${appealTarget.course_title}`}
+          onClose={() => setAppealTarget(null)}
+          size="lg"
+        >
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-beige-50 rounded-lg px-3 py-2">
+                <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Current grade</div>
+                <div className="mt-0.5 flex items-baseline gap-2">
+                  <span className="font-display text-xl font-medium text-stone-800 tabular">{appealTarget.letter_grade}</span>
+                  {appealTarget.numeric_grade != null && (
+                    <span className="text-xs text-stone-400 tabular">({Number(appealTarget.numeric_grade).toFixed(2)})</span>
+                  )}
+                </div>
+              </div>
+              <div className="bg-beige-50 rounded-lg px-3 py-2">
+                <div className="text-[10px] uppercase tracking-widest text-stone-400 font-semibold">Faculty</div>
+                <div className="mt-0.5 text-sm font-medium text-stone-800">{appealTarget.faculty_name ?? '—'}</div>
+              </div>
+            </div>
+
+            <div>
+              <label className="label">Reason for appeal</label>
+              <textarea
+                className="input min-h-[120px]"
+                value={appealReason}
+                onChange={e => setAppealReason(e.target.value)}
+                placeholder="Explain in your own words why you believe the grade should be reviewed. Include any specific assessments or events the faculty should reconsider."
+                autoFocus
+              />
+              <p className="text-[11px] text-stone-400 mt-1">{appealReason.length} / 2000 characters · at least 20 required</p>
+            </div>
+
+            <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-xs text-amber-700 flex items-start gap-2">
+              <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+              <span>
+                You can only file one appeal per grade. The faculty for this section will be notified and asked to respond.
+                Track progress on the <strong>My Appeals</strong> page.
+              </span>
+            </div>
+
+            {appealErr && (
+              <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 flex items-start gap-2">
+                <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" /> {appealErr}
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-1">
+              <button className="btn-ghost" onClick={() => setAppealTarget(null)}>Cancel</button>
+              <button
+                className="btn-primary"
+                onClick={() => { setAppealErr(''); appealMut.mutate(); }}
+                disabled={appealMut.isPending || appealReason.trim().length < 20}
+              >
+                {appealMut.isPending ? 'Filing…' : 'File appeal'}
+              </button>
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   );

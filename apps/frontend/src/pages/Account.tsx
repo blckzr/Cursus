@@ -81,7 +81,15 @@ export default function Account() {
     onSuccess: () => {
       setPwdForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
       setPwdErr(''); setPwdFieldErrors({});
-      toast.push({ tone: 'success', title: 'Password updated', message: 'Use your new password next time you sign in.' });
+      // Clear the "must change" flag in the cached user so the route gate
+      // releases on the next render — the API has just done the same on its
+      // side. We also bump the message slightly when the gate was active.
+      if (user?.passwordMustChange) {
+        refreshUser({ ...user, passwordMustChange: false });
+        toast.push({ tone: 'success', title: 'Password updated', message: 'You now have full access to Cursus.' });
+      } else {
+        toast.push({ tone: 'success', title: 'Password updated', message: 'Use your new password next time you sign in.' });
+      }
     },
     onError: (e: unknown) => {
       const p = parseApiError(e, 'Failed to change password');
@@ -91,12 +99,90 @@ export default function Account() {
 
   if (!user) return null;
 
+  const mustChange = !!user.passwordMustChange;
+
+  // ── Subcomponents — defined inline so we can keep ordering conditional
+  const PasswordCard = (
+    <div className={`card ${mustChange ? 'ring-2 ring-amber-200 border-amber-200' : ''}`}>
+      <div className="flex items-start justify-between mb-4 gap-3">
+        <div>
+          <h2 className="text-lg font-semibold text-stone-800">
+            {mustChange ? 'Set a new password' : 'Change password'}
+          </h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            {mustChange
+              ? 'Your account still has the default password. Pick a new one to unlock the rest of Cursus.'
+              : 'Verify your current password before setting a new one.'}
+          </p>
+        </div>
+        {pwdReady && (
+          <button
+            onClick={() => { setPwdErr(''); setPwdFieldErrors({}); pwdMut.mutate(); }}
+            disabled={pwdMut.isPending}
+            className="btn-primary flex items-center gap-2 flex-shrink-0"
+          >
+            {pwdMut.isPending ? <><span className="spinner" /> Updating…</> : 'Update password'}
+          </button>
+        )}
+      </div>
+
+      <div className="space-y-3">
+        <InputField
+          label={mustChange ? 'Current password (the default you were given)' : 'Current password'}
+          type="password"
+          value={pwdForm.currentPassword}
+          onChange={e => setPwdForm(f => ({ ...f, currentPassword: e.target.value }))}
+          error={pwdFieldErrors.currentPassword}
+          placeholder="••••••••"
+          autoFocus={mustChange}
+        />
+        <InputField
+          label="New password"
+          type="password"
+          value={pwdForm.newPassword}
+          onChange={e => setPwdForm(f => ({ ...f, newPassword: e.target.value }))}
+          error={pwdFieldErrors.newPassword}
+          hint="At least 8 characters."
+          placeholder="••••••••"
+        />
+        <InputField
+          label="Confirm new password"
+          type="password"
+          value={pwdForm.confirmPassword}
+          onChange={e => setPwdForm(f => ({ ...f, confirmPassword: e.target.value }))}
+          error={
+            pwdForm.confirmPassword && !passwordsMatch
+              ? "Doesn't match the new password."
+              : undefined
+          }
+          placeholder="••••••••"
+        />
+      </div>
+
+      {pwdErr && (
+        <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-3 flex items-start gap-2">
+          <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" /> {pwdErr}
+        </p>
+      )}
+    </div>
+  );
+
   return (
     <div className="space-y-6 max-w-2xl">
-      <PageHeader eyebrow="Settings" title="Account" subtitle="Manage your profile and password." />
+      <PageHeader
+        eyebrow="Settings"
+        title={mustChange ? 'Welcome to Cursus' : 'Account'}
+        subtitle={mustChange
+          ? 'Set a personal password before going any further. The rest of the app is locked until you do.'
+          : 'Manage your profile and password.'}
+      />
+
+      {/* When the gate is active, the password card jumps to the top. Otherwise
+          profile-then-password is the usual order. */}
+      {mustChange && PasswordCard}
 
       {/* Profile */}
-      <div className="card">
+      <div className={`card ${mustChange ? 'opacity-60 pointer-events-none' : ''}`}>
         <div className="flex items-start justify-between mb-4 gap-3">
           <div>
             <h2 className="text-lg font-semibold text-stone-800">Profile</h2>
@@ -155,62 +241,9 @@ export default function Account() {
         )}
       </div>
 
-      {/* Change password */}
-      <div className="card">
-        <div className="flex items-start justify-between mb-4 gap-3">
-          <div>
-            <h2 className="text-lg font-semibold text-stone-800">Change password</h2>
-            <p className="text-xs text-stone-500 mt-0.5">Verify your current password before setting a new one.</p>
-          </div>
-          {pwdReady && (
-            <button
-              onClick={() => { setPwdErr(''); setPwdFieldErrors({}); pwdMut.mutate(); }}
-              disabled={pwdMut.isPending}
-              className="btn-primary flex items-center gap-2 flex-shrink-0"
-            >
-              {pwdMut.isPending ? <><span className="spinner" /> Updating…</> : 'Update password'}
-            </button>
-          )}
-        </div>
-
-        <div className="space-y-3">
-          <InputField
-            label="Current password"
-            type="password"
-            value={pwdForm.currentPassword}
-            onChange={e => setPwdForm(f => ({ ...f, currentPassword: e.target.value }))}
-            error={pwdFieldErrors.currentPassword}
-            placeholder="••••••••"
-          />
-          <InputField
-            label="New password"
-            type="password"
-            value={pwdForm.newPassword}
-            onChange={e => setPwdForm(f => ({ ...f, newPassword: e.target.value }))}
-            error={pwdFieldErrors.newPassword}
-            hint="At least 8 characters."
-            placeholder="••••••••"
-          />
-          <InputField
-            label="Confirm new password"
-            type="password"
-            value={pwdForm.confirmPassword}
-            onChange={e => setPwdForm(f => ({ ...f, confirmPassword: e.target.value }))}
-            error={
-              pwdForm.confirmPassword && !passwordsMatch
-                ? "Doesn't match the new password."
-                : undefined
-            }
-            placeholder="••••••••"
-          />
-        </div>
-
-        {pwdErr && (
-          <p className="text-red-600 text-sm bg-red-50 border border-red-200 rounded-lg px-3 py-2 mt-3 flex items-start gap-2">
-            <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" /> {pwdErr}
-          </p>
-        )}
-      </div>
+      {/* Password card lives at the bottom in the normal flow, and at the
+          top (with extra emphasis) when `mustChange` is set above. */}
+      {!mustChange && PasswordCard}
     </div>
   );
 }

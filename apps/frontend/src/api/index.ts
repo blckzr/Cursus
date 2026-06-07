@@ -1,5 +1,18 @@
 import { api } from './client';
 
+// ── Shared types ─────────────────────────────────────────────────────────────
+export type DayCode = 'Mon' | 'Tue' | 'Wed' | 'Thu' | 'Fri' | 'Sat' | 'Sun';
+export interface Meeting {
+  dayOfWeek: DayCode;
+  startTime: string;   // 'HH:MM'
+  endTime:   string;   // 'HH:MM'
+}
+/** One-line schedule label, or 'TBA' if no meetings. */
+export const formatMeetings = (meetings: Meeting[] | undefined | null): string => {
+  if (!meetings || meetings.length === 0) return 'TBA';
+  return meetings.map(m => `${m.dayOfWeek} ${m.startTime}–${m.endTime}`).join(' · ');
+};
+
 // ── Auth ──────────────────────────────────────────────────────────────────────
 export const login = (userCode: string, password: string) =>
   api.post('/auth/login', { userCode, password }).then(r => r.data);
@@ -13,6 +26,37 @@ export const changePassword = (currentPassword: string, newPassword: string) =>
 export const getUsers     = (role?: string) => api.get('/users', { params: { role } }).then(r => r.data);
 export const createUser   = (data: object)  => api.post('/users', data).then(r => r.data);
 export const updateUser   = (id: string, data: object) => api.patch(`/users/${id}`, data).then(r => r.data);
+
+// ── Bulk CSV import ─────────────────────────────────────────────────────────
+export interface BulkRawRow {
+  rowIndex:    number;
+  email:       string;
+  fullName:    string;
+  role:        string;
+  branch?:     string;
+  programCode?: string;
+}
+export interface BulkValidatedRow {
+  rowIndex: number; email: string; fullName: string;
+  role: 'admin' | 'faculty' | 'student';
+  branch: string | null; programId: string | null; programCode: string | null;
+}
+export interface BulkInvalidRow {
+  rowIndex: number; raw: BulkRawRow; reason: string;
+}
+export interface BulkPreviewResult {
+  valid: BulkValidatedRow[]; invalid: BulkInvalidRow[];
+  summary: { total: number; willCreate: number; skipped: number;
+             byRole: Record<'admin' | 'faculty' | 'student', number> };
+}
+export interface BulkApplyResult {
+  created: { rowIndex: number; userCode: string; email: string }[];
+  failed:  { rowIndex: number; email: string; reason: string }[];
+}
+export const bulkImportUsersPreview = (rows: BulkRawRow[]) =>
+  api.post<BulkPreviewResult>('/users/bulk-import/preview', { rows }).then(r => r.data);
+export const bulkImportUsersApply = (rows: BulkRawRow[]) =>
+  api.post<BulkApplyResult>('/users/bulk-import/apply', { rows }).then(r => r.data);
 
 // ── Programs ──────────────────────────────────────────────────────────────────
 export const getPrograms   = ()                        => api.get('/programs').then(r => r.data);
@@ -31,6 +75,8 @@ export const addCurriculumEntry    = (programId: string, data: object) =>
   api.post(`/programs/${programId}/curriculum`, data).then(r => r.data);
 export const removeCurriculumEntry = (programId: string, entryId: string) =>
   api.delete(`/programs/${programId}/curriculum/${entryId}`);
+export const updateCurriculumEntry = (programId: string, entryId: string, data: { meetingsPerWeek: 1 | 2 }) =>
+  api.patch(`/programs/${programId}/curriculum/${entryId}`, data).then(r => r.data);
 
 // ── Terms ─────────────────────────────────────────────────────────────────────
 export const getTerms   = ()                        => api.get('/terms').then(r => r.data);
@@ -92,6 +138,19 @@ export const downloadRosterCsv = async (sectionId: string) => {
   URL.revokeObjectURL(url);
 };
 
+// ── Class schedule iCalendar export ─────────────────────────────────────────
+export const downloadScheduleIcs = async () => {
+  const res = await api.get('/students/me/schedule.ics', { responseType: 'blob' });
+  const cd  = (res.headers['content-disposition'] as string | undefined) ?? '';
+  const m   = cd.match(/filename="?([^";]+)"?/);
+  const filename = m ? m[1] : 'schedule.ics';
+  const url = URL.createObjectURL(res.data as Blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  URL.revokeObjectURL(url);
+};
+
 // ── Notifications ─────────────────────────────────────────────────────────────
 export const getNotifications      = (params?: { limit?: number; unreadOnly?: boolean }) =>
   api.get('/notifications', { params }).then(r => r.data);
@@ -111,6 +170,377 @@ export const downloadTranscript = async () => {
   const cd  = (res.headers['content-disposition'] as string | undefined) ?? '';
   const m   = cd.match(/filename="?([^";]+)"?/);
   const filename = m ? m[1] : 'transcript.csv';
+  const url = URL.createObjectURL(res.data as Blob);
+  const link = document.createElement('a');
+  link.href = url; link.download = filename;
+  document.body.appendChild(link); link.click(); link.remove();
+  URL.revokeObjectURL(url);
+};
+
+// ── Analytics (admin) ────────────────────────────────────────────────────────
+export interface CohortRetentionRow {
+  cohortYear: string;
+  total: number; active: number; graduated: number; inactive: number;
+  retention: number;
+}
+export interface RetentionPayload {
+  cohorts: CohortRetentionRow[];
+  summary: {
+    totalStudents: number; activeStudents: number;
+    graduatedStudents: number; inactiveStudents: number;
+    overallRetention: number; cohortsCovered: number;
+  };
+  program: { id: string; code: string; name: string } | null;
+}
+export const getRetention = (programId?: string) =>
+  api.get<RetentionPayload>('/admin/analytics/retention', { params: { programId } }).then(r => r.data);
+
+export interface FacultyLoadSection {
+  sectionId: string; sectionCode: string;
+  courseCode: string; courseTitle: string; units: number;
+  meetings: Meeting[];
+  room: string | null;
+  hoursPerWeek: number;
+}
+export interface FacultyLoadRow {
+  facultyId: string; fullName: string; userCode: string | null; email: string;
+  maxTeachingUnits: number | null;
+  sectionCount: number; totalUnits: number; hoursPerWeek: number;
+  utilization: number;
+  status: 'overload' | 'normal' | 'underload' | 'idle';
+  sections: FacultyLoadSection[];
+}
+export interface FacultyLoadPayload {
+  term: { id: string; name: string; semester: string } | null;
+  faculty: FacultyLoadRow[];
+  summary: {
+    facultyTotal: number; overloadedCount: number; underloadedCount: number; idleCount: number;
+    totalUnits: number; totalHours: number; avgUnits: number; overloadThreshold: number;
+  };
+}
+export const getFacultyLoad = (termId?: string) =>
+  api.get<FacultyLoadPayload>('/admin/analytics/faculty-load', { params: { termId } }).then(r => r.data);
+
+export interface SectionFillRow {
+  sectionId: string; sectionCode: string;
+  courseCode: string; courseTitle: string; units: number;
+  blockLabel: string; programCode: string;
+  facultyName: string | null;
+  capacity: number; enrolled: number; fillPct: number;
+  status: 'over' | 'full' | 'normal' | 'under' | 'empty';
+}
+export interface SectionFillHistogramBin {
+  label: string; min: number; max: number; count: number;
+}
+export interface SectionFillPayload {
+  term: { id: string; name: string; semester: string } | null;
+  sections: SectionFillRow[];
+  histogram: SectionFillHistogramBin[];
+  summary: {
+    sectionsTotal: number; totalCapacity: number; totalEnrolled: number;
+    avgFillPct: number;
+    overCount: number; fullCount: number; normalCount: number;
+    underCount: number; emptyCount: number; underThreshold: number;
+  };
+}
+export const getSectionFill = (termId?: string) =>
+  api.get<SectionFillPayload>('/admin/analytics/section-fill', { params: { termId } }).then(r => r.data);
+
+export type GwaGroupBy = 'cohort' | 'term';
+export interface GwaGroupRow {
+  groupKey: string; groupLabel: string; sortKey: string;
+  studentsCount: number;
+  avgGwa: number | null; bestGwa: number | null; worstGwa: number | null;
+  presidents: number; deans: number; good: number; warning: number; failing: number;
+}
+export interface GwaStatsPayload {
+  groupBy: GwaGroupBy;
+  program: { id: string; code: string; name: string } | null;
+  groups: GwaGroupRow[];
+  summary: {
+    studentsTracked: number;
+    overallAvg: number | null;
+    bestGroup:  { label: string; avgGwa: number } | null;
+    worstGroup: { label: string; avgGwa: number } | null;
+    groupCount: number;
+  };
+}
+export const getGwaStats = (params: { programId?: string; groupBy?: GwaGroupBy }) =>
+  api.get<GwaStatsPayload>('/admin/analytics/gwa-stats', { params }).then(r => r.data);
+
+// ── Section auto-assign (admin) ──────────────────────────────────────────────
+export type AutoAssignStrategy = 'balanced' | 'prefer-grouped-days' | 'prefer-mornings';
+export interface AssignmentProposal {
+  sectionId: string; sectionCode: string;
+  courseCode: string; courseTitle: string; units: number;
+  blockLabel: string;
+  facultyId: string | null; facultyName: string | null;
+  meetings: Meeting[];
+  room: string | null;
+  score: number; reason: string;
+}
+export const autoAssignPreview = (params: { termId: string; strategy: AutoAssignStrategy; onlyTba: boolean }) =>
+  api.get('/sections/auto-assign/preview', { params }).then(r => r.data) as Promise<{
+    proposals: AssignmentProposal[];
+    summary: { total: number; filled: number; unfilled: number; facultyUsed: number; avgScore: number };
+  }>;
+export const autoAssignApply = (proposals: AssignmentProposal[]) =>
+  api.post('/sections/auto-assign/apply', { proposals }).then(r => r.data) as Promise<{ applied: number; skipped: number }>;
+
+// ── Faculty qualifications (preferred subjects) ──────────────────────────────
+export interface QualificationItem {
+  id: string; course_id: string; preference: number; notes: string | null;
+  code: string; title: string; units: number; visibility: 'public' | 'restricted';
+}
+export const getQualifications = (facultyId: string) =>
+  api.get(`/qualifications/${facultyId}`).then(r => r.data);
+export const replaceQualifications = (facultyId: string, data: {
+  maxTeachingUnits?: number | null;
+  items: { courseId: string; preference: number; notes?: string }[];
+}) => api.put(`/qualifications/${facultyId}`, data).then(r => r.data);
+export const addQualification = (facultyId: string, data: { courseId: string; preference?: number; notes?: string }) =>
+  api.post(`/qualifications/${facultyId}/items`, data).then(r => r.data);
+export const updateQualification = (facultyId: string, id: string, data: { preference?: number; notes?: string | null }) =>
+  api.patch(`/qualifications/${facultyId}/items/${id}`, data).then(r => r.data);
+export const removeQualification = (facultyId: string, id: string) =>
+  api.delete(`/qualifications/${facultyId}/items/${id}`);
+
+// ── Wishlist (pre-registration) ──────────────────────────────────────────────
+export const getWishlistTerms      = () =>
+  api.get('/wishlist/terms').then(r => r.data);
+export const getWishlistCandidates = (termId: string) =>
+  api.get('/wishlist/candidates', { params: { termId } }).then(r => r.data);
+export const getMyWishlist         = (termId?: string) =>
+  api.get('/wishlist/me', { params: { termId } }).then(r => r.data);
+export const addToWishlist         = (data: { termId: string; courseId: string; priority?: number; notes?: string }) =>
+  api.post('/wishlist/me', data).then(r => r.data);
+export const updateWishlistEntry   = (id: string, data: { priority?: number; notes?: string | null }) =>
+  api.patch(`/wishlist/me/${id}`, data).then(r => r.data);
+export const removeFromWishlist    = (id: string) =>
+  api.delete(`/wishlist/me/${id}`);
+export const getWishlistDemand     = (termId: string) =>
+  api.get('/wishlist/demand', { params: { termId } }).then(r => r.data);
+
+// ── Grade appeals ───────────────────────────────────────────────────────────
+export type AppealStatus = 'pending' | 'faculty_review' | 'dean_review' | 'resolved' | 'withdrawn';
+export type AppealOutcome = 'grade_changed' | 'denied' | 'withdrawn';
+export interface AppealRow {
+  id: string; enrollment_id: string; student_id: string;
+  reason: string; status: AppealStatus;
+  faculty_note: string | null; dean_note: string | null;
+  outcome: AppealOutcome | null;
+  resolved_grade: string | null; resolved_numeric: string | null;
+  created_at: string; resolved_at: string | null;
+  student_name: string; student_code: string | null;
+  current_numeric: string | null; current_letter: string | null;
+  finalized_at: string;
+  section_id: string; section_code: string; faculty_id: string | null;
+  course_code: string; course_title: string; units: number;
+  term_id: string; term_name: string;
+  faculty_name: string | null;
+}
+export const listMyAppeals      = () => api.get<AppealRow[]>('/appeals/me').then(r => r.data);
+export const createAppeal       = (data: { enrollmentId: string; reason: string }) =>
+  api.post<AppealRow>('/appeals/me', data).then(r => r.data);
+export const withdrawAppeal     = (id: string) =>
+  api.post<AppealRow>(`/appeals/me/${id}/withdraw`).then(r => r.data);
+
+export const listFacultyAppeals = (status?: AppealStatus) =>
+  api.get<AppealRow[]>('/appeals/faculty', { params: { status } }).then(r => r.data);
+export const acceptAppeal       = (id: string, facultyNote?: string) =>
+  api.post<AppealRow>(`/appeals/faculty/${id}/accept`, { facultyNote }).then(r => r.data);
+export const resolveAppealFaculty = (id: string, data: {
+  outcome: 'grade_changed' | 'denied'; facultyNote: string;
+  resolvedGrade?: string; resolvedNumeric?: number;
+}) => api.post<AppealRow>(`/appeals/faculty/${id}/resolve`, data).then(r => r.data);
+export const escalateAppeal     = (id: string, facultyNote: string) =>
+  api.post<AppealRow>(`/appeals/faculty/${id}/escalate`, { facultyNote }).then(r => r.data);
+
+export const listAdminAppeals   = (status?: AppealStatus) =>
+  api.get<AppealRow[]>('/appeals/admin', { params: { status } }).then(r => r.data);
+export const resolveAppealDean  = (id: string, data: {
+  outcome: 'grade_changed' | 'denied'; deanNote: string;
+  resolvedGrade?: string; resolvedNumeric?: number;
+}) => api.post<AppealRow>(`/appeals/admin/${id}/resolve`, data).then(r => r.data);
+
+// ── TBA section auto-pass (admin, term close) ────────────────────────────────
+export interface TbaAutoPassPreview {
+  term: { id: string; name: string };
+  sections: {
+    section_id: string;
+    section_code: string;
+    course_code: string;
+    course_title: string;
+    block_label: string;
+    students: number;
+  }[];
+  summary: { sectionsAffected: number; studentsAffected: number };
+}
+export const previewTbaAutoPass = (termId: string) =>
+  api.get<TbaAutoPassPreview>(`/terms/${termId}/tba-auto-pass-preview`).then(r => r.data);
+export const autoPassTbaSections = (termId: string) =>
+  api.post<{ sectionsProcessed: number; studentsPromoted: number }>(`/terms/${termId}/tba-auto-pass`).then(r => r.data);
+
+// ── Past-term archive (FUTURE_FEATURES 3.6) ──────────────────────────────────
+export interface ArchivePreview {
+  term: {
+    id: string; name: string; semester: string;
+    start_date: string; end_date: string;
+    archived_at: string | null;
+  };
+  counts: {
+    sections: number;
+    enrollments: number;
+    assessment_categories: number;
+    assessments: number;
+    scores: number;
+    resolvedAppeals: number;
+    activeAppeals: number;
+  };
+  blockers: {
+    isActive: boolean;
+    alreadyArchived: boolean;
+    activeAppeals: number;
+  };
+}
+export interface ArchiveResult {
+  termId: string;
+  moved: {
+    sections: number;
+    enrollments: number;
+    assessment_categories: number;
+    assessments: number;
+    scores: number;
+    resolvedAppeals: number;
+  };
+}
+export const previewArchiveTerm = (termId: string) =>
+  api.get<ArchivePreview>(`/admin/archive-term/${termId}/preview`).then(r => r.data);
+export const archiveTerm = (termId: string) =>
+  api.post<ArchiveResult>(`/admin/archive-term/${termId}`).then(r => r.data);
+
+// ── Faculty evaluation (FUTURE_FEATURES 4.6) ─────────────────────────────────
+export interface EvalQuestion {
+  id: string; prompt: string; kind: 'likert_5' | 'text'; display_order: number;
+  archived_at?: string | null;
+}
+export interface EvalPendingSection {
+  sectionId: string; sectionCode: string;
+  courseCode: string; courseTitle: string;
+  facultyId: string; facultyName: string;
+}
+export interface EvalStatusPayload {
+  term: { id: string; name: string; semester: string } | null;
+  isOpen: boolean;
+  opensAt: string | null;
+  closesAt: string | null;
+  pending: EvalPendingSection[];
+  done:    EvalPendingSection[];
+}
+export const getEvalStatus    = () => api.get<EvalStatusPayload>('/evaluations/status').then(r => r.data);
+export const getEvalQuestions = () => api.get<EvalQuestion[]>('/evaluations/questions').then(r => r.data);
+export const submitEvaluation = (sectionId: string, answers: { questionId: string; likertValue?: number; textValue?: string }[]) =>
+  api.post<{ evaluationId: string }>(`/evaluations/section/${sectionId}`, { answers }).then(r => r.data);
+
+export interface MustEvaluateFirst { sectionId: string; sectionCode: string; courseTitle: string; facultyName: string }
+export const getMustEvaluateFirst = () =>
+  api.get<MustEvaluateFirst[]>('/students/me/must-evaluate-first').then(r => r.data);
+
+export interface FacultyEvalRollup {
+  termMean: number | null;
+  termResponses: number;
+  minResponseN: number;
+  sections: Array<{
+    sectionId: string; sectionCode: string; courseCode: string; courseTitle: string;
+    responses: number; meetsThreshold: boolean; minResponseN: number;
+    questions: Array<{
+      questionId: string; prompt: string; kind: 'likert_5' | 'text';
+      mean: number | null; n: number; distribution?: number[];
+    }>;
+    texts: string[];
+  }>;
+}
+export const getFacultyEvalRollup = (termId: string) =>
+  api.get<FacultyEvalRollup>(`/evaluations/faculty/term/${termId}`).then(r => r.data);
+
+export interface AdminEvalRollup {
+  minResponseN: number;
+  faculty: Array<{
+    facultyId: string; facultyName: string; userCode: string | null;
+    sections: number; responses: number; mean: number | null;
+  }>;
+}
+export const getAdminEvalRollup = (termId: string) =>
+  api.get<AdminEvalRollup>(`/evaluations/admin/term/${termId}`).then(r => r.data);
+
+export const getEvalPeriod = (termId: string) =>
+  api.get<{ opens_at: string; closes_at: string; min_response_n: number }>(`/evaluations/admin/period/${termId}`).then(r => r.data);
+export const setEvalPeriod = (termId: string, data: { opensAt?: string; closesAt?: string; minResponseN?: number; preset?: 'auto' }) =>
+  api.post(`/evaluations/admin/period/${termId}`, data).then(r => r.data);
+
+export const listAdminEvalQuestions = () =>
+  api.get<EvalQuestion[]>('/evaluations/admin/questions').then(r => r.data);
+export const createEvalQuestion = (data: { prompt: string; kind: 'likert_5'|'text'; displayOrder?: number }) =>
+  api.post<EvalQuestion>('/evaluations/admin/questions', data).then(r => r.data);
+export const updateEvalQuestion = (id: string, data: { prompt?: string; displayOrder?: number; archived?: boolean }) =>
+  api.patch<EvalQuestion>(`/evaluations/admin/questions/${id}`, data).then(r => r.data);
+
+// ── Forgot-password (FUTURE_FEATURES 8.5) ────────────────────────────────────
+export interface ResetRequestRow {
+  id:             string;
+  status:         'pending' | 'approved' | 'denied';
+  requested_at:   string;
+  resolved_at:    string | null;
+  user_id:        string;
+  user_code:      string | null;
+  full_name:      string;
+  email:          string;
+  role:           string;
+  resolver_name:  string | null;
+  admin_note:     string | null;
+}
+export const submitForgotPassword = (userCode: string) =>
+  api.post<{ submitted: true }>('/auth/forgot-password', { userCode }).then(r => r.data);
+export const listPasswordResets = (status: 'pending' | 'approved' | 'denied' | 'all' = 'pending') =>
+  api.get<ResetRequestRow[]>('/admin/password-resets', { params: { status } }).then(r => r.data);
+export const approvePasswordReset = (id: string, note?: string) =>
+  api.post(`/admin/password-resets/${id}/approve`, { note }).then(r => r.data);
+export const denyPasswordReset = (id: string, note?: string) =>
+  api.post(`/admin/password-resets/${id}/deny`, { note }).then(r => r.data);
+
+// ── Enrollment confirmation (self-enlistment) ────────────────────────────────
+export interface PendingEnrollmentSubject {
+  enrollment_id: string;
+  course_code:   string; course_title: string; units: number;
+  section_code:  string;
+  meetings:      Meeting[];
+  room:          string | null;
+  faculty_name:  string | null;
+}
+export interface PendingEnrollmentPayload {
+  student: { code: string | null; fullName: string };
+  term: {
+    id: string; name: string; semester: string;
+    startDate: string; endDate: string;
+  };
+  subjects:   PendingEnrollmentSubject[];
+  totalUnits: number;
+}
+/** Returns null when the backend responds 204 (nothing pending). */
+export const getPendingEnrollment = (): Promise<PendingEnrollmentPayload | null> =>
+  api.get('/students/me/pending-enrollment').then(r => r.status === 204 ? null : r.data);
+
+export const confirmEnrollment = () =>
+  api.post<{ confirmed: number; termName: string | null }>('/students/me/confirm-enrollment').then(r => r.data);
+
+// ── Certificate of Registration ──────────────────────────────────────────────
+export const getCor = () => api.get('/students/me/cor').then(r => r.data);
+
+export const downloadCor = async () => {
+  const res = await api.get('/students/me/cor.pdf', { responseType: 'blob' });
+  const cd  = (res.headers['content-disposition'] as string | undefined) ?? '';
+  const m   = cd.match(/filename="?([^";]+)"?/);
+  const filename = m ? m[1] : 'COR.pdf';
   const url = URL.createObjectURL(res.data as Blob);
   const link = document.createElement('a');
   link.href = url; link.download = filename;

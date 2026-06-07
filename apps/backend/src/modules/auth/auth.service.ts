@@ -18,12 +18,13 @@ interface UserRow {
   program_code: string | null;
   program_name: string | null;
   block_label: string | null;
+  password_must_change: boolean;
 }
 
 // Columns shared by /auth/me + /auth/me PATCH + login response.
 const PROFILE_SELECT = `
   u.id, u.user_code, u.email, u.full_name, u.role, u.branch, u.is_active,
-  u.program_id, u.year_level,
+  u.program_id, u.year_level, u.password_must_change,
   p.code AS program_code, p.name AS program_name,
   CASE WHEN b.id IS NOT NULL
        THEN p.code || ' ' || b.year_level || '-' || b.block_number
@@ -38,17 +39,18 @@ const PROFILE_JOINS = `
 
 function rowToProfile(u: UserRow) {
   return {
-    id:          u.id,
-    userCode:    u.user_code,
-    email:       u.email,
-    fullName:    u.full_name,
-    role:        u.role,
-    branch:      u.branch,
-    programId:   u.program_id,
-    programCode: u.program_code,
-    programName: u.program_name,
-    yearLevel:   u.year_level,
-    blockLabel:  u.block_label,
+    id:                  u.id,
+    userCode:            u.user_code,
+    email:               u.email,
+    fullName:            u.full_name,
+    role:                u.role,
+    branch:              u.branch,
+    programId:           u.program_id,
+    programCode:         u.program_code,
+    programName:         u.program_name,
+    yearLevel:           u.year_level,
+    blockLabel:          u.block_label,
+    passwordMustChange:  !!u.password_must_change,
   };
 }
 
@@ -127,7 +129,13 @@ export async function changePassword(userId: string, currentPassword: string, ne
   if (!valid) throw Object.assign(new Error('Current password is incorrect.'), { status: 401 });
 
   const newHash = await bcrypt.hash(newPassword, 12);
-  await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
+  // Clearing `password_must_change` here is what releases the forced-change
+  // gate on the frontend — without this, the user would be re-pinned to the
+  // /account page on next login.
+  await db.query(
+    `UPDATE users SET password_hash = $1, password_must_change = FALSE WHERE id = $2`,
+    [newHash, userId],
+  );
 
   await db.query(
     `INSERT INTO audit_logs (user_id, action, entity_type, entity_id)

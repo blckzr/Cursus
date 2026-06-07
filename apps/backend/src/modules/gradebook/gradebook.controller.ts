@@ -5,6 +5,8 @@ import {
   bulkScoreSchema, finalizeSchema,
 } from './gradebook.schema';
 import * as svc from './gradebook.service';
+import { renderCorPdf } from '../../lib/pdf/cor';
+import { buildScheduleIcs } from '../../lib/ics/schedule';
 
 export async function getGradebook(req: Request, res: Response, next: NextFunction) {
   try {
@@ -103,6 +105,142 @@ export async function exportTranscript(req: Request, res: Response, next: NextFu
     res.setHeader('Content-Type', 'text/csv');
     res.setHeader('Content-Disposition', `attachment; filename="transcript-${studentCode}.csv"`);
     res.send(csv);
+  } catch (e) { next(e); }
+}
+
+/**
+ * GET /students/me/cor  — returns the Certificate of Registration as a PDF.
+ * 404 when the student has no enrollments in the active term so the UI can
+ * show a useful empty state ("wait until the registrar opens the term").
+ */
+export async function getCor(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getCorData(req.user!.sub);
+    if (!data) {
+      res.status(404).json({ error: 'No active registration. Wait until the registrar opens the term.' });
+      return;
+    }
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
+export async function downloadCor(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getCorData(req.user!.sub);
+    if (!data) {
+      res.status(404).json({ error: 'No active registration. Wait until the registrar opens the term.' });
+      return;
+    }
+    const pdf = await renderCorPdf(data);
+    const code = data.student.user_code ?? 'student';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="COR-${code}.pdf"`);
+    res.send(pdf);
+  } catch (e) { next(e); }
+}
+
+/**
+ * GET /terms/:id/tba-auto-pass-preview (admin) — counts the sections/students
+ * that would be affected if the auto-pass action ran now.
+ */
+export async function previewTbaAutoPass(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.previewTbaAutoPass(req.params.id));
+  } catch (e: unknown) {
+    if (e instanceof Error && 'status' in e) {
+      const err = e as Error & { status: number };
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    next(e);
+  }
+}
+
+/**
+ * POST /terms/:id/tba-auto-pass (admin) — give every still-enrolled student
+ * in every TBA section a 1.00 final grade. Reason recorded per enrollment in
+ * the audit log; notifications fan out to students.
+ */
+export async function autoPassTbaSections(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.autoPassTbaSections(req.params.id, req.user!.sub));
+  } catch (e: unknown) {
+    if (e instanceof Error && 'status' in e) {
+      const err = e as Error & { status: number };
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    next(e);
+  }
+}
+
+/**
+ * GET /students/me/pending-enrollment — returns the pending sections so the
+ * COR page can render the "confirm enrollment" banner + modal. 204 when
+ * there's nothing to confirm.
+ */
+export async function getPendingEnrollment(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getPendingEnrollment(req.user!.sub);
+    if (!data) { res.status(204).send(); return; }
+    res.json(data);
+  } catch (e) { next(e); }
+}
+
+/**
+ * POST /students/me/confirm-enrollment — flips pending → enrolled for the
+ * active term. Returns `{ confirmed, termName }`.
+ */
+export async function confirmEnrollment(req: Request, res: Response, next: NextFunction) {
+  try {
+    res.json(await svc.confirmEnrollment(req.user!.sub));
+  } catch (e: unknown) {
+    if (e instanceof Error && 'status' in e) {
+      const err = e as Error & { status: number };
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    next(e);
+  }
+}
+
+/**
+ * GET /students/me/schedule.ics — returns the student's active-term schedule
+ * as an iCalendar feed (RFC 5545). Google Calendar, Apple Calendar, and
+ * Outlook all consume this format directly on import.
+ */
+export async function downloadScheduleIcs(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getActiveSchedule(req.user!.sub);
+    if (!data) {
+      res.status(404).json({ error: 'No active schedule. Wait until the registrar opens the term.' });
+      return;
+    }
+    const ics = buildScheduleIcs({
+      studentCode: data.student.code,
+      studentName: data.student.fullName,
+      termName:    data.term.name,
+      termStart:   new Date(data.term.startDate),
+      termEnd:     new Date(data.term.endDate),
+      enrollments: data.enrollments.map((e: {
+        enrollment_id: string; section_code: string;
+        meetings: { dayOfWeek: 'Mon'|'Tue'|'Wed'|'Thu'|'Fri'|'Sat'|'Sun'; startTime: string; endTime: string }[];
+        room: string | null;
+        course_code: string; course_title: string; faculty_name: string | null;
+      }) => ({
+        enrollmentId: e.enrollment_id,
+        courseCode:   e.course_code,
+        courseTitle:  e.course_title,
+        sectionCode:  e.section_code,
+        meetings:     e.meetings ?? [],
+        room:         e.room,
+        facultyName:  e.faculty_name,
+      })),
+    });
+    const code = data.student.code ?? 'student';
+    res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="schedule-${code}.ics"`);
+    res.send(ics);
   } catch (e) { next(e); }
 }
 
