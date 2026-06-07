@@ -7,9 +7,9 @@ services:
   - type: web
     name: cursus-backend
     runtime: node
-    plan: free               # bump to "starter" for production traffic (no cold sleep)
+    plan: free # bump to "starter" for production traffic (no cold sleep)
     rootDir: apps/backend
-    region: singapore        # closest region to PH
+    region: singapore # closest region to PH
 
     # devDependencies (typescript, @types/*) are needed to compile, so we install
     # the full tree, build, then prune for a smaller runtime image.
@@ -19,7 +19,7 @@ services:
     healthCheckPath: /api/health
 
     autoDeploy: true
-    branch: main
+    branch: prod
 
     envVars:
       - key: NODE_ENV
@@ -30,10 +30,10 @@ services:
         value: 8h
       # ── Secrets — set in Render dashboard, not git ─────────────────────────
       - key: DATABASE_URL
-        sync: false           # Supabase pooler connection string (port 6543)
+        sync: false # Supabase pooler connection string (port 6543)
       - key: JWT_SECRET
-        sync: false           # openssl rand -hex 64
+        sync: false # openssl rand -hex 64
       - key: CLIENT_ORIGIN
-        sync: false           # Comma-separated list of Vercel URLs
+        sync: false # Comma-separated list of Vercel URLs
       - key: CLIENT_ORIGIN_PATTERN
-        sync: false           # Optional regex for Vercel preview URLs
+        sync: false # Optional regex for Vercel preview URLs
