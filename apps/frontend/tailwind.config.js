@@ -1,6 +1,8 @@
 /** @type {import('tailwindcss').Config} */
 export default {
   content: ['./index.html', './src/**/*.{ts,tsx}'],
+  // Class-based dark mode: a useTheme hook toggles `.dark` on <html>.
+  darkMode: 'class',
   theme: {
     extend: {
       fontFamily: {

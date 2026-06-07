@@ -366,6 +366,44 @@ export const previewTbaAutoPass = (termId: string) =>
 export const autoPassTbaSections = (termId: string) =>
   api.post<{ sectionsProcessed: number; studentsPromoted: number }>(`/terms/${termId}/tba-auto-pass`).then(r => r.data);
 
+// ── Past-term archive (FUTURE_FEATURES 3.6) ──────────────────────────────────
+export interface ArchivePreview {
+  term: {
+    id: string; name: string; semester: string;
+    start_date: string; end_date: string;
+    archived_at: string | null;
+  };
+  counts: {
+    sections: number;
+    enrollments: number;
+    assessment_categories: number;
+    assessments: number;
+    scores: number;
+    resolvedAppeals: number;
+    activeAppeals: number;
+  };
+  blockers: {
+    isActive: boolean;
+    alreadyArchived: boolean;
+    activeAppeals: number;
+  };
+}
+export interface ArchiveResult {
+  termId: string;
+  moved: {
+    sections: number;
+    enrollments: number;
+    assessment_categories: number;
+    assessments: number;
+    scores: number;
+    resolvedAppeals: number;
+  };
+}
+export const previewArchiveTerm = (termId: string) =>
+  api.get<ArchivePreview>(`/admin/archive-term/${termId}/preview`).then(r => r.data);
+export const archiveTerm = (termId: string) =>
+  api.post<ArchiveResult>(`/admin/archive-term/${termId}`).then(r => r.data);
+
 // ── Enrollment confirmation (self-enlistment) ────────────────────────────────
 export interface PendingEnrollmentSubject {
   enrollment_id: string;

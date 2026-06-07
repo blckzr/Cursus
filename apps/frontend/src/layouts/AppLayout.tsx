@@ -6,6 +6,7 @@ import Icon from '../components/Icon';
 import Avatar from '../components/Avatar';
 import Skeleton from '../components/Skeleton';
 import NotificationBell from '../components/NotificationBell';
+import { useTheme } from '../lib/theme';
 
 export interface NavItem {
   label: string;
@@ -56,6 +57,8 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
   const breadcrumbs = [roleLabel, active?.label].filter(Boolean) as string[];
 
   const today = new Date().toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric' });
+
+  const [theme, , toggleTheme] = useTheme();
 
   // On mobile the drawer is always "expanded" (full content).
   // On desktop `collapsed` controls width + label visibility.
@@ -192,6 +195,16 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
               <Icon name="calendar" size={12} className="text-stone-400" />
               <span>{today}</span>
             </div>
+
+            {/* Dark / light toggle */}
+            <button
+              onClick={toggleTheme}
+              className="btn-icon flex-shrink-0"
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
+            </button>
 
             {/* Notification bell */}
             <NotificationBell />

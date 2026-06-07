@@ -490,7 +490,7 @@ actor's name in any row links to the timeline.
 
 **Dependencies.** Audit log module (shipped).
 
-### 3.6 Past-term archive — `M`
+### 3.6 Past-term archive — `M` ✅ SHIPPED
 
 **Problem.** Two years from now, the `enrollments` table has hundreds of
 thousands of rows of stale data weighing down every query.
@@ -789,7 +789,7 @@ Navigation mode (start with `>`) and search mode.
 
 **Effort breakdown.** ~2 days.
 
-### 6.5 Dark mode — `S`
+### 6.5 Dark mode — `S` ✅ SHIPPED
 
 **Problem.** Eye-strain at night, accessibility.
 

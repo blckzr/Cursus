@@ -4,7 +4,8 @@ import {
   getTerms, createTerm, updateTerm, openTerm,
   getSections, getEnrollments, getPrograms, getBlocks, getWishlistDemand,
   previewTbaAutoPass, autoPassTbaSections,
-  type TbaAutoPassPreview,
+  previewArchiveTerm, archiveTerm,
+  type TbaAutoPassPreview, type ArchivePreview,
 } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import Modal from '../../components/Modal';
@@ -18,7 +19,14 @@ import { parseApiError } from '../../lib/apiError';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 const WEEK = 7 * 24 * 60 * 60 * 1000;
+const YEAR = 365 * 24 * 60 * 60 * 1000;
 const SEM_LABEL: Record<string, string> = { '1': '1st Sem', '2': '2nd Sem', summer: 'Summer' };
+
+/** Per FUTURE_FEATURES 3.6: terms become archivable a year after they end. */
+function isArchivable(t: any) {
+  if (isActive(t.is_active) || t.archived_at) return false;
+  return Date.now() - new Date(t.end_date).getTime() > YEAR;
+}
 
 export default function Terms() {
   const qc = useQueryClient();
@@ -32,6 +40,7 @@ export default function Terms() {
   const [openWizardTerm, setOpenWizardTerm] = useState<Record<string, any> | null>(null);
   const [demandTerm, setDemandTerm] = useState<Record<string, any> | null>(null);
   const [tbaTerm,    setTbaTerm]    = useState<Record<string, any> | null>(null);
+  const [archiveTermTarget, setArchiveTermTarget] = useState<Record<string, any> | null>(null);
   const [form, setForm] = useState({ name: '', semester: '1', startDate: '', endDate: '', isActive: 'false' });
   const [editActive, setEditActive] = useState('false');
   const [err, setErr] = useState('');
@@ -104,6 +113,7 @@ export default function Terms() {
                   </div>
                   <div className="flex items-center gap-1.5">
                     {active && <span className="badge badge-completed">Current</span>}
+                    {t.archived_at && <span className="badge badge-neutral" title={`Archived ${new Date(t.archived_at).toLocaleDateString()}`}>Archived</span>}
                     <button className="btn-icon" title="Edit"
                       onClick={() => { setEditTerm(t); setEditActive(String(t.is_active)); resetErr(); }}>
                       <Icon name="pencil" size={13} />
@@ -125,7 +135,7 @@ export default function Terms() {
                     <span className="sm:hidden">Open term</span>
                   </button>
                 )}
-                {!active && (
+                {!active && !t.archived_at && (
                   <>
                     <button
                       className="btn-ghost w-full mt-3 flex items-center justify-center gap-2 border border-khaki-200"
@@ -142,7 +152,26 @@ export default function Terms() {
                       <Icon name="award" size={14} />
                       Auto-pass TBA sections
                     </button>
+                    {isArchivable(t) && (
+                      <button
+                        className="btn-ghost w-full mt-2 flex items-center justify-center gap-2 border border-khaki-200"
+                        onClick={() => setArchiveTermTarget(t)}
+                        title="Move this term's sections, enrollments, and gradebook out of the live tables."
+                      >
+                        <Icon name="boxes" size={14} />
+                        Archive term
+                      </button>
+                    )}
                   </>
+                )}
+                {t.archived_at && (
+                  <div className="bg-beige-100 rounded-lg p-3 text-xs text-stone-600 mt-3 flex items-start gap-2">
+                    <Icon name="info" size={14} className="mt-0.5 flex-shrink-0 text-stone-400" />
+                    <span>
+                      Archived {new Date(t.archived_at).toLocaleDateString()}. Sections, enrollments, and gradebook
+                      data for this term live in the <code>*_archive</code> tables. Transcripts still find them.
+                    </span>
+                  </div>
                 )}
               </div>
             );
@@ -220,6 +249,19 @@ export default function Terms() {
             qc.invalidateQueries({ queryKey: ['enrollments'] });
             qc.invalidateQueries({ queryKey: ['sections'] });
             setTbaTerm(null);
+          }}
+        />
+      )}
+
+      {archiveTermTarget && (
+        <ArchiveTermModal
+          term={archiveTermTarget}
+          onClose={() => setArchiveTermTarget(null)}
+          onDone={() => {
+            qc.invalidateQueries({ queryKey: ['terms'] });
+            qc.invalidateQueries({ queryKey: ['enrollments'] });
+            qc.invalidateQueries({ queryKey: ['sections'] });
+            setArchiveTermTarget(null);
           }}
         />
       )}
@@ -585,5 +627,111 @@ function TbaAutoPassModal({ term, onClose, onDone }: {
         </div>
       )}
     </Modal>
+  );
+}
+
+// ============================================================================
+// Archive term modal (FUTURE_FEATURES 3.6)
+// ============================================================================
+
+function ArchiveTermModal({ term, onClose, onDone }: {
+  term: any; onClose: () => void; onDone: () => void;
+}) {
+  const toast = useToast();
+  const { data, isLoading } = useQuery<ArchivePreview>({
+    queryKey: ['archive-preview', term.id],
+    queryFn:  () => previewArchiveTerm(term.id),
+  });
+
+  const mut = useMutation({
+    mutationFn: () => archiveTerm(term.id),
+    onSuccess: (res) => {
+      const total = res.moved.sections + res.moved.enrollments + res.moved.scores;
+      toast.push({
+        tone: 'success',
+        title: 'Term archived',
+        message: `${total.toLocaleString()} rows moved into *_archive tables.`,
+      });
+      onDone();
+    },
+    onError: (e: unknown) => toast.push({ tone: 'error', title: 'Archive failed', message: parseApiError(e).message }),
+  });
+
+  const blocked = data && (data.blockers.activeAppeals > 0 || data.blockers.alreadyArchived || data.blockers.isActive);
+
+  return (
+    <Modal
+      title={`Archive term — ${term.name}`}
+      subtitle="Move sections, enrollments, and gradebook data out of the live tables to keep queries fast. Transcripts continue to work via a UNION view."
+      onClose={onClose}
+      size="lg"
+    >
+      {isLoading || !data ? (
+        <Skeleton className="h-64 rounded-lg" />
+      ) : (
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            <CountTile label="Sections"    value={data.counts.sections} />
+            <CountTile label="Enrollments" value={data.counts.enrollments} />
+            <CountTile label="Scores"      value={data.counts.scores} />
+            <CountTile label="Assessments" value={data.counts.assessments} />
+            <CountTile label="Categories"  value={data.counts.assessment_categories} />
+            <CountTile label="Resolved appeals" value={data.counts.resolvedAppeals} />
+          </div>
+
+          {blocked && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-3 text-xs text-red-700 flex items-start gap-2">
+              <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+              <div>
+                {data.blockers.isActive && <div><strong>This is the active term.</strong> Make a newer term active before archiving.</div>}
+                {data.blockers.alreadyArchived && <div><strong>Already archived.</strong> Nothing to do.</div>}
+                {data.blockers.activeAppeals > 0 && (
+                  <div>
+                    <strong>{data.blockers.activeAppeals} appeal{data.blockers.activeAppeals === 1 ? '' : 's'} still active.</strong>{' '}
+                    Resolve or withdraw them in <em>Appeals</em> first — archived terms must keep no live appeals open.
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {!blocked && (
+            <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-xs text-amber-800 flex items-start gap-2">
+              <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+              <div>
+                <div className="font-semibold mb-1">This cannot be undone from the UI.</div>
+                Rows are moved into <code className="font-mono">sections_archive</code>,{' '}
+                <code className="font-mono">enrollments_archive</code>,{' '}
+                <code className="font-mono">scores_archive</code>, etc.{' '}
+                Student transcripts will still read them through the <code className="font-mono">enrollments_full_v</code> view.
+                Restoring is rare and runs as admin-only one-off SQL.
+              </div>
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-1">
+            <button className="btn-ghost" onClick={onClose}>Cancel</button>
+            <button
+              className="btn-primary flex items-center gap-2"
+              onClick={() => mut.mutate()}
+              disabled={mut.isPending || blocked}
+            >
+              {mut.isPending
+                ? <><span className="spinner" /> Archiving…</>
+                : <><Icon name="boxes" size={14} /> Archive {term.name}</>}
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
+  );
+}
+
+function CountTile({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="card text-center !py-3">
+      <div className="text-2xl font-display tabular font-medium text-olive-500">{value.toLocaleString()}</div>
+      <div className="text-xs text-stone-500 mt-1">{label}</div>
+    </div>
   );
 }

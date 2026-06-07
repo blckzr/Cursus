@@ -136,12 +136,12 @@ export default function StudentSchedule() {
                     return (
                       <div
                         key={`${e.id}-${d.code}`}
-                        className="absolute left-1 right-1 rounded-lg p-2 bg-olive-50 border border-olive-200 text-olive-600 overflow-hidden"
+                        className="absolute left-1 right-1 rounded-lg p-2 bg-olive-50 border border-olive-200 text-olive-600 dark:bg-olive-500/20 dark:border-olive-400/50 dark:text-olive-100 overflow-hidden"
                         style={{ top, height }}
                       >
                         <div className="font-mono text-[11px] font-semibold leading-none">{e.course_code}</div>
                         <div className="text-[10px] mt-1 leading-tight truncate">{e.course_title}</div>
-                        {e.room && <div className="text-[10px] text-olive-400 mt-1 leading-tight truncate">{e.room}</div>}
+                        {e.room && <div className="text-[10px] text-olive-400 dark:text-olive-200 mt-1 leading-tight truncate">{e.room}</div>}
                       </div>
                     );
                   })}
