@@ -48,7 +48,7 @@ export function renderCertificatePdf(data: CertificatePayload): Promise<Buffer> 
       size: 'A4', layout: 'portrait', margin: 48,
       info: {
         Title:  `Certificate of Graduation — ${data.student.full_name}`,
-        Author: 'Cursus · Universidad Mariana',
+        Author: 'Cursus',
       },
     });
     const chunks: Buffer[] = [];
@@ -62,9 +62,9 @@ export function renderCertificatePdf(data: CertificatePayload): Promise<Buffer> 
     // ── Header ───────────────────────────────────────────────
     doc.rect(L, doc.page.margins.top, W, 60).fill(OLIVE);
     doc.fillColor('white').font('Helvetica-Bold').fontSize(20)
-       .text('UNIVERSIDAD MARIANA', L + 16, doc.page.margins.top + 10, { width: W - 32 });
+       .text('CERTIFICATE OF GRADUATION', L + 16, doc.page.margins.top + 10, { width: W - 32 });
     doc.font('Helvetica').fontSize(11)
-       .text('Office of the Registrar · Certificate of Graduation', L + 16, doc.page.margins.top + 36);
+       .text('Cursus · Student Information System', L + 16, doc.page.margins.top + 36);
 
     doc.fillColor(STONE);
     let y = doc.page.margins.top + 80;

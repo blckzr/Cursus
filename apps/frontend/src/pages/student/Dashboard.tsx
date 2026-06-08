@@ -357,7 +357,7 @@ function AlumniHero({ gwa, totalUnits }: { gwa: number | null; totalUnits: numbe
       </div>
 
       <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-5 text-center">
-        Need a certified, signed document? Contact the Registrar's Office · MN-2 Bldg, Rm 102
+        Need a certified, signed document? Contact your school's registrar.
       </div>
     </div>
   );
