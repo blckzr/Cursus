@@ -260,16 +260,28 @@ html.dark .text-stone-900,
 html.dark .text-stone-800   { color: #f5f5f4 !important; }
 html.dark .text-stone-700   { color: #e7e5e4 !important; }
 html.dark .text-stone-600   { color: #d6d3d1 !important; }
-html.dark .text-stone-500   { color: #a8a29e !important; }
-html.dark .text-stone-400   { color: #78716c !important; }
-html.dark .text-stone-300   { color: #57534e !important; }
+html.dark .text-stone-500   { color: #b8b3ad !important; }   /* bumped from #a8a29e */
+html.dark .text-stone-400   { color: #9c9590 !important; }   /* bumped from #78716c — used by chart axes */
+html.dark .text-stone-300   { color: #78716c !important; }   /* bumped from #57534e */
 html.dark .text-amber-800   { color: #fcd34d !important; }
 html.dark .text-amber-700   { color: #fbbf24 !important; }
 html.dark .text-amber-600   { color: #f59e0b !important; }
 html.dark .text-red-700,
 html.dark .text-red-600     { color: #fca5a5 !important; }
 html.dark .text-green-700   { color: #86efac !important; }
+/* Olive — heavily used for course codes, block labels, section IDs.
+   The light-mode values (300–700) span from #8FA857 down to #3A451A
+   which is essentially invisible on the dark stone-900 surface.
+   Map them up to bright olives that read clearly on dark. */
+html.dark .text-olive-700   { color: #DCE5C5 !important; }   /* was #3A451A */
+html.dark .text-olive-600   { color: #BACB8E !important; }   /* was #516024 */
 html.dark .text-olive-500   { color: #BACB8E !important; }
+html.dark .text-olive-400   { color: #BACB8E !important; }
+html.dark .text-olive-300   { color: #DCE5C5 !important; }   /* light variant for accents on olive bg */
+/* Khaki text — also too dark on dark mode. */
+html.dark .text-khaki-600   { color: #DDD0AD !important; }
+html.dark .text-khaki-500   { color: #DDD0AD !important; }
+html.dark .text-khaki-400   { color: #C9B587 !important; }
 
 /* Hover backgrounds commonly used on rows / list items */
 html.dark .hover\:bg-beige-50:hover   { background-color: #292524 !important; }
