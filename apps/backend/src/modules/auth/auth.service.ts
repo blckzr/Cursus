@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../../config/db';
 import { env } from '../../config/env';
 import { JwtPayload, UserRole } from '../../middleware/auth';
+import { getStatus as getIrregularityStatus } from '../irregularity/irregularity.service';
 
 interface UserRow {
   id: string;
@@ -69,7 +70,15 @@ export async function getProfile(userId: string) {
     `SELECT ${PROFILE_SELECT} ${PROFILE_JOINS} WHERE u.id = $1`,
     [userId],
   );
-  return rows[0] ? rowToProfile(rows[0]) : null;
+  if (!rows[0]) return null;
+  const profile = rowToProfile(rows[0]);
+  // For students, attach the derived irregularity status so the frontend can
+  // show retake banners + irregular chip without an extra round-trip.
+  if (profile.role === 'student') {
+    const irreg = await getIrregularityStatus(userId);
+    return { ...profile, irregularity: irreg };
+  }
+  return profile;
 }
 
 export async function loginUser(userCode: string, password: string) {
@@ -87,7 +96,13 @@ export async function loginUser(userCode: string, password: string) {
   const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
   const token = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn } as jwt.SignOptions);
 
-  return { token, user: rowToProfile(user) };
+  // Attach irregularity status on login so the dashboard can banner immediately.
+  const profile = rowToProfile(user);
+  if (profile.role === 'student') {
+    const irreg = await getIrregularityStatus(user.id);
+    return { token, user: { ...profile, irregularity: irreg } };
+  }
+  return { token, user: profile };
 }
 
 /** Update the calling user's editable profile fields. Returns the fresh profile. */

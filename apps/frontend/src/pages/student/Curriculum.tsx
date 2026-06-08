@@ -9,23 +9,26 @@ import Chip from '../../components/Chip';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
 
-type Status = 'completed' | 'current' | 'pending' | 'locked';
+type Status = 'completed' | 'current' | 'failed' | 'pending' | 'locked';
 
 const STATUS_ICON: Record<Status, string> = {
   completed: 'check',
   current:   'clock',
+  failed:    'refresh',           // retake required
   pending:   'inbox',
   locked:    'alert-triangle',
 };
 const STATUS_RING: Record<Status, string> = {
   completed: 'bg-olive-100 text-olive-500',
   current:   'bg-khaki-50  text-khaki-500',
+  failed:    'bg-amber-50  text-amber-600',
   pending:   'bg-stone-100 text-stone-400',
   locked:    'bg-red-50    text-red-500',
 };
 const STATUS_DOT: Record<Status, string> = {
   completed: 'bg-olive-400',
   current:   'bg-khaki-400',
+  failed:    'bg-amber-500',
   pending:   'bg-stone-300',
   locked:    'bg-red-400',
 };
@@ -66,7 +69,7 @@ export default function StudentCurriculum() {
 
   // Aggregate progress stats
   const stats = useMemo(() => {
-    const counts = { completed: 0, current: 0, pending: 0, locked: 0 };
+    const counts = { completed: 0, current: 0, failed: 0, pending: 0, locked: 0 };
     let unitsDone = 0, unitsTotal = 0;
     for (const e of entries) {
       counts[e.status]++;
@@ -143,6 +146,9 @@ export default function StudentCurriculum() {
             <div className="mt-4 flex items-center gap-4 text-xs text-stone-600 flex-wrap">
               <span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${STATUS_DOT.completed}`} /> {stats.completed} completed</span>
               <span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${STATUS_DOT.current}`} /> {stats.current} in progress</span>
+              {stats.failed > 0 && (
+                <span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${STATUS_DOT.failed}`} /> {stats.failed} retake required</span>
+              )}
               <span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${STATUS_DOT.pending}`} /> {stats.pending} pending</span>
               <span className="flex items-center gap-1.5"><span className={`w-2 h-2 rounded-full ${STATUS_DOT.locked}`} /> {stats.locked} locked</span>
             </div>
@@ -154,6 +160,9 @@ export default function StudentCurriculum() {
               <Chip active={filter === 'all'}        onClick={() => setFilter('all')}>All ({entries.length})</Chip>
               <Chip active={filter === 'completed'}  onClick={() => setFilter('completed')}>Completed ({stats.completed})</Chip>
               <Chip active={filter === 'current'}    onClick={() => setFilter('current')}>In progress ({stats.current})</Chip>
+              {stats.failed > 0 && (
+                <Chip active={filter === 'failed'}   onClick={() => setFilter('failed')}>Retake ({stats.failed})</Chip>
+              )}
               <Chip active={filter === 'pending'}    onClick={() => setFilter('pending')}>Pending ({stats.pending})</Chip>
               <Chip active={filter === 'locked'}     onClick={() => setFilter('locked')}>Locked ({stats.locked})</Chip>
             </div>
@@ -194,7 +203,13 @@ export default function StudentCurriculum() {
 function CourseRow({ entry }: { entry: Entry }) {
   return (
     <li className="flex items-center gap-2 sm:gap-3 px-2 py-1.5 rounded hover:bg-beige-50 transition-colors"
-        title={entry.status === 'locked' ? `Locked — needs: ${entry.blockedBy.join(', ')}` : undefined}>
+        title={
+          entry.status === 'locked'
+            ? `Locked — needs: ${entry.blockedBy.join(', ')}`
+            : entry.status === 'failed'
+              ? `Failed (${entry.grade?.letter ?? '5.00'}) — retake required to progress`
+              : undefined
+        }>
       <span className={`flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center ${STATUS_RING[entry.status]}`}>
         <Icon name={STATUS_ICON[entry.status]} size={12} />
       </span>
@@ -216,6 +231,11 @@ function CourseRow({ entry }: { entry: Entry }) {
         )}
         {entry.status === 'current' && (
           <span className="text-khaki-500 font-medium truncate inline-block max-w-full">{entry.termName ?? 'In progress'}</span>
+        )}
+        {entry.status === 'failed' && (
+          <span className="text-amber-600 dark:text-amber-300 font-medium flex items-center gap-1 justify-end">
+            <Icon name="refresh" size={10} /> Retake
+          </span>
         )}
         {entry.status === 'pending' && (
           <span className="text-stone-400">Pending</span>

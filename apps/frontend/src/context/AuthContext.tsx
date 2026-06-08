@@ -17,6 +17,17 @@ interface User {
   yearLevel?: number | null;
   blockLabel?: string | null;
   /**
+   * Derived irregularity status (students only). Set on /auth/me + login.
+   *   • 'no_block'         — block_id IS NULL (transferee/shifter)
+   *   • 'pending_retakes'  — has unresolved 5.00 failures awaiting retake
+   */
+  irregularity?: {
+    isIrregular: boolean;
+    reason: 'none' | 'no_block' | 'pending_retakes';
+    pendingRetakes: number;
+    pendingRetakeCodes: string[];
+  };
+  /**
    * When TRUE, the app blocks every authenticated route and forces the user
    * onto the change-password screen. Set on account creation and on admin
    * password reset; cleared by /auth/change-password.

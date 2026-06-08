@@ -93,6 +93,8 @@ export default function StudentDashboard() {
     } />;
   }
 
+  const irreg = user?.irregularity;
+
   return (
     <div className="space-y-7">
       <PageHeader
@@ -100,6 +102,33 @@ export default function StudentDashboard() {
         title="Your semester at a glance"
         subtitle={`${user?.programName || 'Program TBA'} · Year ${user?.yearLevel ?? '—'} · ${activeTerm?.term_name || 'No active term'}`}
       />
+
+      {/* Irregular-by-retake banner (4.6 retake flow). Only shows for students
+          with outstanding failures that haven't been re-passed. */}
+      {irreg?.isIrregular && irreg.reason === 'pending_retakes' && (
+        <div className="card border-amber-200 dark:border-amber-400/40 bg-amber-50/60 dark:!bg-amber-400/[0.08]">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-400/25 text-amber-700 dark:text-amber-200 flex items-center justify-center flex-shrink-0">
+              <Icon name="refresh" size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+                You have {irreg.pendingRetakes} subject{irreg.pendingRetakes === 1 ? '' : 's'} to retake
+              </div>
+              <div className="text-xs text-stone-600 dark:text-stone-300 mt-0.5">
+                {irreg.pendingRetakeCodes.join(', ')}
+                {irreg.pendingRetakes > irreg.pendingRetakeCodes.length && '…'}.
+                You'll be automatically re-enrolled in each failed subject the
+                next time it's offered. Courses that depend on these (e.g., the
+                "II" version of a failed "I" subject) stay locked until you pass.
+              </div>
+            </div>
+            <Link to="/student/curriculum" className="btn-ghost text-xs flex items-center gap-1.5 flex-shrink-0 border border-amber-200 dark:border-amber-400/40">
+              <Icon name="arrow-right" size={11} /> View curriculum
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* GWA + stats + term progress */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">

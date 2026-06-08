@@ -102,10 +102,27 @@ async function graduateBlockInTxn(client: PoolClient, blockId: string, adminId: 
     );
   }
 
+  // Final-year students with outstanding retakes (failed subjects not yet
+  // re-passed) are held back — they're still in the block but can't graduate
+  // until the registrar resolves their retakes.
   const { rows: studs } = await client.query(
-    `SELECT id FROM users
+    `SELECT id FROM users u
      WHERE block_id = $1 AND role = 'student'
-       AND is_active = TRUE AND graduated_at IS NULL`,
+       AND is_active = TRUE AND graduated_at IS NULL
+       AND NOT EXISTS (
+         SELECT 1
+           FROM enrollments ef
+           JOIN sections    sf ON sf.id = ef.section_id
+          WHERE ef.student_id  = u.id
+            AND ef.letter_grade = '5.00'
+            AND NOT EXISTS (
+              SELECT 1 FROM enrollments ep
+                JOIN sections sp ON sp.id = ep.section_id
+               WHERE ep.student_id   = u.id
+                 AND sp.course_id    = sf.course_id
+                 AND ep.numeric_grade >= 75
+            )
+       )`,
     [blockId],
   );
   const studentIds: string[] = studs.map((s: { id: string }) => s.id);
@@ -241,9 +258,26 @@ async function promoteYearInTxn(client: PoolClient, programId: string, yearLevel
       );
     }
 
+    // Skip students with outstanding retakes — they stay in their current
+    // year until the registrar resolves the retakes.
     const studs = await client.query(
-      `SELECT id FROM users
-       WHERE program_id = $1 AND year_level = $2 AND role = 'student' AND is_active = true`,
+      `SELECT id FROM users u
+       WHERE u.program_id = $1 AND u.year_level = $2
+         AND u.role = 'student' AND u.is_active = true
+         AND NOT EXISTS (
+           SELECT 1
+             FROM enrollments ef
+             JOIN sections    sf ON sf.id = ef.section_id
+            WHERE ef.student_id  = u.id
+              AND ef.letter_grade = '5.00'
+              AND NOT EXISTS (
+                SELECT 1 FROM enrollments ep
+                  JOIN sections sp ON sp.id = ep.section_id
+                 WHERE ep.student_id   = u.id
+                   AND sp.course_id    = sf.course_id
+                   AND ep.numeric_grade >= 75
+              )
+         )`,
       [programId, yearLevel],
     );
     const studentIds: string[] = studs.rows.map(r => r.id);
