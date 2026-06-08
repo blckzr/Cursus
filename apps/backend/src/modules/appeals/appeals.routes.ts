@@ -1,13 +1,14 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../../middleware/auth';
+import { authenticate, authorize, authorizeStudentActive } from '../../middleware/auth';
 import * as ctrl from './appeals.controller';
 
 const router = Router();
 
-// Student
+// Student — listMine stays open to alumni for read-only history;
+// create + withdraw are blocked because the appeal window has expired.
 router.get   ('/me',           authenticate, authorize('student'), ctrl.listMine);
-router.post  ('/me',           authenticate, authorize('student'), ctrl.create);
-router.post  ('/me/:id/withdraw', authenticate, authorize('student'), ctrl.withdraw);
+router.post  ('/me',           authenticate, authorize('student'), authorizeStudentActive, ctrl.create);
+router.post  ('/me/:id/withdraw', authenticate, authorize('student'), authorizeStudentActive, ctrl.withdraw);
 
 // Faculty
 router.get   ('/faculty',                  authenticate, authorize('faculty'), ctrl.listFaculty);

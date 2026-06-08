@@ -638,6 +638,95 @@ export async function getActiveSchedule(studentId: string) {
   };
 }
 
+// ─── Certificate of Graduation (alumni) ─────────────────────────────────────
+
+/**
+ * Builds the transcript-style payload for the Certificate of Graduation PDF.
+ * Final GWA is weighted by units across ALL finalized enrollments — the PH
+ * norm includes 5.00 failures in the GWA so the student's record reflects
+ * everything they took.
+ */
+export async function getCertificateOfGraduationData(studentId: string) {
+  const u = await db.query(
+    `SELECT u.id, u.user_code, u.full_name, u.graduated_at,
+            p.code AS program_code, p.name AS program_name
+       FROM users u
+       LEFT JOIN programs p ON p.id = u.program_id
+      WHERE u.id = $1 AND u.role = 'student'`,
+    [studentId],
+  );
+  if (!u.rows[0]) throw Object.assign(new Error('Student not found'), { status: 404 });
+  if (!u.rows[0].graduated_at) {
+    throw Object.assign(new Error('This certificate is only available after graduation.'), { status: 409 });
+  }
+
+  // All finalized enrollments, grouped by term, INCLUDING failures.
+  const rows = await db.query(
+    `SELECT t.id AS term_id, t.name AS term_name, t.semester, t.start_date,
+            c.code AS course_code, c.title AS course_title, c.units,
+            e.letter_grade, e.numeric_grade
+       FROM enrollments e
+       JOIN sections s ON s.id = e.section_id
+       JOIN courses  c ON c.id = s.course_id
+       JOIN terms    t ON t.id = s.term_id
+      WHERE e.student_id = $1 AND e.letter_grade IS NOT NULL
+      ORDER BY t.start_date, c.code`,
+    [studentId],
+  );
+
+  // Group by term (preserve start_date ordering).
+  const termMap = new Map<string, {
+    name: string; semester: string;
+    enrollments: Array<{
+      course_code: string; course_title: string; units: number;
+      letter_grade: string | null; numeric_grade: number | null;
+    }>;
+  }>();
+  for (const r of rows.rows) {
+    const key = r.term_id;
+    let bucket = termMap.get(key);
+    if (!bucket) {
+      bucket = { name: r.term_name, semester: r.semester, enrollments: [] };
+      termMap.set(key, bucket);
+    }
+    bucket.enrollments.push({
+      course_code:   r.course_code,
+      course_title:  r.course_title,
+      units:         Number(r.units),
+      letter_grade:  r.letter_grade,
+      numeric_grade: r.numeric_grade != null ? Number(r.numeric_grade) : null,
+    });
+  }
+
+  // Final GWA — weighted by units, includes failures.
+  let totalUnits = 0;
+  let weightedSum = 0;
+  for (const t of termMap.values()) {
+    for (const e of t.enrollments) {
+      const lg = Number(e.letter_grade);
+      if (Number.isFinite(lg)) {
+        weightedSum += lg * e.units;
+        totalUnits  += e.units;
+      }
+    }
+  }
+  const finalGwa = totalUnits > 0 ? weightedSum / totalUnits : null;
+
+  return {
+    student: {
+      user_code:    u.rows[0].user_code,
+      full_name:    u.rows[0].full_name,
+      program_code: u.rows[0].program_code,
+      program_name: u.rows[0].program_name,
+      graduated_at: u.rows[0].graduated_at,
+    },
+    terms:      [...termMap.values()],
+    totalUnits,
+    finalGwa,
+    issuedAt:   new Date(),
+  };
+}
+
 // ─── Certificate of Registration (COR) ───────────────────────────────────────
 
 /**

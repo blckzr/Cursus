@@ -131,7 +131,10 @@ export async function openTerm(termId: string, scope: { programIds?: string[] },
               `INSERT INTO enrollments (student_id, section_id, status)
                SELECT u.id, $2, 'pending'::enroll_status
                FROM users u
-               WHERE u.block_id = $1 AND u.role = 'student' AND u.is_active = true
+               WHERE u.block_id = $1
+                 AND u.role         = 'student'
+                 AND u.is_active    = true
+                 AND u.graduated_at IS NULL
                ON CONFLICT (student_id, section_id) DO NOTHING
                RETURNING id`,
               [block.id, sectionId],

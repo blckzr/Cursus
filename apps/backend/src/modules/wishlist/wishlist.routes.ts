@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../../middleware/auth';
+import { authenticate, authorize, authorizeStudentActive } from '../../middleware/auth';
 import * as ctrl from './wishlist.controller';
 
 const router = Router();
@@ -18,7 +18,7 @@ const router = Router();
  *     responses:
  *       200: { description: Array of terms }
  */
-router.get('/terms', authenticate, authorize('student'), ctrl.listEligibleTerms);
+router.get('/terms', authenticate, authorize('student'), authorizeStudentActive, ctrl.listEligibleTerms);
 
 /**
  * @openapi
@@ -35,7 +35,7 @@ router.get('/terms', authenticate, authorize('student'), ctrl.listEligibleTerms)
  *       200:
  *         description: Candidate courses, each annotated with locked/blockedBy/onWishlist flags.
  */
-router.get('/candidates', authenticate, authorize('student'), ctrl.listCandidates);
+router.get('/candidates', authenticate, authorize('student'), authorizeStudentActive, ctrl.listCandidates);
 
 /**
  * @openapi
@@ -51,7 +51,7 @@ router.get('/candidates', authenticate, authorize('student'), ctrl.listCandidate
  *     responses:
  *       200: { description: Wishlist entries }
  */
-router.get('/me', authenticate, authorize('student'), ctrl.listMyWishlist);
+router.get('/me', authenticate, authorize('student'), authorizeStudentActive, ctrl.listMyWishlist);
 
 /**
  * @openapi
@@ -75,7 +75,7 @@ router.get('/me', authenticate, authorize('student'), ctrl.listMyWishlist);
  *       201: { description: Entry created (or updated by upsert) }
  *       409: { description: Term is already open — wishlist locked }
  */
-router.post('/me', authenticate, authorize('student'), ctrl.createEntry);
+router.post('/me', authenticate, authorize('student'), authorizeStudentActive, ctrl.createEntry);
 
 /**
  * @openapi
@@ -102,8 +102,8 @@ router.post('/me', authenticate, authorize('student'), ctrl.createEntry);
  *     responses:
  *       204: { description: Deleted }
  */
-router.patch ('/me/:id', authenticate, authorize('student'), ctrl.updateEntry);
-router.delete('/me/:id', authenticate, authorize('student'), ctrl.deleteEntry);
+router.patch ('/me/:id', authenticate, authorize('student'), authorizeStudentActive, ctrl.updateEntry);
+router.delete('/me/:id', authenticate, authorize('student'), authorizeStudentActive, ctrl.deleteEntry);
 
 /**
  * @openapi

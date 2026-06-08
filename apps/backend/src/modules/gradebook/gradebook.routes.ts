@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../../middleware/auth';
+import { authenticate, authorize, authorizeStudentActive } from '../../middleware/auth';
 import { requireSectionOwner } from '../../middleware/requireSectionOwner';
 import * as ctrl from './gradebook.controller';
 
@@ -473,6 +473,21 @@ router.get('/students/me/cor.pdf', authenticate, authorize('student'), ctrl.down
 
 /**
  * @openapi
+ * /students/me/certificate-of-graduation.pdf:
+ *   get:
+ *     tags: [Gradebook]
+ *     summary: Alumni-only — Certificate of Graduation as a transcript-style PDF
+ *     responses:
+ *       200:
+ *         description: PDF stream
+ *         content:
+ *           application/pdf: { schema: { type: string, format: binary } }
+ *       409: { description: Caller has not graduated yet }
+ */
+router.get('/students/me/certificate-of-graduation.pdf', authenticate, authorize('student'), ctrl.downloadCertificateOfGraduation);
+
+/**
+ * @openapi
  * /students/me/pending-enrollment:
  *   get:
  *     tags: [Gradebook]
@@ -499,8 +514,8 @@ router.get('/students/me/cor.pdf', authenticate, authorize('student'), ctrl.down
  *       200: { description: Confirmed count }
  *       409: { description: No active term to confirm against }
  */
-router.get ('/students/me/pending-enrollment',  authenticate, authorize('student'), ctrl.getPendingEnrollment);
-router.post('/students/me/confirm-enrollment',  authenticate, authorize('student'), ctrl.confirmEnrollment);
+router.get ('/students/me/pending-enrollment',  authenticate, authorize('student'), authorizeStudentActive, ctrl.getPendingEnrollment);
+router.post('/students/me/confirm-enrollment',  authenticate, authorize('student'), authorizeStudentActive, ctrl.confirmEnrollment);
 
 /**
  * @openapi
@@ -559,7 +574,7 @@ router.post('/terms/:id/tba-auto-pass',         authenticate, authorize('admin')
  *             schema: { type: string }
  *       404: { description: No active schedule }
  */
-router.get('/students/me/schedule.ics', authenticate, authorize('student'), ctrl.downloadScheduleIcs);
+router.get('/students/me/schedule.ics', authenticate, authorize('student'), authorizeStudentActive, ctrl.downloadScheduleIcs);
 
 /**
  * @openapi

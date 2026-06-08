@@ -19,12 +19,13 @@ interface UserRow {
   program_name: string | null;
   block_label: string | null;
   password_must_change: boolean;
+  graduated_at: string | null;
 }
 
 // Columns shared by /auth/me + /auth/me PATCH + login response.
 const PROFILE_SELECT = `
   u.id, u.user_code, u.email, u.full_name, u.role, u.branch, u.is_active,
-  u.program_id, u.year_level, u.password_must_change,
+  u.program_id, u.year_level, u.password_must_change, u.graduated_at,
   p.code AS program_code, p.name AS program_name,
   CASE WHEN b.id IS NOT NULL
        THEN p.code || ' ' || b.year_level || '-' || b.block_number
@@ -38,12 +39,21 @@ const PROFILE_JOINS = `
 `;
 
 function rowToProfile(u: UserRow) {
+  const isAlumni = u.role === 'student' && !!u.graduated_at;
   return {
     id:                  u.id,
     userCode:            u.user_code,
     email:               u.email,
     fullName:            u.full_name,
     role:                u.role,
+    /**
+     * effectiveRole layers an 'alumni' mode on top of role==='student' once
+     * `graduated_at` is set. The frontend uses this to branch sidebars and
+     * pages; the backend uses `authorizeStudentActive` middleware to 403
+     * alumni from active-only routes.
+     */
+    effectiveRole:       isAlumni ? 'alumni' : u.role,
+    graduatedAt:         u.graduated_at,
     branch:              u.branch,
     programId:           u.program_id,
     programCode:         u.program_code,

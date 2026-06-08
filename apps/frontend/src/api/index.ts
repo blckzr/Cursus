@@ -508,6 +508,28 @@ export const approvePasswordReset = (id: string, note?: string) =>
 export const denyPasswordReset = (id: string, note?: string) =>
   api.post(`/admin/password-resets/${id}/deny`, { note }).then(r => r.data);
 
+// ── End-of-AY batch + Certificate of Graduation ─────────────────────────────
+export interface AdvanceAyResult {
+  programCode: string;
+  promoted: Record<number, number>;     // { 1: n, 2: n, 3: n }
+  totalPromoted: number;
+  totalGraduated: number;
+}
+export const advanceAcademicYear = (programId: string) =>
+  api.post<AdvanceAyResult>(`/blocks/advance-academic-year/${programId}`).then(r => r.data);
+
+export const downloadCertificateOfGraduation = async () => {
+  const res = await api.get('/students/me/certificate-of-graduation.pdf', { responseType: 'blob' });
+  const url = URL.createObjectURL(res.data as Blob);
+  const cd = (res.headers as Record<string, string>)['content-disposition'] ?? '';
+  const m  = /filename="([^"]+)"/.exec(cd);
+  const a  = document.createElement('a');
+  a.href = url;
+  a.download = m?.[1] ?? 'CertificateOfGraduation.pdf';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+};
+
 // ── Enrollment confirmation (self-enlistment) ────────────────────────────────
 export interface PendingEnrollmentSubject {
   enrollment_id: string;

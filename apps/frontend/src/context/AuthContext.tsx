@@ -5,6 +5,10 @@ interface User {
   email: string;
   fullName: string;
   role: 'admin' | 'faculty' | 'student';
+  /** Layered over `role`: 'alumni' when a student has graduated. */
+  effectiveRole?: 'admin' | 'faculty' | 'student' | 'alumni';
+  /** ISO timestamp. Set for alumni; null for active students. */
+  graduatedAt?: string | null;
   userCode?: string;
   branch?: string;
   programId?: string | null;

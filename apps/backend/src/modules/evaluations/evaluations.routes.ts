@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticate, authorize } from '../../middleware/auth';
+import { authenticate, authorize, authorizeStudentActive } from '../../middleware/auth';
 import * as ctrl from './evaluations.controller';
 
 const router = Router();
@@ -13,7 +13,7 @@ const router = Router();
  *     responses:
  *       200: { description: Status payload with pending/done sections + window state }
  */
-router.get('/evaluations/status', authenticate, authorize('student'), ctrl.getStatus);
+router.get('/evaluations/status', authenticate, authorize('student'), authorizeStudentActive, ctrl.getStatus);
 
 /**
  * @openapi
@@ -24,7 +24,7 @@ router.get('/evaluations/status', authenticate, authorize('student'), ctrl.getSt
  *     responses:
  *       200: { description: Empty array when nothing is locked }
  */
-router.get('/students/me/must-evaluate-first', authenticate, authorize('student'), ctrl.getMustEvaluateFirst);
+router.get('/students/me/must-evaluate-first', authenticate, authorize('student'), authorizeStudentActive, ctrl.getMustEvaluateFirst);
 
 /**
  * @openapi
@@ -35,7 +35,7 @@ router.get('/students/me/must-evaluate-first', authenticate, authorize('student'
  *     responses:
  *       200: { description: List of questions (likert_5 + text), display-ordered }
  */
-router.get('/evaluations/questions', authenticate, authorize('student'), ctrl.getActiveQuestions);
+router.get('/evaluations/questions', authenticate, authorize('student'), authorizeStudentActive, ctrl.getActiveQuestions);
 
 /**
  * @openapi
@@ -66,7 +66,7 @@ router.get('/evaluations/questions', authenticate, authorize('student'), ctrl.ge
  *       201: { description: Evaluation submitted }
  *       409: { description: Period closed, already submitted, or section has no faculty }
  */
-router.post('/evaluations/section/:sectionId', authenticate, authorize('student'), ctrl.submit);
+router.post('/evaluations/section/:sectionId', authenticate, authorize('student'), authorizeStudentActive, ctrl.submit);
 
 /**
  * @openapi
