@@ -81,7 +81,7 @@ export function buildScheduleIcs(input: IcsBuildInput): string {
 
   push('BEGIN:VCALENDAR');
   push('VERSION:2.0');
-  push('PRODID:-//Cursus SIS//Universidad Mariana//EN');
+  push('PRODID:-//Cursus SIS//EN');
   push('CALSCALE:GREGORIAN');
   push('METHOD:PUBLISH');
   push(`X-WR-CALNAME:${escapeText(`Cursus — ${input.studentName}`)}`);

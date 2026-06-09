@@ -22,3 +22,11 @@ export async function graduateBlock(req: Request, res: Response, next: NextFunct
     res.json(result);
   } catch (e) { next(e); }
 }
+
+/** End-of-academic-year batch: promote all + graduate final year, in one txn. */
+export async function advanceAcademicYear(req: Request, res: Response, next: NextFunction) {
+  try {
+    const result = await svc.advanceAcademicYear(req.params.programId, req.user!.sub);
+    res.json(result);
+  } catch (e) { next(e); }
+}

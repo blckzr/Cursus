@@ -6,6 +6,7 @@ import {
 } from './gradebook.schema';
 import * as svc from './gradebook.service';
 import { renderCorPdf } from '../../lib/pdf/cor';
+import { renderCertificatePdf } from '../../lib/pdf/certificate';
 import { buildScheduleIcs } from '../../lib/ics/schedule';
 
 export async function getGradebook(req: Request, res: Response, next: NextFunction) {
@@ -137,6 +138,25 @@ export async function downloadCor(req: Request, res: Response, next: NextFunctio
     res.setHeader('Content-Disposition', `attachment; filename="COR-${code}.pdf"`);
     res.send(pdf);
   } catch (e) { next(e); }
+}
+
+/** GET /students/me/certificate-of-graduation — alumni-only PDF. */
+export async function downloadCertificateOfGraduation(req: Request, res: Response, next: NextFunction) {
+  try {
+    const data = await svc.getCertificateOfGraduationData(req.user!.sub);
+    const pdf = await renderCertificatePdf(data);
+    const code = data.student.user_code ?? 'student';
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="CertificateOfGraduation-${code}.pdf"`);
+    res.send(pdf);
+  } catch (e: unknown) {
+    if (e instanceof Error && 'status' in e) {
+      const err = e as Error & { status: number };
+      res.status(err.status).json({ error: err.message });
+      return;
+    }
+    next(e);
+  }
 }
 
 /**

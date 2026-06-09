@@ -1,11 +1,13 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { getBlocks, promoteYear, graduateBlock } from '../../api';
+import { getBlocks, advanceAcademicYear, type AdvanceAyResult } from '../../api';
 import PageHeader from '../../components/PageHeader';
 import EmptyState from '../../components/EmptyState';
 import Skeleton from '../../components/Skeleton';
+import Modal from '../../components/Modal';
 import Icon from '../../components/Icon';
 import { useToast } from '../../components/Toast';
+import { parseApiError } from '../../lib/apiError';
 
 interface Block {
   id: string;
@@ -23,44 +25,24 @@ export default function Blocks() {
   const toast = useToast();
   const { data: blocks = [], isLoading } = useQuery<Block[]>({ queryKey: ['blocks'], queryFn: getBlocks });
 
-  const promoteMut = useMutation({
-    mutationFn: ({ programId, yearLevel }: { programId: string; yearLevel: number }) =>
-      promoteYear(programId, yearLevel),
-    onSuccess: (res: { promoted: number; nextYear: number }) => {
-      qc.invalidateQueries({ queryKey: ['blocks'] });
-      qc.invalidateQueries({ queryKey: ['users'] });
-      toast.push({
-        tone: res.promoted === 0 ? 'info' : 'success',
-        title: res.promoted === 0 ? 'Nothing to promote' : `Promoted ${res.promoted} student(s)`,
-        message: res.promoted === 0
-          ? 'No active students for that year.'
-          : `Moved to Year ${res.nextYear} and reshuffled their blocks.`,
-      });
-    },
-    onError: (e: unknown) => toast.push({
-      tone: 'error',
-      title: 'Promotion failed',
-      message: (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '',
-    }),
-  });
+  const [advanceTarget, setAdvanceTarget] = useState<{ programId: string; code: string; name: string; years: Map<number, Block[]> } | null>(null);
 
-  const graduateMut = useMutation({
-    mutationFn: (blockId: string) => graduateBlock(blockId),
-    onSuccess: (res: { graduated: number; blockLabel?: string }) => {
+  const advanceMut = useMutation({
+    mutationFn: (programId: string) => advanceAcademicYear(programId),
+    onSuccess: (res: AdvanceAyResult) => {
       qc.invalidateQueries({ queryKey: ['blocks'] });
       qc.invalidateQueries({ queryKey: ['users'] });
       toast.push({
-        tone: res.graduated === 0 ? 'info' : 'success',
-        title: res.graduated === 0 ? 'Nothing to graduate' : `Graduated ${res.graduated} student(s)`,
-        message: res.graduated === 0
-          ? 'No active students remain in this block.'
-          : `${res.blockLabel ?? 'Block'} cohort marked as graduated.`,
+        tone: 'success',
+        title: `${res.programCode} advanced`,
+        message: `${res.totalPromoted} promoted · ${res.totalGraduated} graduated.`,
       });
+      setAdvanceTarget(null);
     },
     onError: (e: unknown) => toast.push({
       tone: 'error',
-      title: 'Graduation failed',
-      message: (e as { response?: { data?: { error?: string } } })?.response?.data?.error ?? '',
+      title: 'Advance failed',
+      message: parseApiError(e).message,
     }),
   });
 
@@ -112,19 +94,31 @@ export default function Blocks() {
         <div className="space-y-6">
           {[...grouped.entries()].map(([programId, prog]) => {
             const maxYear = Math.max(...prog.years.keys());
+            const programTotal = [...prog.years.values()].flat().reduce((s, b) => s + b.student_count, 0);
             return (
               <div key={programId} className="card">
-                <h2 className="text-base sm:text-lg font-semibold text-stone-800 break-words">
-                  <span className="font-mono text-olive-500">{prog.code}</span>
-                  <span className="text-stone-400 font-normal"> — {prog.name}</span>
-                </h2>
+                <div className="flex items-start justify-between gap-3 flex-wrap mb-4">
+                  <h2 className="text-base sm:text-lg font-semibold text-stone-800 break-words">
+                    <span className="font-mono text-olive-500">{prog.code}</span>
+                    <span className="text-stone-400 font-normal"> — {prog.name}</span>
+                  </h2>
+                  <button
+                    className="btn-primary text-xs flex items-center gap-1.5 whitespace-nowrap flex-shrink-0"
+                    disabled={programTotal === 0 || advanceMut.isPending}
+                    onClick={() => setAdvanceTarget({ programId, code: prog.code, name: prog.name, years: prog.years })}
+                    title="End-of-academic-year batch: promote every year and graduate the final year in one transaction."
+                  >
+                    <Icon name="sparkles" size={12} />
+                    Advance academic year
+                  </button>
+                </div>
 
-                <div className="space-y-3 mt-4">
+                <div className="space-y-3">
                   {[...prog.years.keys()].sort((a, b) => a - b).map(year => {
                     const yearBlocks = prog.years.get(year)!.sort((a, b) => a.block_number - b.block_number);
                     const total = yearBlocks.reduce((s, b) => s + b.student_count, 0);
                     return (
-                      <div key={year} className="border border-beige-200 rounded-lg p-3">
+                      <div key={year} className="border border-beige-200 dark:border-stone-700 rounded-lg p-3">
                         <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
                           <span className="font-medium text-stone-700 inline-flex items-center gap-2 flex-wrap">
                             <span>Year {year}</span>
@@ -133,25 +127,10 @@ export default function Blocks() {
                             )}
                             <span className="text-stone-400 text-sm">{total} student{total === 1 ? '' : 's'}</span>
                           </span>
-                          {year < maxYear && (
-                            <button
-                              className="btn-secondary text-xs whitespace-nowrap"
-                              disabled={promoteMut.isPending || total === 0}
-                              onClick={() => {
-                                if (window.confirm(
-                                  `Promote all ${total} Year ${year} student(s) of ${prog.code} to Year ${year + 1} and randomly reshuffle their blocks?`,
-                                )) promoteMut.mutate({ programId, yearLevel: year });
-                              }}
-                            >
-                              <span className="hidden sm:inline">Promote to Year {year + 1} →</span>
-                              <span className="sm:hidden">Promote →</span>
-                            </button>
-                          )}
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {yearBlocks.map(b => {
                             const full = b.student_count >= b.capacity;
-                            const isFinal = year === maxYear;
                             return (
                               <div
                                 key={b.id}
@@ -165,21 +144,6 @@ export default function Blocks() {
                                 <span className={full ? 'text-red-500' : 'text-stone-500'}>
                                   {b.student_count}/{b.capacity}
                                 </span>
-                                {isFinal && b.student_count > 0 && (
-                                  <button
-                                    className="ml-1 text-[10px] font-semibold text-olive-600 hover:text-olive-700 hover:underline disabled:opacity-50 disabled:no-underline"
-                                    disabled={graduateMut.isPending}
-                                    onClick={() => {
-                                      if (window.confirm(
-                                        `Graduate all ${b.student_count} active student(s) of ${prog.code} ${year}-${b.block_number}? ` +
-                                        `They'll be marked inactive and their transcripts will be preserved.`,
-                                      )) graduateMut.mutate(b.id);
-                                    }}
-                                  >
-                                    <Icon name="award" size={10} className="inline mr-0.5" />
-                                    Graduate
-                                  </button>
-                                )}
                               </div>
                             );
                           })}
@@ -193,6 +157,94 @@ export default function Blocks() {
           })}
         </div>
       )}
+
+      {advanceTarget && (
+        <AdvanceConfirmModal
+          target={advanceTarget}
+          isPending={advanceMut.isPending}
+          onConfirm={() => advanceMut.mutate(advanceTarget.programId)}
+          onClose={() => setAdvanceTarget(null)}
+        />
+      )}
     </div>
+  );
+}
+
+// ============================================================================
+// Confirmation modal — shows year-by-year preview before running the txn
+// ============================================================================
+
+function AdvanceConfirmModal({ target, isPending, onConfirm, onClose }: {
+  target: { programId: string; code: string; name: string; years: Map<number, Block[]> };
+  isPending: boolean;
+  onConfirm: () => void;
+  onClose: () => void;
+}) {
+  const maxYear = Math.max(...target.years.keys());
+  const yearTotals: { year: number; total: number; isFinal: boolean }[] = [...target.years.keys()]
+    .sort((a, b) => a - b)
+    .map(year => ({
+      year,
+      total: target.years.get(year)!.reduce((s, b) => s + b.student_count, 0),
+      isFinal: year === maxYear,
+    }));
+
+  return (
+    <Modal
+      title={`Advance ${target.code} — end of academic year`}
+      subtitle="This runs in one transaction. If any step fails, the whole batch rolls back."
+      onClose={onClose}
+      size="lg"
+    >
+      <div className="space-y-4">
+        <div className="bg-amber-50 dark:bg-amber-400/15 border border-amber-200 dark:border-amber-400/40 rounded-lg p-3 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+          <Icon name="alert-triangle" size={14} className="mt-0.5 flex-shrink-0" />
+          <div>
+            <div className="font-semibold mb-1">This cannot be undone from the UI.</div>
+            Every non-final year promotes; final-year students become alumni and lose
+            access to non-transcript features. Their academic record is preserved forever.
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <div className="text-[11px] uppercase tracking-widest text-stone-400 dark:text-stone-500 font-semibold">What will happen</div>
+          <ul className="space-y-1.5">
+            {yearTotals.map(({ year, total, isFinal }) => (
+              <li key={year} className="flex items-center gap-3 px-3 py-2 rounded-lg border border-beige-200 dark:border-stone-700 bg-beige-50 dark:bg-stone-800">
+                <span className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+                  isFinal
+                    ? 'bg-olive-100 dark:bg-olive-500/30 text-olive-600 dark:text-olive-100'
+                    : 'bg-khaki-100 dark:bg-khaki-300/30 text-khaki-600 dark:text-khaki-100'
+                }`}>
+                  <Icon name={isFinal ? 'award' : 'arrow-up'} size={14} />
+                </span>
+                <span className="flex-1 text-sm text-stone-700 dark:text-stone-200">
+                  <span className="font-semibold">Year {year}</span> →{' '}
+                  {isFinal
+                    ? <span className="text-olive-600 dark:text-olive-200 font-semibold">Alumni</span>
+                    : <span className="text-stone-600 dark:text-stone-300">Year {year + 1}</span>}
+                </span>
+                <span className="font-mono tabular text-sm font-semibold text-stone-800 dark:text-stone-100 flex-shrink-0">
+                  {total} student{total === 1 ? '' : 's'}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="flex justify-end gap-2 pt-1">
+          <button className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary flex items-center gap-2"
+            onClick={onConfirm}
+            disabled={isPending}
+          >
+            {isPending
+              ? <><span className="spinner" /> Advancing…</>
+              : <><Icon name="sparkles" size={14} /> Run advancement</>}
+          </button>
+        </div>
+      </div>
+    </Modal>
   );
 }

@@ -106,10 +106,10 @@ export default function AppLayout({ navItems, roleLabel }: Props) {
               collapsed ? 'md:opacity-0 md:pointer-events-none' : 'opacity-100'
             }`}
           >
-            <div className="w-9 h-9 rounded-xl bg-olive-400 flex items-center justify-center text-white font-bold font-display text-lg shadow-inset-tl flex-shrink-0">C</div>
+            <img src="/cursus-logo.svg" alt="" className="w-9 h-9 rounded-xl flex-shrink-0" />
             <div className="overflow-hidden">
               <div className="text-white font-semibold tracking-tight font-display text-lg leading-none">Cursus</div>
-              <div className="text-olive-200 text-[10px] mt-0.5 whitespace-nowrap uppercase tracking-wider">Universidad Mariana · MN</div>
+              <div className="text-olive-200 text-[10px] mt-0.5 whitespace-nowrap uppercase tracking-wider">Student Information System</div>
             </div>
           </div>
 
