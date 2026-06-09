@@ -57,7 +57,7 @@ export function renderCorPdf(data: CorPayload): Promise<Buffer> {
       margin: 36,                  // ~0.5 inch
       info: {
         Title:    `Certificate of Registration — ${data.student.full_name}`,
-        Author:   'Cursus · Universidad Mariana',
+        Author:   'Cursus',
         Subject:  'Certificate of Registration',
         Creator:  'Cursus SIS',
       },
@@ -85,11 +85,11 @@ function drawHeader(doc: PDFKit.PDFDocument, data: CorPayload): void {
   // Olive band
   doc.rect(36, top, doc.page.width - 72, 56).fill(OLIVE);
 
-  // School name
+  // Brand
   doc.fillColor('white').font('Helvetica-Bold').fontSize(15)
-    .text('UNIVERSIDAD MARIANA', 48, top + 12, { align: 'left' });
+    .text('CURSUS', 48, top + 12, { align: 'left' });
   doc.font('Helvetica').fontSize(9)
-    .text('Office of the Registrar · Marawoy, Lipa City', 48, top + 32);
+    .text('Student Information System', 48, top + 32);
 
   // Document title — right side
   doc.font('Helvetica-Bold').fontSize(13)
@@ -252,6 +252,6 @@ function drawFooter(doc: PDFKit.PDFDocument, data: CorPayload): void {
   doc.font('Helvetica-Bold').fontSize(9).fillColor(STONE)
     .text('Registrar', doc.page.width - 36 - 220, sigY + 4, { width: 220, align: 'center' });
   doc.font('Helvetica').fontSize(7).fillColor(FAINT)
-    .text('Office of the Registrar · Universidad Mariana',
+    .text('Office of the Registrar',
       doc.page.width - 36 - 220, sigY + 17, { width: 220, align: 'center' });
 }

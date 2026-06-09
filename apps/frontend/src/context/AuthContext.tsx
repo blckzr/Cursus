@@ -5,6 +5,10 @@ interface User {
   email: string;
   fullName: string;
   role: 'admin' | 'faculty' | 'student';
+  /** Layered over `role`: 'alumni' when a student has graduated. */
+  effectiveRole?: 'admin' | 'faculty' | 'student' | 'alumni';
+  /** ISO timestamp. Set for alumni; null for active students. */
+  graduatedAt?: string | null;
   userCode?: string;
   branch?: string;
   programId?: string | null;
@@ -12,6 +16,17 @@ interface User {
   programName?: string | null;
   yearLevel?: number | null;
   blockLabel?: string | null;
+  /**
+   * Derived irregularity status (students only). Set on /auth/me + login.
+   *   • 'no_block'         — block_id IS NULL (transferee/shifter)
+   *   • 'pending_retakes'  — has unresolved 5.00 failures awaiting retake
+   */
+  irregularity?: {
+    isIrregular: boolean;
+    reason: 'none' | 'no_block' | 'pending_retakes';
+    pendingRetakes: number;
+    pendingRetakeCodes: string[];
+  };
   /**
    * When TRUE, the app blocks every authenticated route and forces the user
    * onto the change-password screen. Set on account creation and on admin

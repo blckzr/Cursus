@@ -3,6 +3,7 @@ import jwt from 'jsonwebtoken';
 import { db } from '../../config/db';
 import { env } from '../../config/env';
 import { JwtPayload, UserRole } from '../../middleware/auth';
+import { getStatus as getIrregularityStatus } from '../irregularity/irregularity.service';
 
 interface UserRow {
   id: string;
@@ -19,12 +20,13 @@ interface UserRow {
   program_name: string | null;
   block_label: string | null;
   password_must_change: boolean;
+  graduated_at: string | null;
 }
 
 // Columns shared by /auth/me + /auth/me PATCH + login response.
 const PROFILE_SELECT = `
   u.id, u.user_code, u.email, u.full_name, u.role, u.branch, u.is_active,
-  u.program_id, u.year_level, u.password_must_change,
+  u.program_id, u.year_level, u.password_must_change, u.graduated_at,
   p.code AS program_code, p.name AS program_name,
   CASE WHEN b.id IS NOT NULL
        THEN p.code || ' ' || b.year_level || '-' || b.block_number
@@ -38,12 +40,21 @@ const PROFILE_JOINS = `
 `;
 
 function rowToProfile(u: UserRow) {
+  const isAlumni = u.role === 'student' && !!u.graduated_at;
   return {
     id:                  u.id,
     userCode:            u.user_code,
     email:               u.email,
     fullName:            u.full_name,
     role:                u.role,
+    /**
+     * effectiveRole layers an 'alumni' mode on top of role==='student' once
+     * `graduated_at` is set. The frontend uses this to branch sidebars and
+     * pages; the backend uses `authorizeStudentActive` middleware to 403
+     * alumni from active-only routes.
+     */
+    effectiveRole:       isAlumni ? 'alumni' : u.role,
+    graduatedAt:         u.graduated_at,
     branch:              u.branch,
     programId:           u.program_id,
     programCode:         u.program_code,
@@ -59,7 +70,15 @@ export async function getProfile(userId: string) {
     `SELECT ${PROFILE_SELECT} ${PROFILE_JOINS} WHERE u.id = $1`,
     [userId],
   );
-  return rows[0] ? rowToProfile(rows[0]) : null;
+  if (!rows[0]) return null;
+  const profile = rowToProfile(rows[0]);
+  // For students, attach the derived irregularity status so the frontend can
+  // show retake banners + irregular chip without an extra round-trip.
+  if (profile.role === 'student') {
+    const irreg = await getIrregularityStatus(userId);
+    return { ...profile, irregularity: irreg };
+  }
+  return profile;
 }
 
 export async function loginUser(userCode: string, password: string) {
@@ -77,7 +96,13 @@ export async function loginUser(userCode: string, password: string) {
   const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
   const token = jwt.sign(payload, env.jwtSecret, { expiresIn: env.jwtExpiresIn } as jwt.SignOptions);
 
-  return { token, user: rowToProfile(user) };
+  // Attach irregularity status on login so the dashboard can banner immediately.
+  const profile = rowToProfile(user);
+  if (profile.role === 'student') {
+    const irreg = await getIrregularityStatus(user.id);
+    return { token, user: { ...profile, irregularity: irreg } };
+  }
+  return { token, user: profile };
 }
 
 /** Update the calling user's editable profile fields. Returns the fresh profile. */

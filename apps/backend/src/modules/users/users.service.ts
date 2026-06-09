@@ -46,6 +46,19 @@ export async function listUsers(role?: string) {
   const { rows } = role
     ? await db.query(`${LIST_QUERY} WHERE u.role = $1 ORDER BY u.user_code`, [role])
     : await db.query(`${LIST_QUERY} ORDER BY u.user_code`);
+
+  // Attach derived irregularity status to every student row in bulk so the
+  // admin Users page can render an Irregular chip without N+1 queries.
+  const { getStatusBulk } = await import('../irregularity/irregularity.service');
+  const studentIds = rows.filter((r: any) => r.role === 'student').map((r: any) => r.id);
+  if (studentIds.length > 0) {
+    const statuses = await getStatusBulk(studentIds);
+    for (const r of rows as any[]) {
+      if (r.role === 'student') {
+        r.irregularity = statuses.get(r.id) ?? null;
+      }
+    }
+  }
   return rows;
 }
 

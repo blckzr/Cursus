@@ -87,11 +87,15 @@ export default function StudentGrades() {
     }
   };
 
+  const isAlumni = user?.effectiveRole === 'alumni';
+
   // Appeals are allowed within 14 days of finalize. We compute eligibility
   // client-side so the button can disable; the backend re-checks on submit.
+  // Alumni never see the appeal button — the window has definitively passed.
   const APPEAL_WINDOW_MS = 14 * 24 * 60 * 60 * 1000;
   const canAppeal = (e: any) =>
-    e.letter_grade != null && e.finalized_at != null
+    !isAlumni
+    && e.letter_grade != null && e.finalized_at != null
     && Date.now() - new Date(e.finalized_at).getTime() <= APPEAL_WINDOW_MS
     && !appealByEnrollment.has(e.id);
 
@@ -110,9 +114,15 @@ export default function StudentGrades() {
   return (
     <div>
       <PageHeader
-        eyebrow="Academic record"
-        title="My grades"
-        subtitle="Your complete grade record across every term — grouped chronologically."
+        eyebrow={isAlumni ? 'Final record · Alumni' : 'Academic record'}
+        title={isAlumni ? 'Transcript' : 'My grades'}
+        subtitle={
+          isAlumni
+            ? user?.graduatedAt
+              ? `Graduated ${new Date(user.graduatedAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })} — this is your final academic record.`
+              : 'Your final academic record.'
+            : 'Your complete grade record across every term — grouped chronologically.'
+        }
         action={
           <button onClick={handleDownload} className="btn-secondary flex items-center gap-2">
             <Icon name="download" size={14} />
@@ -122,8 +132,8 @@ export default function StudentGrades() {
         }
       />
 
-      {/* Grade-reveal gate banner (FUTURE_FEATURES 4.6) */}
-      {mustEvaluate.length > 0 && (
+      {/* Grade-reveal gate banner (FUTURE_FEATURES 4.6) — never shown to alumni */}
+      {!isAlumni && mustEvaluate.length > 0 && (
         <div className="card mb-4 border-amber-200 dark:border-amber-400/40 bg-amber-50/60 dark:!bg-amber-400/[0.08]">
           <div className="flex items-start gap-3">
             <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-400/25 text-amber-700 dark:text-amber-200 flex items-center justify-center flex-shrink-0">

@@ -127,14 +127,77 @@ export async function openTerm(termId: string, scope: { programIds?: string[] },
             // leave the row PENDING — the student must explicitly confirm via
             // the COR page. Until they do, gradebook / roster / schedule all
             // ignore the row (those views filter status = 'enrolled').
+            // Smart per-student enrollment. A student is enrolled in this
+            // section if ANY of:
+            //
+            //   (a) Regular cohort path — they're in this block AND haven't
+            //       already passed this course AND every prerequisite has
+            //       been passed (no failing 5.00 hanging in the chain).
+            //
+            //   (b) Retake path — they have an outstanding 5.00 on THIS
+            //       course (failed and never re-passed). This catches a
+            //       Y2 student who failed COMP004 in Y1 and is now eligible
+            //       to retake when COMP004 is offered to the new Y1 cohort.
+            //
+            // Locked courses (failing prereq → unmet) naturally drop out
+            // of clause (a) because the prereq isn't in the passed set.
+            // Already-completed courses drop out because of the
+            // "haven't already passed" check.
             const enrollRes = await client.query(
               `INSERT INTO enrollments (student_id, section_id, status)
                SELECT u.id, $2, 'pending'::enroll_status
                FROM users u
-               WHERE u.block_id = $1 AND u.role = 'student' AND u.is_active = true
+               WHERE u.role         = 'student'
+                 AND u.is_active    = true
+                 AND u.graduated_at IS NULL
+                 AND (
+                   -- (a) Regular cohort enrollment
+                   (
+                     u.block_id = $1
+                     AND NOT EXISTS (
+                       SELECT 1 FROM enrollments ep
+                         JOIN sections sp ON sp.id = ep.section_id
+                        WHERE ep.student_id = u.id
+                          AND sp.course_id  = $3
+                          AND ep.numeric_grade IS NOT NULL
+                          AND ep.numeric_grade >= 75
+                     )
+                     AND NOT EXISTS (
+                       -- A prereq is unmet (no passed enrollment for it)
+                       SELECT 1 FROM course_prerequisites cp
+                        WHERE cp.course_id = $3
+                          AND NOT EXISTS (
+                            SELECT 1 FROM enrollments ep2
+                              JOIN sections sp2 ON sp2.id = ep2.section_id
+                             WHERE ep2.student_id = u.id
+                               AND sp2.course_id  = cp.prerequisite_id
+                               AND ep2.numeric_grade >= 75
+                          )
+                     )
+                   )
+                   OR
+                   -- (b) Retake — has a 5.00 on this course's course_id and
+                   --     never subsequently re-passed it. Works for students
+                   --     from any block, so a Y2 student joins the Y1 section
+                   --     of their failed subject.
+                   EXISTS (
+                     SELECT 1 FROM enrollments ef
+                       JOIN sections sf ON sf.id = ef.section_id
+                      WHERE ef.student_id  = u.id
+                        AND sf.course_id   = $3
+                        AND ef.letter_grade = '5.00'
+                        AND NOT EXISTS (
+                          SELECT 1 FROM enrollments ep3
+                            JOIN sections sp3 ON sp3.id = ep3.section_id
+                           WHERE ep3.student_id = u.id
+                             AND sp3.course_id  = $3
+                             AND ep3.numeric_grade >= 75
+                        )
+                   )
+                 )
                ON CONFLICT (student_id, section_id) DO NOTHING
                RETURNING id`,
-              [block.id, sectionId],
+              [block.id, sectionId, course.course_id],
             );
             enrollmentsCreated += enrollRes.rowCount || 0;
           }

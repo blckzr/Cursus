@@ -75,4 +75,21 @@ router.post('/promote', authenticate, authorize('admin'), ctrl.promoteYear);
  */
 router.post('/:id/graduate', authenticate, authorize('admin'), ctrl.graduateBlock);
 
+/**
+ * @openapi
+ * /blocks/advance-academic-year/{programId}:
+ *   post:
+ *     tags: [Blocks]
+ *     summary: End-of-AY batch — promote all years + graduate final year (admin)
+ *     description: |
+ *       Promotes Y(n) → Y(n+1) for every non-final year, then graduates every
+ *       block at the final year. All steps run in ONE transaction — partial
+ *       advancement is impossible.
+ *     parameters:
+ *       - { in: path, name: programId, required: true, schema: { type: string, format: uuid } }
+ *     responses:
+ *       200: { description: Counts of promoted students per year + total graduated }
+ */
+router.post('/advance-academic-year/:programId', authenticate, authorize('admin'), ctrl.advanceAcademicYear);
+
 export default router;

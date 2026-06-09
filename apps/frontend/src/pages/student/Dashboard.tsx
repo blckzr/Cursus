@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { getStudentGrades } from '../../api';
+import { getStudentGrades, downloadTranscript, downloadCertificateOfGraduation } from '../../api';
 import { useAuth } from '../../context/AuthContext';
 import PageHeader from '../../components/PageHeader';
 import SectionTitle from '../../components/SectionTitle';
@@ -9,6 +10,7 @@ import EmptyState from '../../components/EmptyState';
 import ProgressBar from '../../components/ProgressBar';
 import DataTable from '../../components/DataTable';
 import Icon from '../../components/Icon';
+import { useToast } from '../../components/Toast';
 
 const isActive = (v: unknown) => v === true || v === 'true';
 const WEEK = 7 * 24 * 60 * 60 * 1000;
@@ -83,6 +85,16 @@ export default function StudentDashboard() {
     : standing.tone === 'red' ? 'alert-triangle'
     : 'check';
 
+  // Alumni branch — replaces the dashboard with a single hero card.
+  if (user?.effectiveRole === 'alumni') {
+    return <AlumniHero gwa={gwa} totalUnits={
+      grades.filter((e: any) => e.letter_grade)
+            .reduce((s: number, e: any) => s + Number(e.units || 0), 0)
+    } />;
+  }
+
+  const irreg = user?.irregularity;
+
   return (
     <div className="space-y-7">
       <PageHeader
@@ -90,6 +102,33 @@ export default function StudentDashboard() {
         title="Your semester at a glance"
         subtitle={`${user?.programName || 'Program TBA'} · Year ${user?.yearLevel ?? '—'} · ${activeTerm?.term_name || 'No active term'}`}
       />
+
+      {/* Irregular-by-retake banner (4.6 retake flow). Only shows for students
+          with outstanding failures that haven't been re-passed. */}
+      {irreg?.isIrregular && irreg.reason === 'pending_retakes' && (
+        <div className="card border-amber-200 dark:border-amber-400/40 bg-amber-50/60 dark:!bg-amber-400/[0.08]">
+          <div className="flex items-start gap-3">
+            <div className="w-9 h-9 rounded-lg bg-amber-100 dark:bg-amber-400/25 text-amber-700 dark:text-amber-200 flex items-center justify-center flex-shrink-0">
+              <Icon name="refresh" size={16} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-semibold text-stone-800 dark:text-stone-100">
+                You have {irreg.pendingRetakes} subject{irreg.pendingRetakes === 1 ? '' : 's'} to retake
+              </div>
+              <div className="text-xs text-stone-600 dark:text-stone-300 mt-0.5">
+                {irreg.pendingRetakeCodes.join(', ')}
+                {irreg.pendingRetakes > irreg.pendingRetakeCodes.length && '…'}.
+                You'll be automatically re-enrolled in each failed subject the
+                next time it's offered. Courses that depend on these (e.g., the
+                "II" version of a failed "I" subject) stay locked until you pass.
+              </div>
+            </div>
+            <Link to="/student/curriculum" className="btn-ghost text-xs flex items-center gap-1.5 flex-shrink-0 border border-amber-200 dark:border-amber-400/40">
+              <Icon name="arrow-right" size={11} /> View curriculum
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* GWA + stats + term progress */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -225,6 +264,129 @@ export default function StudentDashboard() {
             ))}
           </DataTable>
         )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================================
+// Alumni hero — replaces the dashboard for graduated students
+// ============================================================================
+
+function AlumniHero({ gwa, totalUnits }: { gwa: number | null; totalUnits: number }) {
+  const { user } = useAuth();
+  const toast = useToast();
+  const [dlTranscript, setDlTranscript] = useState(false);
+  const [dlCert, setDlCert] = useState(false);
+
+  const gradDate = user?.graduatedAt
+    ? new Date(user.graduatedAt).toLocaleDateString('en-PH', { year: 'numeric', month: 'long', day: 'numeric' })
+    : null;
+  const cohortYear = user?.graduatedAt ? new Date(user.graduatedAt).getFullYear() : null;
+
+  const handleTranscript = async () => {
+    setDlTranscript(true);
+    try {
+      await downloadTranscript();
+      toast.push({ tone: 'success', title: 'Transcript downloaded' });
+    } catch {
+      toast.push({ tone: 'error', title: 'Download failed', message: 'Please try again.' });
+    } finally {
+      setDlTranscript(false);
+    }
+  };
+  const handleCert = async () => {
+    setDlCert(true);
+    try {
+      await downloadCertificateOfGraduation();
+      toast.push({ tone: 'success', title: 'Certificate downloaded' });
+    } catch {
+      toast.push({ tone: 'error', title: 'Download failed', message: 'Please try again.' });
+    } finally {
+      setDlCert(false);
+    }
+  };
+
+  return (
+    <div>
+      <PageHeader
+        eyebrow="Alumni Portal"
+        title={`Congratulations, ${user?.fullName.split(' ')[0] ?? ''}`}
+        subtitle={
+          gradDate
+            ? `You graduated from ${user?.programName ?? 'your program'} on ${gradDate}.`
+            : `Welcome back to your alumni portal.`
+        }
+      />
+
+      <div className="card !p-0 overflow-hidden border-olive-200 dark:border-olive-400/40 ring-1 ring-olive-100 dark:ring-olive-500/20">
+        {/* Olive band */}
+        <div className="bg-gradient-to-r from-olive-50 to-beige-50 dark:from-olive-500/20 dark:to-olive-500/5 px-5 py-6 border-b border-olive-100 dark:border-olive-400/30">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 rounded-xl bg-olive-100 dark:bg-olive-500/30 text-olive-600 dark:text-olive-100 flex items-center justify-center flex-shrink-0">
+              <Icon name="award" size={20} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="font-display text-xl font-medium text-stone-800 dark:text-stone-50">
+                {user?.fullName}
+              </div>
+              <div className="text-xs text-stone-500 dark:text-stone-300 mt-0.5">
+                {user?.programCode} · {user?.programName} · Class of {cohortYear ?? '—'}
+              </div>
+              <div className="text-[10px] text-stone-400 dark:text-stone-500 mt-1 uppercase tracking-wider">
+                Student ID {user?.userCode ?? '—'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 divide-x divide-beige-200 dark:divide-stone-700 border-b border-beige-200 dark:border-stone-700">
+          <div className="px-4 py-4 text-center">
+            <div className="font-display text-2xl font-medium text-olive-600 dark:text-olive-200 tabular">
+              {gwa != null ? gwa.toFixed(2) : '—'}
+            </div>
+            <div className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wider mt-0.5">Final GWA</div>
+          </div>
+          <div className="px-4 py-4 text-center">
+            <div className="font-display text-2xl font-medium text-stone-800 dark:text-stone-100 tabular">
+              {totalUnits}
+            </div>
+            <div className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wider mt-0.5">Total units</div>
+          </div>
+          <div className="px-4 py-4 text-center">
+            <div className="font-display text-2xl font-medium text-stone-800 dark:text-stone-100 tabular">
+              {cohortYear ?? '—'}
+            </div>
+            <div className="text-[10px] text-stone-400 dark:text-stone-500 uppercase tracking-wider mt-0.5">Cohort</div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="p-5 space-y-2">
+          <button
+            onClick={handleCert}
+            disabled={dlCert}
+            className="btn-primary w-full flex items-center justify-center gap-2"
+          >
+            {dlCert
+              ? <><span className="spinner" /> Preparing…</>
+              : <><Icon name="award" size={14} /> Download Certificate of Graduation</>}
+          </button>
+          <button
+            onClick={handleTranscript}
+            disabled={dlTranscript}
+            className="btn-secondary w-full flex items-center justify-center gap-2"
+          >
+            {dlTranscript
+              ? <><span className="spinner" /> Preparing…</>
+              : <><Icon name="download" size={14} /> Download official transcript (CSV)</>}
+          </button>
+        </div>
+      </div>
+
+      <div className="text-[11px] text-stone-400 dark:text-stone-500 mt-5 text-center">
+        Need a certified, signed document? Contact your school's registrar.
       </div>
     </div>
   );

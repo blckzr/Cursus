@@ -186,7 +186,7 @@ export async function getCurriculumProgress(studentId: string) {
 
   const entries = curr.map((c: any) => {
     const enrollment = enrollByCourse.get(c.course_id);
-    let status: 'completed' | 'current' | 'pending' | 'locked';
+    let status: 'completed' | 'current' | 'failed' | 'pending' | 'locked';
     let grade: { numeric: number; letter: string } | null = null;
     let blockedBy: string[] = [];
 
@@ -196,6 +196,15 @@ export async function getCurriculumProgress(studentId: string) {
       status = 'completed';
       grade = {
         numeric: Number(enrollment.numeric_grade),
+        letter:  enrollment.letter_grade,
+      };
+    } else if (enrollment && enrollment.letter_grade === '5.00') {
+      // Student has a failing grade on this course and hasn't subsequently
+      // re-passed it (DISTINCT ON would have picked the later passing row).
+      // Distinct from "pending" so the UI can prompt for a retake.
+      status = 'failed';
+      grade = {
+        numeric: Number(enrollment.numeric_grade ?? 0),
         letter:  enrollment.letter_grade,
       };
     } else {

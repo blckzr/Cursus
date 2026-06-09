@@ -95,6 +95,8 @@ export default function Users() {
     student: users.filter((u: any) => u.role === 'student').length,
     faculty: users.filter((u: any) => u.role === 'faculty').length,
     admin:   users.filter((u: any) => u.role === 'admin').length,
+    alumni:  users.filter((u: any) => u.graduated_at != null).length,
+    irregular: users.filter((u: any) => u.irregularity?.isIrregular).length,
   }), [users]);
 
   const isGraduated = (u: any) => u.graduated_at != null;
@@ -103,6 +105,7 @@ export default function Users() {
     if (statusFilter === 'active'    && !isActiveVal(u.is_active)) return false;
     if (statusFilter === 'graduated' && !isGraduated(u))           return false;
     if (statusFilter === 'inactive'  && (isActiveVal(u.is_active) || isGraduated(u))) return false;
+    if (statusFilter === 'irregular' && !u.irregularity?.isIrregular) return false;
     if (query) {
       const q = query.toLowerCase();
       if (![u.full_name, u.email, u.user_code].some((v: string) => (v || '').toLowerCase().includes(q))) return false;
@@ -186,13 +189,18 @@ export default function Users() {
             <Chip active={roleFilter === 'admin'}   onClick={() => setRoleFilter('admin')}>Admin ({counts.admin})</Chip>
           </div>
         </div>
-        <div className="flex items-center justify-between gap-3">
-          <select className="input w-full md:!w-auto" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
-            <option value="all">Any status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="graduated">Graduated</option>
-          </select>
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex gap-1.5 flex-wrap">
+            <Chip active={statusFilter === 'all'}       onClick={() => setStatusFilter('all')}>Any status</Chip>
+            <Chip active={statusFilter === 'active'}    onClick={() => setStatusFilter('active')}>Active</Chip>
+            <Chip active={statusFilter === 'graduated'} onClick={() => setStatusFilter('graduated')}>
+              <Icon name="award" size={10} /> Alumni ({counts.alumni})
+            </Chip>
+            <Chip active={statusFilter === 'irregular'} onClick={() => setStatusFilter('irregular')}>
+              <Icon name="refresh" size={10} /> Irregular ({counts.irregular})
+            </Chip>
+            <Chip active={statusFilter === 'inactive'}  onClick={() => setStatusFilter('inactive')}>Inactive</Chip>
+          </div>
           <span className="text-xs text-stone-400 md:ml-auto tabular whitespace-nowrap">{filtered.length} of {users.length}</span>
         </div>
       </div>
@@ -227,16 +235,30 @@ export default function Users() {
                   : <span className="text-stone-300">—</span>}
               </td>
               <td className="table-td hidden sm:table-cell">
-                {isGraduated(u) ? (
-                  <span className="badge badge-completed"
-                    title={`Graduated ${new Date(u.graduated_at).toLocaleDateString()}`}>
-                    <Icon name="award" size={10} /> Graduated
-                  </span>
-                ) : isActiveVal(u.is_active) ? (
-                  <span className="badge badge-enrolled">Active</span>
-                ) : (
-                  <span className="badge badge-dropped">Inactive</span>
-                )}
+                <div className="flex items-center gap-1 flex-wrap">
+                  {isGraduated(u) ? (
+                    <span className="badge badge-completed"
+                      title={`Graduated ${new Date(u.graduated_at).toLocaleDateString()}`}>
+                      <Icon name="award" size={10} /> Graduated
+                    </span>
+                  ) : isActiveVal(u.is_active) ? (
+                    <span className="badge badge-enrolled">Active</span>
+                  ) : (
+                    <span className="badge badge-dropped">Inactive</span>
+                  )}
+                  {u.irregularity?.isIrregular && (
+                    <span
+                      className="badge badge-amber text-[10px]"
+                      title={
+                        u.irregularity.reason === 'no_block'
+                          ? 'Irregular: no permanent block (transferee/shifter)'
+                          : `Irregular: ${u.irregularity.pendingRetakes} subject${u.irregularity.pendingRetakes === 1 ? '' : 's'} pending retake (${u.irregularity.pendingRetakeCodes.join(', ')})`
+                      }
+                    >
+                      <Icon name="refresh" size={10} /> Irregular
+                    </span>
+                  )}
+                </div>
               </td>
               <td className="table-td text-right">
                 <button className="btn-icon ml-auto" title="Edit" onClick={() => {

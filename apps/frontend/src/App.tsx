@@ -95,6 +95,32 @@ const studentNav = [
   { label: 'Account',    to: '/student/account',    icon: Settings      },
 ];
 
+/** Alumni sidebar — heavily pruned. Lock-screen features are hidden because
+ *  their backend routes are gated by `authorizeStudentActive`. */
+const alumniNav = [
+  { label: 'Overview',   to: '/student',           icon: Home          },
+  { label: 'Transcript', to: '/student/grades',    icon: BarChart2     },
+  { label: 'Account',    to: '/student/account',   icon: Settings      },
+];
+
+/**
+ * Picks studentNav vs alumniNav based on the user's effectiveRole. Same
+ * URL space; the alumni view just gets a trimmed sidebar. Pages that fetch
+ * gated data will 403 cleanly and render their own empty state.
+ */
+function StudentShell() {
+  const { user } = useAuth();
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== 'student') return <Navigate to={`/${user.role}`} replace />;
+  const isAlumni = user.effectiveRole === 'alumni';
+  return (
+    <AppLayout
+      navItems={isAlumni ? alumniNav : studentNav}
+      roleLabel={isAlumni ? 'Alumni' : 'Student'}
+    />
+  );
+}
+
 function Guard({ role }: { role: 'admin' | 'faculty' | 'student' }) {
   const { user } = useAuth();
   if (!user) return <Navigate to="/login" replace />;
@@ -150,8 +176,8 @@ export default function App() {
               <Route path="account"      element={<Account />} />
             </Route>
 
-            {/* Student */}
-            <Route path="/student" element={<><Guard role="student" /><AppLayout navItems={studentNav} roleLabel="Student" /></>}>
+            {/* Student / Alumni — same routes; sidebar + page content branch on effectiveRole */}
+            <Route path="/student" element={<StudentShell />}>
               <Route index element={<StudentDashboard />} />
               <Route path="curriculum" element={<StudentCurriculum />} />
               <Route path="grades"     element={<StudentGrades />} />
