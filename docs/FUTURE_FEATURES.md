@@ -12,7 +12,9 @@ cases, effort, dependencies, open questions) so anyone can pick them up cold.
 
 For the full list of what's *already* in the codebase, see
 [`PROJECT_OVERVIEW.md`](./PROJECT_OVERVIEW.md). This file is the **forward**
-view.
+view. For features specifically about **automation** (scheduled / event-driven
+logic) and **AI** (LLM-powered), see
+[`AI_AND_AUTOMATION.md`](./AI_AND_AUTOMATION.md).
 
 ---
 
