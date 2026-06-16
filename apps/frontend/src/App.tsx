@@ -5,6 +5,7 @@ import { Users as UsersIcon, GraduationCap, BookOpen, Calendar, School, Clipboar
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import AppLayout from './layouts/AppLayout';
+import EmptyState from './components/EmptyState';
 // Login + shell stay eager: they're on the critical path for the very first
 // paint and small enough that splitting them just costs a round trip.
 import Login from './pages/Login';
@@ -134,6 +135,22 @@ function RootRedirect() {
   return <Navigate to={`/${user.role}`} replace />;
 }
 
+function AlumniGuard({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user?.effectiveRole === 'alumni') {
+    return (
+      <div className="card p-0">
+        <EmptyState
+          icon="lock"
+          title="403 Forbidden"
+          message="This action is no longer available because your account is in alumni status."
+        />
+      </div>
+    );
+  }
+  return <>{children}</>;
+}
+
 export default function App() {
   return (
     <QueryClientProvider client={qc}>
@@ -181,11 +198,11 @@ export default function App() {
               <Route index element={<StudentDashboard />} />
               <Route path="curriculum" element={<StudentCurriculum />} />
               <Route path="grades"     element={<StudentGrades />} />
-              <Route path="schedule"   element={<StudentSchedule />} />
-              <Route path="wishlist"   element={<StudentWishlist />} />
-              <Route path="cor"        element={<StudentCor />} />
-              <Route path="appeals"    element={<StudentAppeals />} />
-              <Route path="evaluations" element={<StudentEvaluations />} />
+              <Route path="schedule"   element={<AlumniGuard><StudentSchedule /></AlumniGuard>} />
+              <Route path="wishlist"   element={<AlumniGuard><StudentWishlist /></AlumniGuard>} />
+              <Route path="cor"        element={<AlumniGuard><StudentCor /></AlumniGuard>} />
+              <Route path="appeals"    element={<AlumniGuard><StudentAppeals /></AlumniGuard>} />
+              <Route path="evaluations" element={<AlumniGuard><StudentEvaluations /></AlumniGuard>} />
               <Route path="account"    element={<Account />} />
             </Route>
           </Routes>
