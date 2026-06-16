@@ -597,6 +597,7 @@ the fanout atomic with the action that triggers it.
 | Looking for… | Path |
 |---|---|
 | Full backlog of unbuilt features | `docs/FUTURE_FEATURES.md` |
+| AI & automation feature specs | `docs/AI_AND_AUTOMATION.md` |
 | Deployment walkthrough | `README.md` |
 | Schema canonical truth | `migrations/schema.sql` |
 | Seed for fresh testing | `migrations/seed.sql` |
